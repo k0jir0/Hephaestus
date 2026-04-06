@@ -5,8 +5,7 @@ Add tasks below. The agent will pick them up in order.
 ## Queue
 
 <!-- Tasks are processed top-to-bottom. Add new tasks at the bottom. -->
-- [ ] Example: Review and optimize database queries
-- [ ] Example: Write unit tests for the new API endpoints
+- (empty)
 
 ## In Progress
 
@@ -17,6 +16,12 @@ Add tasks below. The agent will pick them up in order.
 
 <!-- Finished tasks will be moved here -->
 - (empty)
+
+## Cancelled
+
+<!-- Tasks that were superseded, repeated, or explicitly cancelled -->
+- Create a simple hello world TypeScript function
+  - cancelled at user request after repeated input
 
 ---
 
