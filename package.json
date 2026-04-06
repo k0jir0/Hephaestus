@@ -14,7 +14,7 @@
     "dev": "tsx src/agent.ts",
     "dev:once": "tsx src/agent.ts --once",
     "lint": "eslint src/**/*.ts",
-    "test": "tsx --test --test-concurrency=1 test/**/*.test.ts"
+    "test": "node scripts/run-tests.mjs"
   },
   "keywords": [
     "ai",
