@@ -1,6 +1,6 @@
 # hephaestus
 
-hephaestus is a self-targeting AI automation demo. It watches a Markdown task queue, gathers repository context, sends work to a configurable AI backend, and records state transitions in markdown so the workflow stays inspectable.
+Hephaestus is a self-targeting AI automation demo. It watches a Markdown task queue, gathers repository context, sends work to a configurable AI backend, and records state transitions in markdown so the workflow stays inspectable.
 
 This repository is configured to run hephaestus on itself by default. That makes it useful as a GitHub-ready demo of AI automation with visible guardrails instead of an opaque “magic agent” claim.
 
