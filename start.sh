@@ -25,7 +25,7 @@ if ! command -v node &> /dev/null; then
 fi
 
 # Install dependencies if needed
-if [ ! -d "node_modules" ]; then
+if [ ! -d "$AGENT_DIR/node_modules" ]; then
     echo "Installing dependencies..."
     cd "$AGENT_DIR"
     npm install

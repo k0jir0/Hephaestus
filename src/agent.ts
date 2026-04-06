@@ -14,6 +14,7 @@ import type { Task, AgentState } from './types.js';
 
 // Graceful shutdown handling
 let isShuttingDown = false;
+const runOnce = process.argv.includes('--once');
 
 async function main(): Promise<void> {
   logger.info('='.repeat(50));
@@ -22,7 +23,7 @@ async function main(): Promise<void> {
 
   // Initialize components
   const memory = new AgentMemory();
-  const safety = new SafetySystem(config.safety);
+  const safety = new SafetySystem();
   const executor = new AIExecutor();
   const watcher = new TaskWatcher();
 
@@ -45,6 +46,7 @@ async function main(): Promise<void> {
   logger.info(`Target Project: ${config.targetProject}`);
   logger.info(`Daily Budget: $${config.safety.dailyTokenBudget}`);
   logger.info(`Max Iterations: ${config.safety.maxIterations}`);
+  logger.info(`Mode: ${runOnce ? 'single-pass' : 'watch'}`);
 
   // Agent state
   const state: AgentState = {
@@ -187,6 +189,38 @@ async function main(): Promise<void> {
     }
   }
 
+  if (runOnce) {
+    const pendingTasks = await watcher.getPendingTasks();
+
+    if (pendingTasks.length === 0) {
+      logger.info('No pending tasks found. Exiting single-pass mode.');
+      await memory.addSessionSummary('Single-pass run found no pending tasks');
+      await memory.updateStatus('Idle', 'None');
+      return;
+    }
+
+    for (const task of pendingTasks) {
+      if (isShuttingDown) {
+        break;
+      }
+
+      const safetyCheck = await safety.shouldContinue();
+      if (!safetyCheck.allowed) {
+        logger.warn(`Cannot process task - safety check failed: ${safetyCheck.reason}`);
+        await memory.recordBlocker(task.description, safetyCheck.reason);
+        await memory.updateStatus('Blocked', task.description);
+        break;
+      }
+
+      await processTask(task);
+    }
+
+    await memory.addSessionSummary('Single-pass run complete');
+    await memory.updateStatus('Idle', 'None');
+    logger.info('Single-pass mode complete');
+    return;
+  }
+
   // Main loop - start watching for tasks
   await watcher.start(async (task: Task) => {
     if (isShuttingDown) return;
@@ -248,7 +282,7 @@ async function shutdown(signal: string): Promise<void> {
   try {
     // Log final status
     logger.info('Final status:');
-    const safety = new SafetySystem(config.safety);
+    const safety = new SafetySystem();
     logger.info(safety.getStatusSummary());
 
     // Save memory

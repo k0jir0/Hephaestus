@@ -1,25 +1,29 @@
 {
   "name": "hephaestus",
   "version": "1.0.0",
-  "description": "24/7 Autonomous AI Developer Agent",
+  "description": "Self-targeting AI automation demo agent",
   "main": "dist/agent.js",
   "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "npm run build && node dist/agent.js",
     "start:daemon": "npm run build && node dist/agent.js --daemon",
+    "start:once": "npm run build && node dist/agent.js --once",
     "watch": "tsc --watch",
     "dev": "tsx src/agent.ts",
+    "dev:once": "tsx src/agent.ts --once",
     "lint": "eslint src/**/*.ts",
-    "test": "echo \"No tests configured\""
+    "test": "tsx --test --test-concurrency=1 test/**/*.test.ts"
   },
   "keywords": [
     "ai",
+    "automation",
     "agent",
     "autonomous",
     "developer",
     "copilot",
-    "24/7"
+    "demo",
+    "self-hosting"
   ],
   "author": "",
   "license": "MIT",

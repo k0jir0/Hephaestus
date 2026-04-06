@@ -1,6 +1,6 @@
 # Hephaestus Task Queue
 
-Add tasks below. The agent will pick them up in order.
+Add tasks below. The agent processes the Queue section top-to-bottom.
 
 ## Queue
 
@@ -15,14 +15,13 @@ Add tasks below. The agent will pick them up in order.
 ## Completed
 
 <!-- Finished tasks will be moved here -->
-- (empty)
+- [x] Transform Hephaestus into a GitHub-submittable demo of AI automation - improve documentation, add LICENSE, tests, CI/CD workflow, and polish code for public release
 
 ## Cancelled
 
 <!-- Tasks that were superseded, repeated, or explicitly cancelled -->
-- Create a simple hello world TypeScript function
-  - cancelled at user request after repeated input
+- (empty)
 
 ---
 
-**Tip**: Use `- [ ]` for pending tasks. The agent marks them complete.
+**Tip**: Use `- [ ]` for pending tasks. Hephaestus moves tasks between sections as it works.

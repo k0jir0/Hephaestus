@@ -26,7 +26,7 @@ if not exist "%AGENT_DIR%node_modules" (
 
 REM Start the agent in background
 cd /d "%AGENT_DIR%"
-start /b cmd /c "npm run start:daemon 2^>^&1 ^> %LOG_FILE%"
+start /b cmd /c "npm run start:daemon > \"%LOG_FILE%\" 2>&1"
 
 echo Hephaestus started
 echo.

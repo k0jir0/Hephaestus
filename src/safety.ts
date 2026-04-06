@@ -3,12 +3,11 @@
  * Guardrails and circuit breakers for safe autonomous operation
  */
 
-import fs from 'fs/promises';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { config } from './config.js';
 import { createComponentLogger } from './logger.js';
-import type { AgentState, SafetyConfig } from './types.js';
+import type { AgentState } from './types.js';
 
 const execAsync = promisify(exec);
 const logger = createComponentLogger('Safety');
@@ -19,7 +18,7 @@ export class SafetySystem {
   private dailyStartTime: Date = new Date();
   private sessionCost: number = 0;
 
-  constructor(safetyConfig?: SafetyConfig) {
+  constructor() {
     this.state = {
       status: 'idle',
       iterationCount: 0,
@@ -153,18 +152,20 @@ export class SafetySystem {
 
       // Check if we're in a git repository
       try {
-        await execAsync('git rev-parse --is-inside-work-tree', { cwd: config.baseDir });
+        await execAsync('git rev-parse --is-inside-work-tree', {
+          cwd: config.targetProject,
+        });
       } catch {
         logger.debug('Not in a git repository, skipping auto-commit');
         return false;
       }
 
       // Stage all changes
-      await execAsync('git add -A', { cwd: config.baseDir });
+      await execAsync('git add -A', { cwd: config.targetProject });
 
       // Check if there are changes to commit
       const { stdout } = await execAsync('git status --porcelain', {
-        cwd: config.baseDir,
+        cwd: config.targetProject,
       });
 
       if (!stdout.trim()) {
@@ -173,7 +174,9 @@ export class SafetySystem {
       }
 
       // Commit
-      await execAsync(`git commit -m "${commitMessage}"`, { cwd: config.baseDir });
+      await execAsync(`git commit -m "${commitMessage}"`, {
+        cwd: config.targetProject,
+      });
 
       this.lastAutoCommit = new Date();
       logger.info('Auto-commit completed');
@@ -213,6 +216,7 @@ export class SafetySystem {
     return `
 === Hephaestus Safety Status ===
 Session Started: ${this.state.sessionStart.toISOString()}
+Budget Window Started: ${this.dailyStartTime.toISOString()}
 Total Tasks Completed: ${this.state.totalTasksCompleted}
 Iteration Count: ${this.state.iterationCount}/${config.safety.maxIterations}
 Consecutive Errors: ${this.state.consecutiveErrors}/${config.safety.errorThreshold}

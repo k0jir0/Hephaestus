@@ -52,8 +52,17 @@ function getEnvNumber(key: string, defaultValue: number): number {
   return isNaN(parsed) ? defaultValue : parsed;
 }
 
+function resolveFromBase(baseDir: string, candidate: string): string {
+  if (path.isAbsolute(candidate)) {
+    return candidate;
+  }
+
+  return path.resolve(baseDir, candidate);
+}
+
 export function loadConfig(): Config {
-  const baseDir = path.join(__dirname, '..');
+  const baseDir = path.resolve(__dirname, '..');
+  const targetProject = resolveFromBase(baseDir, getEnv('TARGET_PROJECT', '.'));
   
   return {
     // AI Backend
@@ -69,7 +78,7 @@ export function loadConfig(): Config {
     },
     
     // Project
-    targetProject: getEnv('TARGET_PROJECT', '../'),
+    targetProject,
     
     // Timing
     checkInterval: getEnvNumber('CHECK_INTERVAL', 60) * 1000, // Convert to ms

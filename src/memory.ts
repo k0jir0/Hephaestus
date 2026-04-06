@@ -4,7 +4,6 @@
  */
 
 import fs from 'fs/promises';
-import path from 'path';
 import { config } from './config.js';
 import { createComponentLogger } from './logger.js';
 import type { MemoryEntry, Task } from './types.js';
@@ -21,24 +20,28 @@ export class AgentMemory {
   }
 
   /**
-   * Initialize memory file if it doesn't exist
+   * Initialize memory file if it doesn't exist.
    */
   async initialize(): Promise<void> {
     try {
-      await fs.access(this.memoryFile);
+      const content = await fs.readFile(this.memoryFile, 'utf-8');
+      if (this.needsScaffold(content)) {
+        await this.createDefaultMemory();
+        return;
+      }
+
       await this.load();
     } catch {
-      // File doesn't exist, create with default content
       await this.createDefaultMemory();
     }
   }
 
   /**
-   * Load memory from file
+   * Load memory from file.
    */
   async load(): Promise<void> {
     try {
-      const content = await fs.readFile(this.memoryFile, 'utf-8');
+      await this.readMemoryFile();
       logger.debug('Memory loaded successfully');
     } catch (error) {
       logger.error('Error loading memory', { error: String(error) });
@@ -46,7 +49,7 @@ export class AgentMemory {
   }
 
   /**
-   * Create default memory file
+   * Create default memory file.
    */
   private async createDefaultMemory(): Promise<void> {
     const defaultContent = `# Hephaestus Agent Memory
@@ -109,7 +112,7 @@ This file stores the agent's long-term context and memory.
   }
 
   /**
-   * Record a completed task
+   * Record a completed task.
    */
   async recordTaskCompletion(task: Task, result: string): Promise<void> {
     const entry: MemoryEntry = {
@@ -125,7 +128,7 @@ This file stores the agent's long-term context and memory.
   }
 
   /**
-   * Record a blocker
+   * Record a blocker.
    */
   async recordBlocker(blocker: string, resolution?: string): Promise<void> {
     const entry: MemoryEntry = {
@@ -141,7 +144,7 @@ This file stores the agent's long-term context and memory.
   }
 
   /**
-   * Record a learned pattern
+   * Record a learned pattern.
    */
   async recordPattern(pattern: string): Promise<void> {
     const entry: MemoryEntry = {
@@ -157,7 +160,7 @@ This file stores the agent's long-term context and memory.
   }
 
   /**
-   * Record a user preference
+   * Record a user preference.
    */
   async recordPreference(preference: string): Promise<void> {
     const entry: MemoryEntry = {
@@ -173,110 +176,149 @@ This file stores the agent's long-term context and memory.
   }
 
   /**
-   * Update agent status in memory
+   * Update agent status in memory.
    */
   async updateStatus(status: string, task?: string): Promise<void> {
     try {
-      let content = await fs.readFile(this.memoryFile, 'utf-8');
-
-      // Update status
-      content = content.replace(
-        /- \*\*Status\*\*:.*/,
-        `- **Status**: ${status}`
-      );
-
-      // Update current task if provided
-      if (task !== undefined) {
-        content = content.replace(
-          /- \*\*Current Task\*\*:.*/,
-          `- **Current Task**: ${task || 'None'}`
+      await this.writeMemoryFile((content) => {
+        let updated = content.replace(
+          /- \*\*Status\*\*:.*/,
+          `- **Status**: ${status}`
         );
-      }
 
-      // Update last activity
-      content = content.replace(
-        /- \*\*Last Activity\*\*:.*/,
-        `- **Last Activity**: ${new Date().toISOString()}`
-      );
+        if (task !== undefined) {
+          updated = updated.replace(
+            /- \*\*Current Task\*\*:.*/,
+            `- **Current Task**: ${task || 'None'}`
+          );
+        }
 
-      await fs.writeFile(this.memoryFile, content, 'utf-8');
+        return updated.replace(
+          /- \*\*Last Activity\*\*:.*/,
+          `- **Last Activity**: ${new Date().toISOString()}`
+        );
+      });
     } catch (error) {
       logger.error('Error updating status in memory', { error: String(error) });
     }
   }
 
   /**
-   * Add to task history table
+   * Add to task history table.
    */
   async addToTaskHistory(task: Task, result: string): Promise<void> {
     try {
-      let content = await fs.readFile(this.memoryFile, 'utf-8');
-
       const date = new Date().toISOString().split('T')[0];
-      const newRow = `| ${date} | ${task.description.substring(0, 50)}... | ${result} |`;
+      const shortDescription =
+        task.description.length > 50
+          ? `${task.description.slice(0, 47)}...`
+          : task.description;
+      const newRow = `| ${date} | ${shortDescription} | ${result} |`;
 
-      // Find the table and add the row (after the header row)
-      const tableMatch = content.match(/(### Recent Completed Tasks\n\| Date \| Task \| Result \|\n\|------|------|--------|\n)(.*?)(\n\n)/s);
-      if (tableMatch) {
-        const tableBody = tableMatch[2];
-        const updatedBody = tableBody.replace('| (empty) | | |', newRow);
-        content = content.replace(tableMatch[0], `${tableMatch[1]}${updatedBody}\n`);
-      }
-
-      await fs.writeFile(this.memoryFile, content, 'utf-8');
+      await this.writeMemoryFile((content) =>
+        this.updateTableSection(
+          content,
+          '### Recent Completed Tasks',
+          '| (empty) | | |',
+          newRow
+        )
+      );
     } catch (error) {
       logger.error('Error adding to task history', { error: String(error) });
     }
   }
 
   /**
-   * Add a session summary
+   * Add a session summary.
    */
   async addSessionSummary(summary: string): Promise<void> {
     try {
-      let content = await fs.readFile(this.memoryFile, 'utf-8');
-
       const timestamp = new Date().toISOString();
-      const newEntry = `\n- [${timestamp}] ${summary}`;
+      const newEntry = `- [${timestamp}] ${summary}`;
 
-      // Find the Session Summaries section and add entry
-      const sectionMatch = content.match(/(### Session Summaries\n)(.*?)(\n---\*)/s);
-      if (sectionMatch) {
-        const sectionContent = sectionMatch[2];
-        const updatedSection = sectionContent + newEntry;
-        content = content.replace(sectionMatch[0], `${sectionMatch[1]}${updatedSection}${sectionMatch[3]}`);
-      }
-
-      await fs.writeFile(this.memoryFile, content, 'utf-8');
+      await this.writeMemoryFile((content) =>
+        this.appendLineToSection(
+          content,
+          '### Session Summaries',
+          newEntry,
+          '- (Brief summaries of work sessions)'
+        )
+      );
     } catch (error) {
       logger.error('Error adding session summary', { error: String(error) });
     }
   }
 
   /**
-   * Update the memory file with current entries
+   * Update the memory file with current entries.
    */
   private async updateMemoryFile(): Promise<void> {
-    // This is called after adding entries to rebuild/compact memory if needed
-    // For now, we append to specific sections in place
+    const latestEntry = this.entries.at(-1);
+    if (!latestEntry) {
+      return;
+    }
+
+    try {
+      if (latestEntry.type === 'pattern') {
+        await this.writeMemoryFile((content) =>
+          this.appendLineToSection(
+            content,
+            '### Known Patterns',
+            `- ${latestEntry.content}`,
+            '- (Agent populates this with learned patterns)'
+          )
+        );
+        return;
+      }
+
+      if (latestEntry.type === 'preference') {
+        await this.writeMemoryFile((content) =>
+          this.appendLineToSection(
+            content,
+            '### Coding Style',
+            `- ${latestEntry.content}`,
+            '- (Agent learns and records user preferences)'
+          )
+        );
+        return;
+      }
+
+      if (latestEntry.type === 'note' && latestEntry.content.startsWith('Blocker: ')) {
+        const blockerContent = latestEntry.content.slice('Blocker: '.length);
+        const [blocker, resolution = 'Unresolved'] = blockerContent.split(' - Resolution: ');
+        const date = latestEntry.timestamp.toISOString().split('T')[0];
+        const newRow = `| ${date} | ${blocker} | ${resolution} |`;
+
+        await this.writeMemoryFile((content) =>
+          this.updateTableSection(
+            content,
+            '### Blockers Encountered',
+            '| (empty) | | |',
+            newRow
+          )
+        );
+      }
+    } catch (error) {
+      logger.error('Error updating memory file', { error: String(error) });
+    }
   }
 
   /**
-   * Get all memory entries
+   * Get all memory entries.
    */
   getEntries(): MemoryEntry[] {
     return [...this.entries];
   }
 
   /**
-   * Get recent entries
+   * Get recent entries.
    */
   getRecentEntries(count: number = 10): MemoryEntry[] {
     return this.entries.slice(-count);
   }
 
   /**
-   * Clear old entries (memory compaction)
+   * Clear old entries (memory compaction).
    */
   async compact(): Promise<void> {
     const MAX_ENTRIES = 100;
@@ -284,5 +326,111 @@ This file stores the agent's long-term context and memory.
       this.entries = this.entries.slice(-MAX_ENTRIES);
       logger.info('Memory compacted');
     }
+  }
+
+  private needsScaffold(content: string): boolean {
+    return (
+      content.trim().length === 0 ||
+      !content.includes('## Current State') ||
+      !content.includes('### Session Summaries')
+    );
+  }
+
+  private async readMemoryFile(): Promise<string> {
+    const content = await fs.readFile(this.memoryFile, 'utf-8');
+    if (!this.needsScaffold(content)) {
+      return content;
+    }
+
+    await this.createDefaultMemory();
+    return fs.readFile(this.memoryFile, 'utf-8');
+  }
+
+  private async writeMemoryFile(
+    transform: (content: string) => string
+  ): Promise<void> {
+    const content = await this.readMemoryFile();
+    const updated = transform(content);
+    await fs.writeFile(this.memoryFile, updated, 'utf-8');
+  }
+
+  private appendLineToSection(
+    content: string,
+    sectionHeader: string,
+    lineToAdd: string,
+    placeholderLine?: string
+  ): string {
+    return this.updateSection(content, sectionHeader, (sectionLines) => {
+      const linesWithoutPlaceholder = placeholderLine
+        ? sectionLines.filter((line) => line.trim() !== placeholderLine)
+        : [...sectionLines];
+
+      if (linesWithoutPlaceholder.some((line) => line.trim() === lineToAdd)) {
+        return this.ensureTrailingBlankLine(linesWithoutPlaceholder);
+      }
+
+      const trimmed = this.trimTrailingBlankLines(linesWithoutPlaceholder);
+      return this.ensureTrailingBlankLine([...trimmed, lineToAdd]);
+    });
+  }
+
+  private updateTableSection(
+    content: string,
+    sectionHeader: string,
+    emptyRow: string,
+    newRow: string
+  ): string {
+    return this.updateSection(content, sectionHeader, (sectionLines) => {
+      const lines = [...sectionLines];
+      const emptyRowIndex = lines.findIndex((line) => line.trim() === emptyRow);
+      if (emptyRowIndex !== -1) {
+        lines[emptyRowIndex] = newRow;
+        return this.ensureTrailingBlankLine(lines);
+      }
+
+      const insertAt = this.trimTrailingBlankLines(lines).length;
+      lines.splice(insertAt, 0, newRow);
+      return this.ensureTrailingBlankLine(lines);
+    });
+  }
+
+  private updateSection(
+    content: string,
+    sectionHeader: string,
+    update: (sectionLines: string[]) => string[]
+  ): string {
+    const lines = content.split('\n');
+    const startIndex = lines.findIndex((line) => line.trim() === sectionHeader);
+    if (startIndex === -1) {
+      return content;
+    }
+
+    let endIndex = lines.length;
+    for (let index = startIndex + 1; index < lines.length; index++) {
+      if (/^(## |### |---)/.test(lines[index])) {
+        endIndex = index;
+        break;
+      }
+    }
+
+    const updatedSectionLines = update(lines.slice(startIndex + 1, endIndex));
+    return [
+      ...lines.slice(0, startIndex + 1),
+      ...updatedSectionLines,
+      ...lines.slice(endIndex),
+    ].join('\n');
+  }
+
+  private trimTrailingBlankLines(lines: string[]): string[] {
+    const trimmed = [...lines];
+    while (trimmed.length > 0 && trimmed[trimmed.length - 1].trim() === '') {
+      trimmed.pop();
+    }
+    return trimmed;
+  }
+
+  private ensureTrailingBlankLine(lines: string[]): string[] {
+    const trimmed = this.trimTrailingBlankLines(lines);
+    return [...trimmed, ''];
   }
 }

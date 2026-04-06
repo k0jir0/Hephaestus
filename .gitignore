@@ -1,8 +1,7 @@
-# Dependencies
-node_modules/
 
 # Build output
 dist/
+node_modules/
 
 # Environment files (contain secrets)
 .env
