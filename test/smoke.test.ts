@@ -70,6 +70,8 @@ function makeFixtureConfig(
     baseDir: rootDir,
     tasksFile,
     ticketStoreFile,
+    allowMarkdownTaskFallback: false,
+    taskBoardProjectionEnabled: true,
     agentMemoryFile: memoryFile,
     progressLog: path.join(rootDir, 'PROGRESS.log'),
     ollamaBaseUrl: 'http://localhost:11434',

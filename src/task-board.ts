@@ -42,8 +42,14 @@ const sectionMetadata: Record<
 const statusToSection: Record<TaskStatus, TaskSection> = {
   pending: 'Queue',
   in_progress: 'In Progress',
+  planned: 'In Progress',
+  awaiting_approval: 'In Progress',
+  applying: 'In Progress',
+  verifying: 'In Progress',
   completed: 'Completed',
+  merged: 'Completed',
   blocked: 'Blocked',
+  failed: 'Blocked',
   cancelled: 'Cancelled',
 };
 
@@ -153,7 +159,7 @@ export function renderTaskBoard(tasks: ReadonlyArray<Pick<TaskTicket, 'id' | 'de
 }
 
 function formatTaskLine(task: Pick<TaskTicket, 'id' | 'description' | 'status'>): string {
-  const checkbox = task.status === 'completed' || task.status === 'cancelled' ? '- [x]' : '- [ ]';
+  const checkbox = ['completed', 'merged', 'cancelled'].includes(task.status) ? '- [x]' : '- [ ]';
   return `${checkbox} ${task.description}${formatTaskBoardTicketComment(task.id)}`;
 }
 

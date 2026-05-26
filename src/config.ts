@@ -39,6 +39,8 @@ export interface Config {
   baseDir: string;
   tasksFile: string;
   ticketStoreFile: string;
+  allowMarkdownTaskFallback: boolean;
+  taskBoardProjectionEnabled: boolean;
   agentMemoryFile: string;
   progressLog: string;
   
@@ -62,6 +64,22 @@ function getEnvNumber(key: string, defaultValue: number): number {
   if (value === undefined) return defaultValue;
   const parsed = parseFloat(value);
   return isNaN(parsed) ? defaultValue : parsed;
+}
+
+function getEnvBoolean(key: string, defaultValue: boolean): boolean {
+  const value = process.env[key];
+  if (value === undefined) return defaultValue;
+
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) {
+    return true;
+  }
+
+  if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) {
+    return false;
+  }
+
+  return defaultValue;
 }
 
 function resolveFromBase(baseDir: string, candidate: string): string {
@@ -102,6 +120,8 @@ export function loadConfig(): Config {
       baseDir,
       getEnv('TICKETS_DB_FILE', '.hephaestus-tickets.db')
     ),
+    allowMarkdownTaskFallback: getEnvBoolean('ALLOW_MARKDOWN_TASK_FALLBACK', false),
+    taskBoardProjectionEnabled: getEnvBoolean('TASK_BOARD_PROJECTION_ENABLED', true),
     agentMemoryFile: path.join(baseDir, 'AGENT.md'),
     progressLog: path.join(baseDir, 'PROGRESS.log'),
     
@@ -134,6 +154,20 @@ export function validateConfig(candidate: Config): ConfigValidationIssue[] {
     issues.push({
       code: 'missing-ticket-store-file',
       message: 'TICKETS_DB_FILE must resolve to a non-empty path.',
+    });
+  }
+
+  if (typeof candidate.allowMarkdownTaskFallback !== 'boolean') {
+    issues.push({
+      code: 'invalid-markdown-fallback',
+      message: 'ALLOW_MARKDOWN_TASK_FALLBACK must be a boolean value.',
+    });
+  }
+
+  if (typeof candidate.taskBoardProjectionEnabled !== 'boolean') {
+    issues.push({
+      code: 'invalid-task-board-projection',
+      message: 'TASK_BOARD_PROJECTION_ENABLED must be a boolean value.',
     });
   }
 

@@ -9,7 +9,14 @@ import {
   parseTaskBoard,
   renderTaskBoard,
 } from './task-board.js';
-import type { Task, TaskEvent, TaskStatus, TaskTicket } from './types.js';
+import type {
+  Task,
+  TaskAttempt,
+  TaskAttemptStatus,
+  TaskEvent,
+  TaskStatus,
+  TaskTicket,
+} from './types.js';
 import { TaskWatcher } from './watcher.js';
 
 const logger = createComponentLogger('TaskStore');
@@ -20,9 +27,11 @@ export interface TicketStoreRepositoryOptions {
   tasksFile?: string;
   storeFile?: string;
   forceMarkdownFallback?: boolean;
+  allowMarkdownFallback?: boolean;
   importLegacyTaskBoardIfStoreEmpty?: boolean;
   projectionEnabled?: boolean;
   pollingIntervalMs?: number;
+  redispatchPendingAfterMs?: number;
 }
 
 interface TicketRow {
@@ -36,11 +45,25 @@ interface TicketRow {
   completed_at: string | null;
   blocked_at: string | null;
   cancelled_at: string | null;
+  current_attempt_id: string | null;
   result: string | null;
   error: string | null;
   plan_json: string | null;
   attempt_count: number;
   source_order: number;
+}
+
+interface TaskAttemptRow {
+  id: string;
+  ticket_id: string;
+  attempt_number: number;
+  status: TaskAttemptStatus;
+  started_at: string;
+  ended_at: string | null;
+  result: string | null;
+  error: string | null;
+  plan_json: string | null;
+  artifacts_json: string | null;
 }
 
 interface TicketEventRow {
@@ -55,25 +78,32 @@ export class TicketStoreRepository implements TaskRepository {
   private readonly storeFile: string;
   private readonly fallbackWatcher: TaskWatcher;
   private readonly forceMarkdownFallback: boolean;
+  private readonly allowMarkdownFallback: boolean;
   private readonly importLegacyTaskBoardIfStoreEmpty: boolean;
   private readonly projectionEnabled: boolean;
   private readonly pollingIntervalMs: number;
+  private readonly redispatchPendingAfterMs: number;
   private readonly knownPendingTaskIds = new Set<string>();
+  private readonly pendingRedispatchAfter = new Map<string, number>();
+  private readonly pendingDispatchInFlight = new Set<string>();
   private pendingPollTimer: NodeJS.Timeout | null = null;
   private onNewTask: ((task: Task) => Promise<void>) | null = null;
   private db: DatabaseSync | null = null;
   private initialization: Promise<void> | null = null;
   private usingFallback = false;
   private projectionSuspended = false;
+  private dispatchInProgress = false;
 
   constructor(options: TicketStoreRepositoryOptions = {}) {
     this.tasksFile = options.tasksFile ?? config.tasksFile;
     this.storeFile = options.storeFile ?? config.ticketStoreFile;
     this.forceMarkdownFallback = options.forceMarkdownFallback ?? false;
+    this.allowMarkdownFallback = options.allowMarkdownFallback ?? false;
     this.importLegacyTaskBoardIfStoreEmpty =
       options.importLegacyTaskBoardIfStoreEmpty ?? true;
     this.projectionEnabled = options.projectionEnabled ?? true;
     this.pollingIntervalMs = options.pollingIntervalMs ?? 1000;
+    this.redispatchPendingAfterMs = options.redispatchPendingAfterMs ?? 60_000;
     this.fallbackWatcher = new TaskWatcher(this.tasksFile);
   }
 
@@ -113,6 +143,11 @@ export class TicketStoreRepository implements TaskRepository {
       this.db = null;
       this.initialization = null;
     }
+
+    this.knownPendingTaskIds.clear();
+    this.pendingRedispatchAfter.clear();
+    this.pendingDispatchInFlight.clear();
+    this.onNewTask = null;
   }
 
   async getPendingTasks(): Promise<Task[]> {
@@ -145,22 +180,39 @@ export class TicketStoreRepository implements TaskRepository {
     }
 
     const now = new Date().toISOString();
+    const attemptNumber = ticket.attempt_count + 1;
+    const attemptId = this.generateAttemptId();
+    this.insertAttempt({
+      id: attemptId,
+      ticketId: ticket.id,
+      attemptNumber,
+      status: 'in_progress',
+      startedAt: now,
+    });
+
     this.getDatabase()
       .prepare(
         `update tickets
          set status = 'in_progress',
              updated_at = ?,
              started_at = coalesce(started_at, ?),
-             attempt_count = attempt_count + 1,
+             attempt_count = ?,
+             current_attempt_id = ?,
              error = null
          where id = ?`
       )
-      .run(now, now, ticket.id);
+      .run(now, now, attemptNumber, attemptId, ticket.id);
     this.recordEvent({
       ticketId: ticket.id,
       type: 'claimed',
       createdAt: new Date(now),
-      details: task.description,
+      details: `${task.description} (${attemptId})`,
+    });
+    this.recordEvent({
+      ticketId: ticket.id,
+      type: 'attempt-started',
+      createdAt: new Date(now),
+      details: attemptId,
     });
 
     await this.writeProjectionSafely();
@@ -181,6 +233,13 @@ export class TicketStoreRepository implements TaskRepository {
     }
 
     const now = new Date().toISOString();
+    this.finishCurrentAttempt(ticket, {
+      status: 'completed',
+      endedAt: now,
+      result: task.result,
+      planJson: task.plan ? JSON.stringify(task.plan) : undefined,
+    });
+
     this.getDatabase()
       .prepare(
         `update tickets
@@ -198,6 +257,12 @@ export class TicketStoreRepository implements TaskRepository {
       type: 'completed',
       createdAt: new Date(now),
       details: task.result,
+    });
+    this.recordEvent({
+      ticketId: ticket.id,
+      type: 'attempt-finished',
+      createdAt: new Date(now),
+      details: ticket.current_attempt_id ?? undefined,
     });
 
     await this.writeProjectionSafely();
@@ -218,6 +283,13 @@ export class TicketStoreRepository implements TaskRepository {
     }
 
     const now = new Date().toISOString();
+    this.finishCurrentAttempt(ticket, {
+      status: 'blocked',
+      endedAt: now,
+      error: task.error,
+      planJson: task.plan ? JSON.stringify(task.plan) : undefined,
+    });
+
     this.getDatabase()
       .prepare(
         `update tickets
@@ -234,6 +306,12 @@ export class TicketStoreRepository implements TaskRepository {
       type: 'blocked',
       createdAt: new Date(now),
       details: task.error,
+    });
+    this.recordEvent({
+      ticketId: ticket.id,
+      type: 'attempt-finished',
+      createdAt: new Date(now),
+      details: ticket.current_attempt_id ?? undefined,
     });
 
     await this.writeProjectionSafely();
@@ -359,8 +437,8 @@ export class TicketStoreRepository implements TaskRepository {
       throw new Error(`Ticket not found: ${ticketId}`);
     }
 
-    if (ticket.status !== 'blocked' && ticket.status !== 'cancelled') {
-      throw new Error(`Only blocked or cancelled tickets can be retried. Current status: ${ticket.status}`);
+    if (ticket.status !== 'blocked' && ticket.status !== 'failed' && ticket.status !== 'cancelled') {
+      throw new Error(`Only blocked, failed, or cancelled tickets can be retried. Current status: ${ticket.status}`);
     }
 
     const now = new Date().toISOString();
@@ -372,6 +450,7 @@ export class TicketStoreRepository implements TaskRepository {
              blocked_at = null,
              cancelled_at = null,
              error = null,
+             current_attempt_id = null,
              source_order = ?
          where id = ?`
       )
@@ -392,6 +471,78 @@ export class TicketStoreRepository implements TaskRepository {
     }
 
     return updatedTicket;
+  }
+
+  async cancelTicket(ticketId: string, reason = 'Cancelled by operator.'): Promise<TaskTicket> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      throw new Error(
+        'Ticket cancellation is unavailable in markdown fallback mode. Edit TASKS.md manually or enable SQLite.'
+      );
+    }
+
+    const ticket = await this.getTicket(ticketId);
+    if (!ticket) {
+      throw new Error(`Ticket not found: ${ticketId}`);
+    }
+
+    const now = new Date().toISOString();
+    const row = this.findTicketForTask(ticket);
+    if (row) {
+      this.finishCurrentAttempt(row, {
+        status: 'cancelled',
+        endedAt: now,
+        error: reason,
+      });
+    }
+
+    this.getDatabase()
+      .prepare(
+        `update tickets
+         set status = 'cancelled',
+             updated_at = ?,
+             cancelled_at = ?,
+             error = ?,
+             current_attempt_id = null
+         where id = ?`
+      )
+      .run(now, now, reason, ticketId);
+
+    this.recordEvent({
+      ticketId,
+      type: 'cancelled',
+      createdAt: new Date(now),
+      details: reason,
+    });
+
+    await this.writeProjectionSafely();
+
+    const updatedTicket = await this.getTicket(ticketId);
+    if (!updatedTicket) {
+      throw new Error(`Cancelled ticket ${ticketId} could not be loaded.`);
+    }
+
+    return updatedTicket;
+  }
+
+  async listAttempts(ticketId: string): Promise<TaskAttempt[]> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      return [];
+    }
+
+    const rows = this.getDatabase()
+      .prepare(
+        `select *
+         from ticket_attempts
+         where ticket_id = ?
+         order by attempt_number asc`
+      )
+      .all(ticketId) as unknown as TaskAttemptRow[];
+
+    return rows.map((row) => this.mapAttemptRow(row));
   }
 
   async renderTaskBoardProjection(): Promise<string> {
@@ -443,6 +594,7 @@ export class TicketStoreRepository implements TaskRepository {
           completed_at text,
           blocked_at text,
           cancelled_at text,
+          current_attempt_id text,
           result text,
           error text,
           plan_json text,
@@ -466,16 +618,53 @@ export class TicketStoreRepository implements TaskRepository {
 
         create index if not exists idx_ticket_events_ticket_created
           on ticket_events(ticket_id, created_at);
+
+        create table if not exists ticket_attempts (
+          id text primary key,
+          ticket_id text not null,
+          attempt_number integer not null,
+          status text not null,
+          started_at text not null,
+          ended_at text,
+          result text,
+          error text,
+          plan_json text,
+          artifacts_json text,
+          unique(ticket_id, attempt_number)
+        );
+
+        create index if not exists idx_ticket_attempts_ticket_number
+          on ticket_attempts(ticket_id, attempt_number);
+
+        create table if not exists schema_migrations (
+          version integer primary key,
+          description text not null,
+          applied_at text not null
+        );
       `);
+
+      this.applySchemaMigrations();
 
       await this.bootstrapLegacyTaskBoardIfStoreEmpty();
       await this.writeProjectionSafely(true);
     } catch (error) {
-      this.usingFallback = true;
-      logger.warn('Falling back to markdown-only task repository', {
-        error: String(error),
-        storeFile: this.storeFile,
-      });
+      if (this.db) {
+        this.db.close();
+        this.db = null;
+      }
+
+      if (this.allowMarkdownFallback) {
+        this.usingFallback = true;
+        logger.warn('Falling back to markdown-only task repository', {
+          error: String(error),
+          storeFile: this.storeFile,
+        });
+        return;
+      }
+
+      throw new Error(
+        `Ticket store initialization failed and markdown fallback is disabled: ${String(error)}`
+      );
     }
   }
 
@@ -498,22 +687,73 @@ export class TicketStoreRepository implements TaskRepository {
     }
   }
 
-  private async dispatchPendingTasks(): Promise<void> {
-    const tasks = this.listTasksByStatus('pending');
-    const newTasks = tasks.filter((task) => !this.knownPendingTaskIds.has(task.id));
+  private applySchemaMigrations(): void {
+    const db = this.getDatabase();
+    const ticketColumns = db.prepare('pragma table_info(tickets)').all() as Array<{ name: string }>;
+    const ticketColumnNames = new Set(ticketColumns.map((column) => column.name));
 
-    this.knownPendingTaskIds.clear();
-    for (const task of tasks) {
-      this.knownPendingTaskIds.add(task.id);
+    if (!ticketColumnNames.has('current_attempt_id')) {
+      db.exec('alter table tickets add column current_attempt_id text;');
     }
 
-    if (newTasks.length === 0 || !this.onNewTask) {
+    db.prepare(
+      `insert or ignore into schema_migrations (version, description, applied_at)
+       values (?, ?, ?)`
+    ).run(
+      1,
+      'add durable ticket attempts and current attempt tracking',
+      new Date().toISOString()
+    );
+  }
+
+  private async dispatchPendingTasks(): Promise<void> {
+    if (this.dispatchInProgress) {
       return;
     }
 
-    logger.info(`Found ${newTasks.length} new task(s) in the ticket store`);
-    for (const task of newTasks) {
-      await this.onNewTask(task);
+    this.dispatchInProgress = true;
+    try {
+      const tasks = this.listTasksByStatus('pending');
+      const now = Date.now();
+      const newTasks = tasks.filter((task) => {
+        if (this.pendingDispatchInFlight.has(task.id)) {
+          return false;
+        }
+
+        if (!this.knownPendingTaskIds.has(task.id)) {
+          return true;
+        }
+
+        return (this.pendingRedispatchAfter.get(task.id) ?? Number.POSITIVE_INFINITY) <= now;
+      });
+
+      this.knownPendingTaskIds.clear();
+      for (const task of tasks) {
+        this.knownPendingTaskIds.add(task.id);
+      }
+
+      if (newTasks.length === 0 || !this.onNewTask) {
+        return;
+      }
+
+      logger.info(`Found ${newTasks.length} new task(s) in the ticket store`);
+      for (const task of newTasks) {
+        this.pendingDispatchInFlight.add(task.id);
+        try {
+          await this.onNewTask(task);
+        } finally {
+          this.pendingDispatchInFlight.delete(task.id);
+        }
+
+        const refreshedTicket = await this.getTicket(task.id);
+        if (refreshedTicket?.status === 'pending') {
+          this.pendingRedispatchAfter.set(task.id, Date.now() + this.redispatchPendingAfterMs);
+        } else {
+          this.pendingRedispatchAfter.delete(task.id);
+        }
+      }
+    } finally {
+      this.dispatchInProgress = false;
     }
   }
 
@@ -552,6 +792,83 @@ export class TicketStoreRepository implements TaskRepository {
       createdAt: new Date(now),
       details: input.description,
     });
+  }
+
+  private insertAttempt(input: {
+    id: string;
+    ticketId: string;
+    attemptNumber: number;
+    status: TaskAttemptStatus;
+    startedAt: string;
+  }): void {
+    this.getDatabase()
+      .prepare(
+        `insert into ticket_attempts (
+          id,
+          ticket_id,
+          attempt_number,
+          status,
+          started_at,
+          artifacts_json
+        ) values (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        input.id,
+        input.ticketId,
+        input.attemptNumber,
+        input.status,
+        input.startedAt,
+        JSON.stringify([])
+      );
+  }
+
+  private finishCurrentAttempt(
+    ticket: TicketRow,
+    update: {
+      status: TaskAttemptStatus;
+      endedAt: string;
+      result?: string;
+      error?: string;
+      planJson?: string;
+    }
+  ): void {
+    const attemptId = ticket.current_attempt_id ?? this.getLatestAttemptId(ticket.id);
+    if (!attemptId) {
+      return;
+    }
+
+    this.getDatabase()
+      .prepare(
+        `update ticket_attempts
+         set status = ?,
+             ended_at = ?,
+             result = coalesce(?, result),
+             error = coalesce(?, error),
+             plan_json = coalesce(?, plan_json)
+         where id = ?`
+      )
+      .run(
+        update.status,
+        update.endedAt,
+        update.result ?? null,
+        update.error ?? null,
+        update.planJson ?? null,
+        attemptId
+      );
+  }
+
+  private getLatestAttemptId(ticketId: string): string | null {
+    const row = this.getDatabase()
+      .prepare(
+        `select id
+         from ticket_attempts
+         where ticket_id = ?
+         order by attempt_number desc
+         limit 1`
+      )
+      .get(ticketId) as { id: string } | undefined;
+
+    return row?.id ?? null;
   }
 
   private findTicketForTask(task: Task): TicketRow | null {
@@ -617,11 +934,27 @@ export class TicketStoreRepository implements TaskRepository {
       completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
       blockedAt: row.blocked_at ? new Date(row.blocked_at) : undefined,
       cancelledAt: row.cancelled_at ? new Date(row.cancelled_at) : undefined,
+      currentAttemptId: row.current_attempt_id ?? undefined,
       result: row.result ?? undefined,
       error: row.error ?? undefined,
       plan: row.plan_json ? JSON.parse(row.plan_json) : undefined,
       attemptCount: row.attempt_count,
       sourceOrder: row.source_order,
+    };
+  }
+
+  private mapAttemptRow(row: TaskAttemptRow): TaskAttempt {
+    return {
+      id: row.id,
+      ticketId: row.ticket_id,
+      attemptNumber: row.attempt_number,
+      status: row.status,
+      startedAt: new Date(row.started_at),
+      endedAt: row.ended_at ? new Date(row.ended_at) : undefined,
+      result: row.result ?? undefined,
+      error: row.error ?? undefined,
+      plan: row.plan_json ? JSON.parse(row.plan_json) : undefined,
+      artifacts: row.artifacts_json ? JSON.parse(row.artifacts_json) as string[] : [],
     };
   }
 
@@ -694,6 +1027,10 @@ export class TicketStoreRepository implements TaskRepository {
 
   private generateTicketId(): string {
     return `ticket_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  }
+
+  private generateAttemptId(): string {
+    return `attempt_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
   }
 }
 

@@ -6,11 +6,12 @@ This repository is configured to run Hephaestus on itself by default. That makes
 
 ## What It Demonstrates
 
-- Queue-driven automation through `TASKS.md`
+- Queue-driven automation through durable ticket objects
 - Canonical ticket objects backed by a local SQLite task store
 - Operator ticket management through `npm run tickets`
 - Startup preflight and policy-first task admission before queue mutation
 - Structured planning contracts with intended files, commands, verification, and risks
+- Typed engineering tool runtime for bounded reads, search, patch validation/application, and allowlisted commands
 - Ticket-store-backed repository adapters with markdown projection and bounded fixture smoke coverage
 - Repository context gathering from `package.json`, `README.md`, and git status
 - Pluggable AI backends for GitHub Copilot CLI, OpenAI, Claude, and Ollama
@@ -82,7 +83,7 @@ Before a task leaves `Queue`, Hephaestus now runs an admission gate that checks 
 
 If a task fails after it has already moved into `In Progress`, Hephaestus now moves it into a `Blocked` section instead of leaving it stranded. That keeps the queue accurate and makes operator follow-up explicit.
 
-`TASKS.md` is now an optional projection, not the canonical source of truth. Hephaestus stores durable ticket state in `TICKETS_DB_FILE` and rewrites the markdown board from that store when projection is available. New work should be created through the ticket CLI rather than by editing markdown.
+`TASKS.md` is now an optional projection, not the canonical source of truth. Hephaestus stores durable ticket state in `TICKETS_DB_FILE` and rewrites the markdown board from that store when projection is available. New work should be created through the ticket CLI rather than by editing markdown. Set `TASK_BOARD_PROJECTION_ENABLED=false` if projection writes are noisy or blocked by local file locks.
 
 When a task is admitted, the executor now returns a structured plan instead of only free-form prose. Each successful plan contains:
 
@@ -91,7 +92,7 @@ When a task is admitted, the executor now returns a structured plan instead of o
 - verification steps
 - risk notes
 
-The runtime now talks to explicit task and memory repository interfaces. The default task implementation uses a local SQLite ticket store with markdown projection, and falls back to markdown-only behavior when SQLite is unavailable.
+The runtime now talks to explicit task and memory repository interfaces. The default task implementation uses a local SQLite ticket store with markdown projection. Markdown-only fallback is available only when `ALLOW_MARKDOWN_TASK_FALLBACK=true`, so ticket-store failures do not silently change runtime behavior.
 
 ## Ticket CLI
 
@@ -100,8 +101,18 @@ npm run tickets -- create "Add a retry policy"
 npm run tickets -- list --status blocked
 npm run tickets -- show ticket_abc123
 npm run tickets -- retry ticket_abc123
+npm run tickets -- cancel ticket_abc123 "Superseded by ticket_456"
+npm run tickets -- attempts ticket_abc123
 npm run tickets -- render-board
 ```
+
+## Runtime Requirements
+
+Hephaestus requires Node.js 22.5 or newer because the default ticket store uses `node:sqlite`.
+
+## Tool Runtime
+
+The first typed engineering tools live behind a policy runtime. It supports bounded repository search, protected-path-aware file reads, patch dry-runs and application through `git apply`, and exact allowlisted verification commands. Delivery tools for branches, commits, and pull requests are defined but fail closed until approval-backed adapters are added.
 
 ## Architecture
 

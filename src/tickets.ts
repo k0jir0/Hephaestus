@@ -4,8 +4,14 @@ import type { TaskStatus } from './types.js';
 const validStatuses: TaskStatus[] = [
   'pending',
   'in_progress',
+  'planned',
+  'awaiting_approval',
+  'applying',
+  'verifying',
   'completed',
+  'merged',
   'blocked',
+  'failed',
   'cancelled',
 ];
 
@@ -17,11 +23,13 @@ Usage:
   npm run tickets -- list [--status <status>]
   npm run tickets -- show <ticket-id>
   npm run tickets -- retry <ticket-id>
+  npm run tickets -- cancel <ticket-id> [reason]
+  npm run tickets -- attempts <ticket-id>
   npm run tickets -- render-board
   npm run tickets -- sync-board
 
 Statuses:
-  pending, in_progress, completed, blocked, cancelled
+  ${validStatuses.join(', ')}
 `);
 }
 
@@ -126,6 +134,17 @@ async function main(): Promise<void> {
             console.log(`  ${event.createdAt.toISOString()} ${event.type}${details}`);
           }
         }
+
+        const attempts = await repository.listAttempts(ticket.id);
+        if (attempts.length > 0) {
+          console.log('Attempts:');
+          for (const attempt of attempts) {
+            const endedAt = attempt.endedAt ? attempt.endedAt.toISOString() : '-';
+            console.log(
+              `  #${attempt.attemptNumber} ${attempt.id} ${attempt.status} ${attempt.startedAt.toISOString()} -> ${endedAt}`
+            );
+          }
+        }
         break;
       }
 
@@ -137,6 +156,39 @@ async function main(): Promise<void> {
 
         const ticket = await repository.retryTicket(ticketId);
         console.log(`Retried ${ticket.id}; new status: ${ticket.status}`);
+        break;
+      }
+
+      case 'cancel': {
+        const ticketId = args[0];
+        if (!ticketId) {
+          throw new Error('cancel requires a ticket id.');
+        }
+
+        const reason = args.slice(1).join(' ').trim() || undefined;
+        const ticket = await repository.cancelTicket(ticketId, reason);
+        console.log(`Cancelled ${ticket.id}; new status: ${ticket.status}`);
+        break;
+      }
+
+      case 'attempts': {
+        const ticketId = args[0];
+        if (!ticketId) {
+          throw new Error('attempts requires a ticket id.');
+        }
+
+        const attempts = await repository.listAttempts(ticketId);
+        if (attempts.length === 0) {
+          console.log('No attempts found.');
+          break;
+        }
+
+        for (const attempt of attempts) {
+          const endedAt = attempt.endedAt ? attempt.endedAt.toISOString() : '-';
+          console.log(
+            `${attempt.id}\t#${attempt.attemptNumber}\t${attempt.status}\t${attempt.startedAt.toISOString()}\t${endedAt}`
+          );
+        }
         break;
       }
 
