@@ -46,7 +46,7 @@ describe('TaskWatcher', () => {
 
 ## Queue
 
-- [ ] **IN PROGRESS**: **IN PROGRESS**: Ship demo
+- [ ] **IN PROGRESS**: **IN PROGRESS**: Ship demo <!-- hephaestus-ticket:ticket_demo -->
 - [ ] Add CI
 
 ## In Progress
@@ -64,6 +64,7 @@ describe('TaskWatcher', () => {
       tasks.map((task) => task.description),
       ['Ship demo', 'Add CI']
     );
+    assert.equal(tasks[0]?.id, 'ticket_demo');
   });
 
   it('moves queue tasks into the in-progress section', async () => {
@@ -120,5 +121,51 @@ describe('TaskWatcher', () => {
     const updated = await fs.readFile(config.tasksFile, 'utf-8');
     assert.match(updated, /## In Progress[\s\S]*- \(empty\)/);
     assert.match(updated, /## Completed[\s\S]*- \[x\] Ship demo/);
+  });
+
+  it('moves failed in-progress tasks into a blocked section', async () => {
+    config.tasksFile = await createTempTasksFile(`# Hephaestus Task Queue
+
+## Queue
+
+- (empty)
+
+## In Progress
+
+- [ ] Ship demo
+
+## Completed
+
+- (empty)
+
+## Cancelled
+
+- (empty)
+`);
+
+    const watcher = new TaskWatcher();
+    await watcher.markTaskBlocked(makeTask('Ship demo'));
+
+    const updated = await fs.readFile(config.tasksFile, 'utf-8');
+    assert.match(updated, /## In Progress[\s\S]*- \(empty\)/);
+    assert.match(updated, /## Blocked[\s\S]*- \[ \] Ship demo/);
+    assert.match(updated, /## Blocked[\s\S]*## Cancelled/);
+  });
+
+  it('supports Windows CRLF task files for queue parsing and transitions', async () => {
+    config.tasksFile = await createTempTasksFile(
+      '# Hephaestus Task Queue\r\n\r\n## Queue\r\n\r\n- [ ] Ship demo\r\n\r\n## In Progress\r\n\r\n- (empty)\r\n\r\n## Completed\r\n\r\n- (empty)\r\n\r\n## Cancelled\r\n\r\n- (empty)\r\n'
+    );
+
+    const watcher = new TaskWatcher();
+    const [task] = await watcher.getPendingTasks();
+
+    assert.equal(task?.description, 'Ship demo');
+
+    await watcher.markTaskInProgress(makeTask('Ship demo'));
+
+    const updated = await fs.readFile(config.tasksFile, 'utf-8');
+    assert.match(updated, /## Queue[\s\S]*- \(empty\)/);
+    assert.match(updated, /## In Progress[\s\S]*- \[ \] Ship demo/);
   });
 });

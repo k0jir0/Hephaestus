@@ -98,6 +98,7 @@ describe('HephaestusRuntime', () => {
     const calls = {
       markTaskInProgress: 0,
       markTaskCompleted: 0,
+      markTaskBlocked: 0,
       completions: [] as string[],
       history: [] as string[],
       summaries: [] as string[],
@@ -129,6 +130,9 @@ describe('HephaestusRuntime', () => {
         },
         async markTaskCompleted() {
           calls.markTaskCompleted++;
+        },
+        async markTaskBlocked() {
+          calls.markTaskBlocked++;
         },
       },
       executor: {
@@ -171,8 +175,91 @@ describe('HephaestusRuntime', () => {
 
     assert.equal(calls.markTaskInProgress, 1);
     assert.equal(calls.markTaskCompleted, 1);
+    assert.equal(calls.markTaskBlocked, 0);
     assert.equal(calls.history[0], 'Plan ready');
     assert.match(calls.completions[0] || '', /Planned files: 0/);
     assert.ok(calls.summaries.includes('Planned: Plan the runtime'));
+  });
+
+  it('moves failed in-progress tasks into blocked instead of leaving them stranded', async () => {
+    const task = makeTask('Ship demo');
+    const calls = {
+      markTaskInProgress: 0,
+      markTaskCompleted: 0,
+      markTaskBlocked: 0,
+      blockers: [] as string[],
+      summaries: [] as string[],
+    };
+
+    const runtime = new HephaestusRuntime({
+      memory: {
+        async initialize() {},
+        async updateStatus() {},
+        async recordTaskCompletion() {},
+        async recordBlocker(_blocker, resolution) {
+          calls.blockers.push(resolution || '');
+        },
+        async addToTaskHistory() {},
+        async addSessionSummary(summary) {
+          calls.summaries.push(summary);
+        },
+      },
+      watcher: {
+        async start() {},
+        async stop() {},
+        async getPendingTasks() {
+          return [task];
+        },
+        async markTaskInProgress() {
+          calls.markTaskInProgress++;
+        },
+        async markTaskCompleted() {
+          calls.markTaskCompleted++;
+        },
+        async markTaskBlocked() {
+          calls.markTaskBlocked++;
+        },
+      },
+      executor: {
+        async executeTask(): Promise<AIResponse> {
+          return {
+            success: false,
+            content: 'Structured plan validation failed',
+          };
+        },
+        async checkHealth() {
+          return { available: true, message: 'ok' };
+        },
+      },
+      safety: {
+        async shouldContinue() {
+          return { allowed: true };
+        },
+        recordSuccess() {},
+        recordError() {},
+        recordTaskCompletion() {},
+        recordTokenUsage() {},
+        shouldAutoCommit() {
+          return false;
+        },
+        async performAutoCommit() {
+          return false;
+        },
+        getStatusSummary() {
+          return 'ok';
+        },
+        resetDailyCounters() {},
+      },
+      preflightRunner: async () => ({ ok: true, issues: [] }),
+      contextProvider: async () => 'README excerpt',
+    });
+
+    await runtime.run({ runOnce: true });
+
+    assert.equal(calls.markTaskInProgress, 1);
+    assert.equal(calls.markTaskCompleted, 0);
+    assert.equal(calls.markTaskBlocked, 1);
+    assert.deepEqual(calls.blockers, ['Structured plan validation failed']);
+    assert.ok(calls.summaries.includes('Blocked: Ship demo'));
   });
 });

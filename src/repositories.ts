@@ -6,6 +6,7 @@ export interface TaskRepository {
   getPendingTasks(): Promise<Task[]>;
   markTaskInProgress(task: Task): Promise<void>;
   markTaskCompleted(task: Task): Promise<void>;
+  markTaskBlocked(task: Task): Promise<void>;
 }
 
 export interface MemoryRepository {

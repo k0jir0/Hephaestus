@@ -38,6 +38,7 @@ export interface Config {
   // Paths
   baseDir: string;
   tasksFile: string;
+  ticketStoreFile: string;
   agentMemoryFile: string;
   progressLog: string;
   
@@ -97,6 +98,10 @@ export function loadConfig(): Config {
     // Paths
     baseDir,
     tasksFile: path.join(baseDir, 'TASKS.md'),
+    ticketStoreFile: resolveFromBase(
+      baseDir,
+      getEnv('TICKETS_DB_FILE', '.hephaestus-tickets.db')
+    ),
     agentMemoryFile: path.join(baseDir, 'AGENT.md'),
     progressLog: path.join(baseDir, 'PROGRESS.log'),
     
@@ -122,6 +127,13 @@ export function validateConfig(candidate: Config): ConfigValidationIssue[] {
     issues.push({
       code: 'missing-target-project',
       message: 'TARGET_PROJECT must resolve to a non-empty path.',
+    });
+  }
+
+  if (!candidate.ticketStoreFile.trim()) {
+    issues.push({
+      code: 'missing-ticket-store-file',
+      message: 'TICKETS_DB_FILE must resolve to a non-empty path.',
     });
   }
 

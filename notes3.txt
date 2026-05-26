@@ -1,0 +1,123 @@
+Hephaestus Resume Notes
+Generated: 2026-05-26
+
+1. Project summary
+
+Hephaestus is a self-targeting AI automation demo. It watches TASKS.md, gathers repository context, sends work to a configured AI backend, validates a structured plan, and records state in markdown files so the workflow stays inspectable.
+
+Important: this project still does planning only. A task reaching Completed means Hephaestus generated and recorded a valid plan for that task. It does not mean the feature was implemented in code.
+
+2. Current live state
+
+- TASKS.md currently has Queue empty and In Progress empty.
+- The roadmap items added during this session are all in Completed.
+- AGENT.md currently shows Status: Idle, Current Task: None.
+- AGENT.md Last Activity is 2026-05-26T15:55:58.823Z.
+- The last successful bounded run was npm run start:once.
+
+3. Current environment and runtime settings
+
+- Project root: C:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus
+- Backend from .env: AI_BACKEND=ollama
+- Model from .env: AI_MODEL=codellama
+- Ollama base URL: http://localhost:11434
+- Target project from .env: TARGET_PROJECT=.
+
+Useful commands from the project root:
+
+- npm run preflight
+- npm run build
+- npm run start:once
+- npm run start
+- npm test
+
+Focused test commands used during this session:
+
+- node .\node_modules\tsx\dist\cli.mjs --test --test-concurrency=1 .\test\watcher.test.ts
+- node .\node_modules\tsx\dist\cli.mjs --test --test-concurrency=1 .\test\plan-contract.test.ts
+
+4. What happened in this session
+
+- Roadmap tasks for safe execution and related hardening were added to TASKS.md.
+- Hephaestus was then run on itself in single-pass mode.
+- The first run incorrectly reported No pending tasks found even though Queue had items.
+- Root cause: TaskWatcher split TASKS.md on \n only, so Windows CRLF lines left a trailing \r and task regexes stopped matching.
+- src/watcher.ts was fixed to split markdown lines with /\r?\n/ for both queue parsing and section movement.
+- test/watcher.test.ts was extended with a Windows CRLF regression test.
+
+- After that fix, Hephaestus started processing tasks but several tasks failed plan validation.
+- Root cause: Ollama/codellama returned verification entries as structured objects like { "step": "..." } instead of plain strings, and sometimes included blank entries.
+- src/plan-contract.ts was fixed so array normalization accepts string-like objects for verification and risks, drops blank items, and still requires at least one real verification step.
+- test/plan-contract.test.ts was extended with regressions for blank entries and structured verification objects.
+
+- Some tasks were left stranded in In Progress by the earlier validation failures.
+- Those tasks were manually moved back to Queue and npm run start:once was rerun.
+- Final result: Queue empty, In Progress empty, roadmap tasks all moved to Completed.
+
+5. Files changed in this session
+
+- AGENT.md
+  Updated automatically by Hephaestus with session summaries, completed plan entries, and historical blockers.
+
+- TASKS.md
+  Roadmap tasks were added and then moved into Completed by the successful final run.
+
+- src/watcher.ts
+  Added CRLF-safe markdown line splitting so Windows TASKS.md files are parsed correctly.
+
+- src/plan-contract.ts
+  Relaxed plan parsing so structured verification items and blank array noise from Ollama no longer fail valid plans.
+
+- test/watcher.test.ts
+  Added regression coverage for Windows CRLF queue parsing and task movement.
+
+- test/plan-contract.test.ts
+  Added regression coverage for blank verification/risk entries and structured verification objects.
+
+6. Current working tree status at the end of this session
+
+git status --short showed:
+
+- M AGENT.md
+- M TASKS.md
+- M src/plan-contract.ts
+- M src/watcher.ts
+- M test/plan-contract.test.ts
+- M test/watcher.test.ts
+- ?? index.txt
+
+Note: index.txt is untracked. Treat it as unrelated unless the user says otherwise.
+
+7. Validation completed
+
+- npm run preflight passed.
+- watcher focused tests passed.
+- plan-contract focused tests passed.
+- npm run start:once eventually completed successfully after the fixes.
+- A direct AIExecutor probe for the previously failing guardrails task succeeded after the parser fix.
+- No editor errors were reported in src/watcher.ts, src/plan-contract.ts, test/watcher.test.ts, or test/plan-contract.test.ts.
+
+8. Important caveats before resuming
+
+- The Completed tasks are planning milestones only. The underlying features are still not implemented unless you implement them manually next.
+- AGENT.md still contains historical blocker entries saying verification[0] was invalid. Those are stale history, not current blockers.
+- The runtime behavior around failed tasks is still worth hardening. During this session, failed tasks had to be manually requeued from In Progress back to Queue after parser failures.
+
+9. Best next steps
+
+- Highest-value next step: implement one of the planned roadmap items for real, starting with the constrained code-edit runtime or failure-state task handling.
+- If the goal is to continue using Hephaestus as a planning demo, add new - [ ] items to Queue in TASKS.md and run npm run start:once.
+- If the goal is to harden the demo itself, update the runtime so failed tasks move back to Queue or into a distinct blocked/failed section instead of being stranded in In Progress.
+- Review git diff before committing because AGENT.md and TASKS.md were updated automatically as part of the runs.
+
+10. Resume checkpoint
+
+If resuming later, start with these files in this order:
+
+- TASKS.md for the task board state
+- AGENT.md for recent session history and historical blockers
+- src/watcher.ts for the Windows queue parsing fix
+- src/plan-contract.ts for the Ollama plan parsing fix
+- test/watcher.test.ts and test/plan-contract.test.ts for the regression coverage added in this session
+
+Short version: the queue is fully drained, the planner demo is healthy again on Windows with Ollama, but the project is still a planning-only system and the actual safe-execution features remain to be implemented.

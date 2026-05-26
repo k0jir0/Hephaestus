@@ -7,40 +7,23 @@ import type { Config } from '../src/config.js';
 import { AgentMemory } from '../src/memory.js';
 import { runStartupPreflight } from '../src/preflight.js';
 import { HephaestusRuntime } from '../src/runtime.js';
+import { TicketStoreRepository } from '../src/task-store.js';
 import type { AIResponse, TaskPlan } from '../src/types.js';
-import { TaskWatcher } from '../src/watcher.js';
 
 const tempDirs: string[] = [];
 
-async function createFixtureRepo(): Promise<{ rootDir: string; tasksFile: string; memoryFile: string }> {
+async function createFixtureRepo(): Promise<{
+  rootDir: string;
+  tasksFile: string;
+  ticketStoreFile: string;
+  memoryFile: string;
+}> {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-smoke-'));
   tempDirs.push(rootDir);
 
   const tasksFile = path.join(rootDir, 'TASKS.md');
+  const ticketStoreFile = path.join(rootDir, '.hephaestus-tickets.db');
   const memoryFile = path.join(rootDir, 'AGENT.md');
-
-  await fs.writeFile(
-    tasksFile,
-    `# Hephaestus Task Queue
-
-## Queue
-
-- [ ] Build a runtime smoke plan
-
-## In Progress
-
-- (empty)
-
-## Completed
-
-- (empty)
-
-## Cancelled
-
-- (empty)
-`,
-    'utf-8'
-  );
 
   await fs.writeFile(
     path.join(rootDir, 'README.md'),
@@ -64,10 +47,15 @@ async function createFixtureRepo(): Promise<{ rootDir: string; tasksFile: string
     'utf-8'
   );
 
-  return { rootDir, tasksFile, memoryFile };
+  return { rootDir, tasksFile, ticketStoreFile, memoryFile };
 }
 
-function makeFixtureConfig(rootDir: string, tasksFile: string, memoryFile: string): Config {
+function makeFixtureConfig(
+  rootDir: string,
+  tasksFile: string,
+  ticketStoreFile: string,
+  memoryFile: string
+): Config {
   return {
     aiBackend: 'ollama',
     aiModel: 'llama3',
@@ -81,6 +69,7 @@ function makeFixtureConfig(rootDir: string, tasksFile: string, memoryFile: strin
     checkInterval: 60_000,
     baseDir: rootDir,
     tasksFile,
+    ticketStoreFile,
     agentMemoryFile: memoryFile,
     progressLog: path.join(rootDir, 'PROGRESS.log'),
     ollamaBaseUrl: 'http://localhost:11434',
@@ -119,13 +108,23 @@ afterEach(async () => {
 });
 
 describe('HephaestusRuntime smoke flow', () => {
-  it('runs a bounded single-pass plan against real markdown repositories', async () => {
+  it('runs a bounded single-pass plan against the ticket store and projects markdown output', async () => {
     const fixture = await createFixtureRepo();
-    const fixtureConfig = makeFixtureConfig(fixture.rootDir, fixture.tasksFile, fixture.memoryFile);
+    const fixtureConfig = makeFixtureConfig(
+      fixture.rootDir,
+      fixture.tasksFile,
+      fixture.ticketStoreFile,
+      fixture.memoryFile
+    );
+    const taskStore = new TicketStoreRepository({
+      tasksFile: fixture.tasksFile,
+      storeFile: fixture.ticketStoreFile,
+    });
+    await taskStore.createTicket('Build a runtime smoke plan.');
 
     const runtime = new HephaestusRuntime({
       memory: new AgentMemory(fixture.memoryFile),
-      watcher: new TaskWatcher(fixture.tasksFile),
+      tasks: taskStore,
       executor: {
         async executeTask(): Promise<AIResponse> {
           const plan = makePlan('Build a runtime smoke plan.');
@@ -174,8 +173,10 @@ describe('HephaestusRuntime smoke flow', () => {
 
     assert.match(tasksContent, /## Queue[\s\S]*- \(empty\)/);
     assert.match(tasksContent, /## Completed[\s\S]*- \[x\] Build a runtime smoke plan/);
-    assert.match(memoryContent, /\| 20\d{2}-\d{2}-\d{2} \| Build a runtime smoke plan \| Plan ready \|/);
+    assert.match(tasksContent, /<!-- hephaestus-ticket:ticket_[a-z0-9]+ -->/i);
+    assert.match(memoryContent, /\| 20\d{2}-\d{2}-\d{2} \| Build a runtime smoke plan\. \| Plan ready \|/);
     assert.match(memoryContent, /Plan ready/);
     assert.match(memoryContent, /Planned: Build a runtime smoke plan/);
+    await fs.access(fixture.ticketStoreFile);
   });
 });

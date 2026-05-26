@@ -4,7 +4,7 @@
 
 export type AIBackend = 'copilot' | 'openai' | 'claude' | 'ollama';
 
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'blocked';
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'blocked' | 'cancelled';
 
 export type AgentStatus = 'idle' | 'working' | 'error' | 'shutdown' | 'blocked';
 
@@ -15,10 +15,35 @@ export interface Task {
   description: string;
   status: TaskStatus;
   createdAt: Date;
+  updatedAt?: Date;
+  attemptCount?: number;
+  sourceOrder?: number;
   startedAt?: Date;
   completedAt?: Date;
+  blockedAt?: Date;
+  cancelledAt?: Date;
   result?: string;
   error?: string;
+  plan?: TaskPlan;
+}
+
+export interface TaskTicket extends Task {
+  updatedAt: Date;
+  attemptCount: number;
+  sourceOrder: number;
+}
+
+export interface TaskEvent {
+  ticketId: string;
+  type:
+    | 'created'
+    | 'claimed'
+    | 'completed'
+    | 'blocked'
+    | 'requeued'
+    | 'board-synced';
+  createdAt: Date;
+  details?: string;
 }
 
 export interface AgentState {
