@@ -13,6 +13,7 @@
     "watch": "tsc --watch",
     "dev": "tsx src/agent.ts",
     "dev:once": "tsx src/agent.ts --once",
+    "tickets": "tsx src/tickets.ts",
     "lint": "eslint src/**/*.ts",
     "test": "node scripts/run-tests.mjs"
   },

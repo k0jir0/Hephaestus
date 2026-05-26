@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Hephaestus is intentionally small: it demonstrates an inspectable automation loop without claiming opaque end-to-end autonomy. The architecture is designed to keep workflow state visible in markdown while moving safety and validation earlier in the lifecycle.
+Hephaestus is intentionally small: it demonstrates an inspectable automation loop without claiming opaque end-to-end autonomy. The architecture is designed to keep workflow state visible in markdown while moving safety and validation earlier in the lifecycle. The runtime now separates canonical ticket state from the human-readable markdown projection so queue transitions are not coupled to whole-file rewrites.
 
 ## Current Runtime Shape
 
@@ -10,14 +10,15 @@ The runtime currently follows this sequence:
 
 1. Load configuration and initialize the runtime service.
 2. Run startup preflight against config, repository shape, and backend health.
-3. Discover queued tasks from `TASKS.md`.
+3. Discover pending tickets from the canonical ticket store.
 4. Admit or reject each task before any durable queue mutation.
 5. Gather repository context and request a typed task plan from the configured AI backend.
-6. Validate the plan contract before persisting task outcomes and session notes into markdown.
+6. Validate the plan contract before persisting task outcomes into the ticket store and session notes into markdown.
 
 That keeps the operator-facing surface area simple:
 
-- `TASKS.md` remains the task board.
+- `TASKS.md` remains an optional operator-facing task board projection.
+- `.hephaestus-tickets.db` is the canonical task store by default.
 - `AGENT.md` remains the persistent memory log.
 - The runtime enforces guardrails before work starts instead of after state changes have already happened.
 
@@ -26,7 +27,9 @@ That keeps the operator-facing surface area simple:
 - `src/config.ts`: environment loading plus config validation.
 - `src/preflight.ts`: startup checks and task admission decisions.
 - `src/agent.ts`: orchestration and runtime loop.
-- `src/watcher.ts`: markdown queue parsing and state transitions.
+- `src/task-store.ts`: canonical ticket persistence plus optional markdown projection and legacy bootstrap import.
+- `src/task-board.ts`: markdown board parsing, hidden ticket IDs, and board rendering.
+- `src/watcher.ts`: markdown-only fallback task repository.
 - `src/memory.ts`: markdown memory persistence.
 - `src/executor.ts`: backend-specific AI execution adapters.
 - `src/safety.ts`: budget, iteration, and error-threshold policy.
@@ -39,6 +42,7 @@ Phase 1 focuses on catching failures before the agent mutates task state.
 - Backend reachability is surfaced as a warning before the run starts.
 - Task admission happens before the task is moved into `In Progress`.
 - Blocked tasks remain in `Queue`, which preserves an accurate queue history.
+- If a task fails after admission, the runtime moves it from `In Progress` into `Blocked` so the board reflects that operator intervention is required.
 
 ## Phase 2: Structured Planning Contract
 
@@ -58,11 +62,13 @@ Phase 3 is now implemented.
 
 ## Phase 4: Repository Adapters
 
-Phase 4 is now implemented.
+Phase 4 is now implemented and extended.
 
 - The runtime depends on explicit task and memory repository interfaces.
-- Markdown-backed adapters remain the default implementations, so inspectability is preserved.
-- The markdown adapters can now be pointed at fixture files directly, which makes integration-style tests practical.
+- The default task adapter uses a local SQLite ticket store as the source of truth.
+- New work enters through ticket-store operations or the operator CLI instead of markdown edits.
+- `TASKS.md` is projected from ticket state and kept only as an optional human-readable view.
+- A markdown-only fallback remains available when `node:sqlite` is unavailable.
 
 ## Phase 5: Broader Left-Shifted Quality Gates
 

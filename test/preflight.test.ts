@@ -8,11 +8,13 @@ import { evaluateTaskAdmission, runStartupPreflight } from '../src/preflight.js'
 
 const tempDirs: string[] = [];
 
-async function createTempProject(tasksContent: string): Promise<string> {
+async function createTempProject(tasksContent?: string): Promise<string> {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-preflight-'));
   tempDirs.push(tempDir);
 
-  await fs.writeFile(path.join(tempDir, 'TASKS.md'), tasksContent, 'utf-8');
+  if (tasksContent !== undefined) {
+    await fs.writeFile(path.join(tempDir, 'TASKS.md'), tasksContent, 'utf-8');
+  }
   await fs.writeFile(path.join(tempDir, 'README.md'), '# Demo\n', 'utf-8');
 
   return tempDir;
@@ -32,6 +34,7 @@ function makeConfig(baseDir: string): Config {
     checkInterval: 60_000,
     baseDir,
     tasksFile: path.join(baseDir, 'TASKS.md'),
+    ticketStoreFile: path.join(baseDir, '.hephaestus-tickets.db'),
     agentMemoryFile: path.join(baseDir, 'AGENT.md'),
     progressLog: path.join(baseDir, 'PROGRESS.log'),
     ollamaBaseUrl: 'http://localhost:11434',
@@ -48,33 +51,14 @@ afterEach(async () => {
 });
 
 describe('runStartupPreflight', () => {
-  it('fails when TASKS.md is missing required sections', async () => {
-    const baseDir = await createTempProject(`# Hephaestus Task Queue
-
-## Queue
-
-- [ ] Ship demo
-`);
+  it('allows startup when TASKS.md is missing because the ticket store is canonical', async () => {
+    const baseDir = await createTempProject();
 
     const result = await runStartupPreflight({
       config: makeConfig(baseDir),
     });
 
-    assert.equal(result.ok, false);
-    assert.ok(
-      result.issues.some(
-        (issue) =>
-          issue.severity === 'error' &&
-          issue.message.includes('## In Progress')
-      )
-    );
-    assert.ok(
-      result.issues.some(
-        (issue) =>
-          issue.severity === 'error' &&
-          issue.message.includes('## Completed')
-      )
-    );
+    assert.equal(result.ok, true);
   });
 
   it('allows warnings for unavailable backends without failing startup', async () => {

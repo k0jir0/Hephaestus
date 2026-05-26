@@ -8,7 +8,7 @@ import type { PreflightResult } from './preflight.js';
 import { evaluateTaskAdmission, runStartupPreflight } from './preflight.js';
 import type { MemoryRepository, TaskRepository } from './repositories.js';
 import { SafetySystem } from './safety.js';
-import { TaskWatcher } from './watcher.js';
+import { TicketStoreRepository } from './task-store.js';
 import type { AIResponse, AgentState, Task } from './types.js';
 
 export interface RuntimeOptions {
@@ -35,6 +35,7 @@ export interface RuntimeSafetyPort {
 
 export interface RuntimeDependencies {
   memory?: MemoryRepository;
+  tasks?: TaskRepository;
   watcher?: TaskRepository;
   executor?: RuntimeExecutorPort;
   safety?: RuntimeSafetyPort;
@@ -60,7 +61,7 @@ function createInitialState(): AgentState {
 
 export class HephaestusRuntime {
   private readonly memory: MemoryRepository;
-  private readonly watcher: TaskRepository;
+  private readonly tasks: TaskRepository;
   private readonly executor: RuntimeExecutorPort;
   private readonly safety: RuntimeSafetyPort;
   private readonly preflightRunner: (executor: RuntimeExecutorPort) => Promise<PreflightResult>;
@@ -73,7 +74,13 @@ export class HephaestusRuntime {
 
   constructor(dependencies: RuntimeDependencies = {}) {
     this.memory = dependencies.memory ?? new AgentMemory(config.agentMemoryFile);
-    this.watcher = dependencies.watcher ?? new TaskWatcher(config.tasksFile);
+    this.tasks =
+      dependencies.tasks ??
+      dependencies.watcher ??
+      new TicketStoreRepository({
+        tasksFile: config.tasksFile,
+        storeFile: config.ticketStoreFile,
+      });
     this.executor = dependencies.executor ?? new AIExecutor();
     this.safety = dependencies.safety ?? new SafetySystem();
     this.preflightRunner =
@@ -103,7 +110,7 @@ export class HephaestusRuntime {
       return;
     }
 
-    await this.watcher.start(async (task: Task) => {
+    await this.tasks.start(async (task: Task) => {
       if (this.isShuttingDown) {
         return;
       }
@@ -135,7 +142,7 @@ export class HephaestusRuntime {
       this.statusInterval = null;
     }
 
-    await this.watcher.stop();
+    await this.tasks.stop();
     logger.info('Final status:');
     logger.info(this.safety.getStatusSummary());
 
@@ -197,13 +204,14 @@ export class HephaestusRuntime {
   }
 
   private async runSinglePass(): Promise<void> {
-    const pendingTasks = await this.watcher.getPendingTasks();
+    const pendingTasks = await this.tasks.getPendingTasks();
     let endedBlocked = false;
 
     if (pendingTasks.length === 0) {
       logger.info('No pending tasks found. Exiting single-pass mode.');
       await this.memory.addSessionSummary('Single-pass run found no pending tasks');
       await this.memory.updateStatus('Idle', 'None');
+      await this.tasks.stop();
       return;
     }
 
@@ -225,6 +233,7 @@ export class HephaestusRuntime {
       await this.memory.updateStatus('Idle', 'None');
     }
 
+    await this.tasks.stop();
     logger.info('Single-pass mode complete');
   }
 
@@ -265,6 +274,8 @@ export class HephaestusRuntime {
       return 'rejected';
     }
 
+    let taskMarkedInProgress = false;
+
     try {
       const admission = await evaluateTaskAdmission(task, this.safety);
       if (!admission.allowed) {
@@ -282,13 +293,22 @@ export class HephaestusRuntime {
       this.state.currentTask = task;
       this.state.lastActivity = new Date();
       await this.memory.updateStatus('Working', task.description);
-      await this.watcher.markTaskInProgress(task);
+      await this.tasks.markTaskInProgress(task);
+      taskMarkedInProgress = true;
 
       const context = await this.contextProvider();
       const result = await this.executor.executeTask(task, context);
 
       if (result.success) {
         this.recordSuccessfulTask(task, result);
+        task.plan = result.plan;
+        task.result = formatTaskPlanSummary(result.plan ?? {
+          summary: result.content,
+          intendedFiles: [],
+          commands: [],
+          verification: ['Review model output manually.'],
+          risks: [],
+        });
 
         await this.memory.recordTaskCompletion(task, formatTaskPlanSummary(result.plan ?? {
           summary: result.content,
@@ -299,7 +319,7 @@ export class HephaestusRuntime {
         }));
         await this.memory.addToTaskHistory(task, 'Plan ready');
         await this.memory.addSessionSummary(`Planned: ${task.description}`);
-        await this.watcher.markTaskCompleted(task);
+        await this.tasks.markTaskCompleted(task);
 
         logger.info(`Task planned successfully: ${task.description}`);
         logger.info(result.content, {
@@ -311,19 +331,15 @@ export class HephaestusRuntime {
         return 'completed';
       }
 
-      this.safety.recordError(result.content);
-      await this.memory.recordBlocker(task.description, result.content);
       logger.error(`Task failed: ${task.description}`, { error: result.content });
-      await this.markIdle();
+      task.error = result.content;
+      await this.handleBlockedTask(task, result.content, taskMarkedInProgress);
       return 'failed';
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('Task processing error', { error: errorMessage });
-      this.safety.recordError(errorMessage);
-      this.state.status = 'error';
-      this.state.currentTask = task;
-      this.state.lastActivity = new Date();
-      await this.memory.updateStatus('Error', task.description);
+      task.error = errorMessage;
+      await this.handleBlockedTask(task, errorMessage, taskMarkedInProgress);
       return 'failed';
     }
   }
@@ -354,6 +370,25 @@ export class HephaestusRuntime {
     this.state.currentTask = undefined;
     this.state.lastActivity = new Date();
     await this.memory.updateStatus('Idle', 'None');
+  }
+
+  private async handleBlockedTask(
+    task: Task,
+    reason: string,
+    taskMarkedInProgress: boolean
+  ): Promise<void> {
+    this.safety.recordError(reason);
+    this.state.status = 'blocked';
+    this.state.currentTask = task;
+    this.state.lastActivity = new Date();
+
+    await this.memory.recordBlocker(task.description, reason);
+    await this.memory.addSessionSummary(`Blocked: ${task.description}`);
+    await this.memory.updateStatus('Blocked', task.description);
+
+    if (taskMarkedInProgress) {
+      await this.tasks.markTaskBlocked(task);
+    }
   }
 
   private async getProjectContext(): Promise<string> {

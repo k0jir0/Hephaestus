@@ -1,15 +1,17 @@
 # Hephaestus
 
-Hephaestus is a self-targeting AI automation demo. It watches a Markdown task queue, gathers repository context, sends work to a configurable AI backend, and records state transitions in markdown so the workflow stays inspectable.
+Hephaestus is a self-targeting AI automation demo. It keeps canonical task state in a local ticket store, optionally projects that state back into `TASKS.md` for inspection, gathers repository context, sends work to a configurable AI backend, and records state transitions in markdown so the workflow stays inspectable.
 
 This repository is configured to run Hephaestus on itself by default. That makes it useful as a GitHub-ready demo of AI automation with visible guardrails instead of an opaque “magic agent” claim.
 
 ## What It Demonstrates
 
 - Queue-driven automation through `TASKS.md`
+- Canonical ticket objects backed by a local SQLite task store
+- Operator ticket management through `npm run tickets`
 - Startup preflight and policy-first task admission before queue mutation
 - Structured planning contracts with intended files, commands, verification, and risks
-- Markdown repository adapters with bounded fixture smoke coverage
+- Ticket-store-backed repository adapters with markdown projection and bounded fixture smoke coverage
 - Repository context gathering from `package.json`, `README.md`, and git status
 - Pluggable AI backends for GitHub Copilot CLI, OpenAI, Claude, and Ollama
 - Guardrails for budget, iteration count, error thresholds, and optional auto-commit
@@ -31,6 +33,9 @@ cp .env.example .env
 
 # Validate the environment and repo shape
 npm run preflight
+
+# Create work in the ticket store
+npm run tickets -- create "Inspect the runtime flow"
 
 # Run one bounded demo pass
 npm run start:once
@@ -59,19 +64,25 @@ That means the agent reads and reasons about this repository itself. To point it
 - `npm run start:once` builds, processes the current queue once, and exits
 - `npm run dev` runs the agent directly from source with `tsx`
 - `npm run dev:once` runs a single-pass source-mode demo
+- `npm run tickets -- <command>` creates, lists, retries, and inspects canonical tickets
 - `npm test` runs contract, repository, runtime, and smoke tests
 
 ## Task Lifecycle
 
-Hephaestus uses a section-based task file:
+Hephaestus uses a section-based task projection:
 
 ```text
 Queue -> In Progress -> Completed
+                     -> Blocked
 ```
 
-Pending work belongs in the `Queue` section of `TASKS.md`. As work starts, the task moves into `In Progress`. When a task succeeds, it moves into `Completed`.
+Pending work belongs in the ticket store. As work starts, the projected board moves those tickets into `In Progress`. When a task succeeds, it moves into `Completed`.
 
 Before a task leaves `Queue`, Hephaestus now runs an admission gate that checks policy and runtime readiness first. If admission fails, the task stays queued and the blocker is recorded in `AGENT.md`.
+
+If a task fails after it has already moved into `In Progress`, Hephaestus now moves it into a `Blocked` section instead of leaving it stranded. That keeps the queue accurate and makes operator follow-up explicit.
+
+`TASKS.md` is now an optional projection, not the canonical source of truth. Hephaestus stores durable ticket state in `TICKETS_DB_FILE` and rewrites the markdown board from that store when projection is available. New work should be created through the ticket CLI rather than by editing markdown.
 
 When a task is admitted, the executor now returns a structured plan instead of only free-form prose. Each successful plan contains:
 
@@ -80,7 +91,17 @@ When a task is admitted, the executor now returns a structured plan instead of o
 - verification steps
 - risk notes
 
-The runtime now talks to explicit task and memory repository interfaces. The built-in implementations remain markdown-backed so the workflow stays inspectable, but the orchestration layer no longer depends directly on markdown file logic.
+The runtime now talks to explicit task and memory repository interfaces. The default task implementation uses a local SQLite ticket store with markdown projection, and falls back to markdown-only behavior when SQLite is unavailable.
+
+## Ticket CLI
+
+```bash
+npm run tickets -- create "Add a retry policy"
+npm run tickets -- list --status blocked
+npm run tickets -- show ticket_abc123
+npm run tickets -- retry ticket_abc123
+npm run tickets -- render-board
+```
 
 ## Architecture
 

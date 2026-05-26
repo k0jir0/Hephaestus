@@ -8,12 +8,25 @@ import fs from 'fs/promises';
 import { config } from './config.js';
 import { createComponentLogger } from './logger.js';
 import type { TaskRepository } from './repositories.js';
+import {
+  extractTaskBoardTicketId,
+  formatTaskBoardTicketComment,
+  normalizeTaskDescription,
+  splitMarkdownLines,
+} from './task-board.js';
 import type { Task } from './types.js';
 
 const logger = createComponentLogger('Watcher');
 const EMPTY_SECTION_ITEM = '- (empty)';
 
-type TaskSection = 'Queue' | 'In Progress' | 'Completed' | 'Cancelled';
+type TaskSection = 'Queue' | 'In Progress' | 'Completed' | 'Blocked' | 'Cancelled';
+const TASK_SECTION_ORDER: TaskSection[] = [
+  'Queue',
+  'In Progress',
+  'Completed',
+  'Blocked',
+  'Cancelled',
+];
 
 export class TaskWatcher implements TaskRepository {
   private watcher: chokidar.FSWatcher | null = null;
@@ -105,7 +118,7 @@ export class TaskWatcher implements TaskRepository {
    */
   private parseTasks(content: string): Task[] {
     const tasks: Task[] = [];
-    const lines = content.split('\n');
+    const lines = splitMarkdownLines(content);
     const queueRange = this.findSectionRange(lines, 'Queue');
 
     if (!queueRange) {
@@ -120,7 +133,7 @@ export class TaskWatcher implements TaskRepository {
       }
 
       const status = match[2].toLowerCase() === 'x' ? 'completed' : 'pending';
-      const description = this.normalizeTaskDescription(match[3]);
+      const description = normalizeTaskDescription(match[3]);
 
       if (description.startsWith('Example:') || description === '(empty)') {
         continue;
@@ -131,7 +144,7 @@ export class TaskWatcher implements TaskRepository {
       }
 
       tasks.push({
-        id: this.generateTaskId(description, index),
+        id: extractTaskBoardTicketId(match[3]) ?? this.generateTaskId(description, index),
         description,
         status,
         createdAt: new Date(),
@@ -159,7 +172,7 @@ export class TaskWatcher implements TaskRepository {
       const content = await fs.readFile(this.tasksFile, 'utf-8');
       const updatedContent = this.moveTaskBetweenSections(
         content,
-        task.description,
+        task,
         'Queue',
         'In Progress',
         '- [ ]'
@@ -182,7 +195,7 @@ export class TaskWatcher implements TaskRepository {
       const content = await fs.readFile(this.tasksFile, 'utf-8');
       let updatedContent = this.moveTaskBetweenSections(
         content,
-        task.description,
+        task,
         'In Progress',
         'Completed',
         '- [x]'
@@ -191,7 +204,7 @@ export class TaskWatcher implements TaskRepository {
       if (updatedContent === content) {
         updatedContent = this.moveTaskBetweenSections(
           content,
-          task.description,
+          task,
           'Queue',
           'Completed',
           '- [x]'
@@ -207,8 +220,37 @@ export class TaskWatcher implements TaskRepository {
     }
   }
 
-  private normalizeTaskDescription(description: string): string {
-    return description.replace(/^(?:\*\*IN PROGRESS\*\*:\s*)+/, '').trim();
+  /**
+   * Move a task into the Blocked section so operator action is visible.
+   */
+  async markTaskBlocked(task: Task): Promise<void> {
+    try {
+      const content = await fs.readFile(this.tasksFile, 'utf-8');
+      let updatedContent = this.moveTaskBetweenSections(
+        content,
+        task,
+        'In Progress',
+        'Blocked',
+        '- [ ]'
+      );
+
+      if (updatedContent === content) {
+        updatedContent = this.moveTaskBetweenSections(
+          content,
+          task,
+          'Queue',
+          'Blocked',
+          '- [ ]'
+        );
+      }
+
+      if (updatedContent !== content) {
+        await fs.writeFile(this.tasksFile, updatedContent, 'utf-8');
+        logger.debug(`Marked task as blocked: ${task.description}`);
+      }
+    } catch (error) {
+      logger.error('Error marking task blocked', { error: String(error) });
+    }
   }
 
   private findSectionRange(
@@ -237,19 +279,20 @@ export class TaskWatcher implements TaskRepository {
 
   private moveTaskBetweenSections(
     content: string,
-    description: string,
+    task: Task,
     fromSection: TaskSection,
     toSection: TaskSection,
     destinationPrefix: '- [ ]' | '- [x]'
   ): string {
-    const lines = content.split('\n');
+    const lines = splitMarkdownLines(content);
+    this.ensureSectionExists(lines, toSection);
     const sourceRange = this.findSectionRange(lines, fromSection);
 
     if (!sourceRange) {
       return content;
     }
 
-    const sourceTaskIndex = this.findTaskLineIndex(lines, sourceRange, description);
+    const sourceTaskIndex = this.findTaskLineIndex(lines, sourceRange, task);
     if (sourceTaskIndex === -1) {
       return content;
     }
@@ -259,15 +302,51 @@ export class TaskWatcher implements TaskRepository {
 
     this.removePlaceholderLine(lines, toSection);
     const insertAt = this.getSectionInsertIndex(lines, toSection);
-    lines.splice(insertAt, 0, `${destinationPrefix} ${description}`);
+    lines.splice(
+      insertAt,
+      0,
+      `${destinationPrefix} ${task.description}${formatTaskBoardTicketComment(task.id)}`
+    );
 
     return lines.join('\n');
+  }
+
+  private ensureSectionExists(lines: string[], section: TaskSection): void {
+    if (this.findSectionRange(lines, section)) {
+      return;
+    }
+
+    const targetOrderIndex = TASK_SECTION_ORDER.indexOf(section);
+    let insertAt = lines.length;
+
+    for (let index = targetOrderIndex + 1; index < TASK_SECTION_ORDER.length; index++) {
+      const nextSectionHeader = `## ${TASK_SECTION_ORDER[index]}`;
+      const nextSectionIndex = lines.findIndex((line) => line.trim() === nextSectionHeader);
+      if (nextSectionIndex !== -1) {
+        insertAt = nextSectionIndex;
+        break;
+      }
+    }
+
+    if (insertAt === lines.length) {
+      const dividerIndex = lines.findIndex((line) => line.trim() === '---');
+      if (dividerIndex !== -1) {
+        insertAt = dividerIndex;
+      }
+    }
+
+    const sectionLines = [`## ${section}`, '', EMPTY_SECTION_ITEM, ''];
+    if (insertAt > 0 && lines[insertAt - 1]?.trim() !== '') {
+      sectionLines.unshift('');
+    }
+
+    lines.splice(insertAt, 0, ...sectionLines);
   }
 
   private findTaskLineIndex(
     lines: string[],
     range: { start: number; end: number },
-    description: string
+    task: Task
   ): number {
     for (let index = range.start; index < range.end; index++) {
       const match = lines[index].match(/^\s*-\s*\[(?: |x|X)\]\s*(.+)$/);
@@ -275,7 +354,12 @@ export class TaskWatcher implements TaskRepository {
         continue;
       }
 
-      if (this.normalizeTaskDescription(match[1]) === description) {
+      const lineTicketId = extractTaskBoardTicketId(match[1]);
+      if (lineTicketId && lineTicketId === task.id) {
+        return index;
+      }
+
+      if (normalizeTaskDescription(match[1]) === task.description) {
         return index;
       }
     }

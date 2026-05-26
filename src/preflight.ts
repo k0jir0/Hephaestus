@@ -27,8 +27,6 @@ export interface AdmissionDecision {
   reason?: string;
 }
 
-const requiredTaskSections = ['Queue', 'In Progress', 'Completed'] as const;
-
 async function pathType(targetPath: string): Promise<'missing' | 'file' | 'directory'> {
   try {
     const stats = await fs.stat(targetPath);
@@ -85,26 +83,23 @@ export async function runStartupPreflight(options: {
   }
 
   const tasksFileType = await pathType(activeConfig.tasksFile);
-  if (tasksFileType === 'missing') {
+  if (tasksFileType === 'directory') {
     issues.push(
-      createError('missing-tasks-file', `TASKS.md was not found at ${activeConfig.tasksFile}`)
+      createWarning(
+        'invalid-task-projection-path',
+        `TASKS.md projection path points to a directory and will be skipped: ${activeConfig.tasksFile}`
+      )
     );
-  } else if (tasksFileType !== 'file') {
+  }
+
+  const tasksDirectoryType = await pathType(path.dirname(activeConfig.tasksFile));
+  if (tasksDirectoryType !== 'directory') {
     issues.push(
-      createError('invalid-tasks-file', `TASKS.md path must be a file: ${activeConfig.tasksFile}`)
+      createWarning(
+        'missing-task-projection-directory',
+        `TASKS.md projection parent directory does not exist: ${path.dirname(activeConfig.tasksFile)}`
+      )
     );
-  } else {
-    const tasksContent = await fs.readFile(activeConfig.tasksFile, 'utf-8');
-    for (const section of requiredTaskSections) {
-      if (!tasksContent.includes(`## ${section}`)) {
-        issues.push(
-          createError(
-            'missing-task-section',
-            `TASKS.md is missing the required section header: ## ${section}`
-          )
-        );
-      }
-    }
   }
 
   const memoryDirectoryType = await pathType(path.dirname(activeConfig.agentMemoryFile));
@@ -123,6 +118,16 @@ export async function runStartupPreflight(options: {
       createError(
         'missing-progress-directory',
         `PROGRESS.log parent directory does not exist: ${path.dirname(activeConfig.progressLog)}`
+      )
+    );
+  }
+
+  const ticketStoreDirectoryType = await pathType(path.dirname(activeConfig.ticketStoreFile));
+  if (ticketStoreDirectoryType !== 'directory') {
+    issues.push(
+      createError(
+        'missing-ticket-store-directory',
+        `Ticket store parent directory does not exist: ${path.dirname(activeConfig.ticketStoreFile)}`
       )
     );
   }

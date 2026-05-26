@@ -28,3 +28,8 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
+
+# Local ticket store
+.hephaestus-tickets.db
+.hephaestus-tickets.db-shm
+.hephaestus-tickets.db-wal

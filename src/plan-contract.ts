@@ -20,12 +20,63 @@ function requireString(value: unknown, field: string): string {
   return value.trim();
 }
 
+function requireStringFromKeys(
+  value: Record<string, unknown>,
+  keys: string[],
+  field: string
+): string {
+  for (const key of keys) {
+    const candidate = value[key];
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+
+  throw new Error(`Field "${field}" must be a non-empty string.`);
+}
+
+function getOptionalStringFromKeys(
+  value: Record<string, unknown>,
+  keys: string[],
+  field: string
+): string | undefined {
+  const matchingKey = keys.find((key) => value[key] !== undefined);
+  if (!matchingKey) {
+    return undefined;
+  }
+
+  return requireStringFromKeys(value, keys, field);
+}
+
+function extractTextArrayItem(value: unknown, field: string, index: number): string | null {
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim();
+    return trimmedValue.length === 0 ? null : trimmedValue;
+  }
+
+  if (isRecord(value)) {
+    for (const key of ['step', 'text', 'value', 'description', 'note', 'risk', 'purpose', 'action']) {
+      const candidate = value[key];
+      if (typeof candidate === 'string') {
+        const trimmedCandidate = candidate.trim();
+        return trimmedCandidate.length === 0 ? null : trimmedCandidate;
+      }
+    }
+  }
+
+  throw new Error(`Field "${field}[${index}]" must be a non-empty string.`);
+}
+
 function requireStringArray(value: unknown, field: string, allowEmpty: boolean): string[] {
   if (!Array.isArray(value)) {
     throw new Error(`Field "${field}" must be an array of strings.`);
   }
 
-  const items = value.map((item, index) => requireString(item, `${field}[${index}]`));
+  const items = value.flatMap((item, index) => {
+    const normalizedItem = extractTextArrayItem(item, field, index);
+    return normalizedItem === null ? [] : [normalizedItem];
+  });
+
   if (!allowEmpty && items.length === 0) {
     throw new Error(`Field "${field}" must contain at least one item.`);
   }
@@ -48,7 +99,11 @@ function parsePlannedFileChange(value: unknown, index: number): PlannedFileChang
   return {
     path: requireString(value.path, `intendedFiles[${index}].path`),
     changeType: changeType as PlannedFileChangeType,
-    purpose: requireString(value.purpose, `intendedFiles[${index}].purpose`),
+    purpose: requireStringFromKeys(
+      value,
+      ['purpose', 'description', 'reason', 'why', 'note'],
+      `intendedFiles[${index}].purpose`
+    ),
   };
 }
 
@@ -57,14 +112,18 @@ function parsePlannedCommand(value: unknown, index: number): PlannedCommand {
     throw new Error(`commands[${index}] must be an object.`);
   }
 
-  const expectedOutcome = value.expectedOutcome;
   return {
     command: requireString(value.command, `commands[${index}].command`),
-    purpose: requireString(value.purpose, `commands[${index}].purpose`),
-    expectedOutcome:
-      expectedOutcome === undefined
-        ? undefined
-        : requireString(expectedOutcome, `commands[${index}].expectedOutcome`),
+    purpose: requireStringFromKeys(
+      value,
+      ['purpose', 'description', 'reason', 'why', 'note'],
+      `commands[${index}].purpose`
+    ),
+    expectedOutcome: getOptionalStringFromKeys(
+      value,
+      ['expectedOutcome', 'outcome', 'successCriteria', 'success'],
+      `commands[${index}].expectedOutcome`
+    ),
   };
 }
 
