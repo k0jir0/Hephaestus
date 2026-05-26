@@ -1,6 +1,6 @@
 # Hephaestus
 
-Hephaestus is a self-targeting AI automation demo. It keeps canonical task state in a local ticket store, optionally projects that state back into `TASKS.md` for inspection, gathers repository context, sends work to a configurable AI backend, and records state transitions in markdown so the workflow stays inspectable.
+Hephaestus is a local-first AI engineering workflow product for turning queued software work into inspectable, policy-gated execution plans. It keeps canonical ticket state in a local SQLite store, can project that state into an operator-facing board view, gathers repository context, routes work through configurable AI backends, and records structured plans plus visible state transitions so operators can see how work moves from intake to attempted execution.
 
 This repository is configured to run Hephaestus on itself by default. That makes it useful as a GitHub-ready demo of AI automation with visible guardrails instead of an opaque “magic agent” claim.
 
