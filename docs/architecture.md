@@ -18,7 +18,7 @@ The runtime currently follows this sequence:
 That keeps the operator-facing surface area simple:
 
 - `TASKS.md` remains an optional operator-facing task board projection.
-- `.hephaestus-tickets.db` is the canonical task store by default.
+- `.hephaestus-tickets.db` is the canonical task store by default and records ticket attempts.
 - `AGENT.md` remains the persistent memory log.
 - The runtime enforces guardrails before work starts instead of after state changes have already happened.
 
@@ -30,6 +30,7 @@ That keeps the operator-facing surface area simple:
 - `src/task-store.ts`: canonical ticket persistence plus optional markdown projection and legacy bootstrap import.
 - `src/task-board.ts`: markdown board parsing, hidden ticket IDs, and board rendering.
 - `src/watcher.ts`: markdown-only fallback task repository.
+- `src/tool-runtime.ts`: typed engineering tools with workspace policy checks.
 - `src/memory.ts`: markdown memory persistence.
 - `src/executor.ts`: backend-specific AI execution adapters.
 - `src/safety.ts`: budget, iteration, and error-threshold policy.
@@ -38,7 +39,7 @@ That keeps the operator-facing surface area simple:
 
 Phase 1 focuses on catching failures before the agent mutates task state.
 
-- Startup preflight validates config semantics, repo paths, and required task sections.
+- Startup preflight validates config semantics and repo paths without requiring markdown task sections.
 - Backend reachability is surfaced as a warning before the run starts.
 - Task admission happens before the task is moved into `In Progress`.
 - Blocked tasks remain in `Queue`, which preserves an accurate queue history.
@@ -68,7 +69,8 @@ Phase 4 is now implemented and extended.
 - The default task adapter uses a local SQLite ticket store as the source of truth.
 - New work enters through ticket-store operations or the operator CLI instead of markdown edits.
 - `TASKS.md` is projected from ticket state and kept only as an optional human-readable view.
-- A markdown-only fallback remains available when `node:sqlite` is unavailable.
+- A markdown-only fallback remains available only when explicitly enabled by configuration.
+- Ticket attempts are recorded durably so later phases can attach patches, verification output, and recovery decisions to a specific attempt.
 
 ## Phase 5: Broader Left-Shifted Quality Gates
 
@@ -82,7 +84,17 @@ Phase 5 is now implemented.
 
 ### Code-Edit Runtime
 
-Keep the typed planning contract, but add a constrained tool runtime that can apply validated file edits and verification commands inside explicit safety boundaries.
+Keep the typed planning contract, but wire the constrained tool runtime into ticket attempts so approved plans can apply validated file edits and verification commands inside explicit safety boundaries.
+
+### Typed Tool Runtime
+
+The first typed tool runtime is implemented but not yet wired into autonomous task execution.
+
+- `repo.search` performs bounded text search without traversing ignored directories.
+- `file.read` reads workspace-bounded files and denies protected paths.
+- `patch.apply` validates and applies unified patches through `git apply`, with dry-run support.
+- `command.run` executes exact allowlisted commands with timeouts and output limits.
+- Branch, commit, and PR tools are defined but fail closed until approval-backed adapters exist.
 
 ### Richer Repository Policies
 

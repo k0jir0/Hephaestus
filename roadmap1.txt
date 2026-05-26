@@ -1,0 +1,181 @@
+Hephaestus Roadmap 1: Robust Autonomous Engineering System
+
+Goal
+Build Hephaestus from an inspectable planning demo into a durable autonomous engineering runtime. The system should turn tickets into reviewed, verified branches or pull requests through explicit state transitions, typed tools, policy gates, and recoverable execution history.
+
+Current Baseline
+- Canonical work state is now represented as ticket objects in the local ticket store.
+- TASKS.md is optional projection and legacy bootstrap, not the source of truth.
+- The runtime can admit tasks, request structured plans, validate the plan contract, and persist completed or blocked outcomes.
+- Local verification currently passes with typecheck and tests.
+- The system does not yet safely apply code edits, run approval-gated commands, isolate task workspaces, or produce verified implementation branches by itself.
+
+Implementation Progress
+- Phase 1 has begun: Node/CI runtime assumptions are aligned around Node 22, markdown fallback is explicit, TASKS.md projection can be disabled, pending tickets can be redispatched after temporary admission rejection, richer ticket statuses are available, and durable attempt records are stored for claimed work.
+- Phase 2 has begun: the typed engineering tool runtime now supports bounded repository search, protected file reads, patch dry-runs/application through git apply, and exact allowlisted command execution. Branch, commit, and PR tools are defined but fail closed until approval-backed adapters exist.
+
+Phase 1: Stabilize The Ticket Runtime
+Objective: Make the ticket store dependable enough to become the permanent execution backbone.
+
+Tasks
+- Align Node requirements, CI, and docs with the SQLite implementation, or replace node:sqlite with a package-backed SQLite adapter.
+- Prevent silent fallback from the ticket store to markdown unless explicitly configured by the operator.
+- Add a projection toggle so TASKS.md rendering can be disabled in environments with file-locking issues.
+- Fix watch-mode redispatch so pending tickets rejected by temporary policy limits can run again after policy state changes.
+- Add explicit ticket statuses for planned, awaiting_approval, applying, verifying, merged, and failed.
+- Add first-class attempt records with attempt id, start time, end time, outcome, error, and linked artifacts.
+- Add a migration path for future ticket schema changes.
+
+Definition Of Done
+- CI passes on the same Node/runtime assumptions used locally.
+- A process restart can recover all in-progress and blocked tickets without losing context.
+- Operators can create, list, show, retry, cancel, and inspect ticket attempts without editing markdown.
+
+Phase 2: Typed Tool Runtime
+Objective: Replace free-form execution with a constrained set of auditable engineering tools.
+
+Tasks
+- Define tool interfaces for repo search, file read, patch apply, command run, branch creation, commit creation, and PR creation.
+- Route every tool call through policy checks, path boundaries, timeouts, and output limits.
+- Record every tool invocation as a durable execution event.
+- Add allowlists for safe read-only commands and verification commands.
+- Deny destructive commands by default unless explicitly approved.
+- Add a local dry-run mode that validates tool plans without mutating files.
+
+Definition Of Done
+- The agent cannot mutate files except through the patch tool.
+- Every command and file mutation has a durable audit record.
+- Unsafe or unknown operations block with a clear operator-facing reason.
+
+Phase 3: Plan Approval And Policy Gates
+Objective: Ensure every meaningful mutation is preceded by a validated plan and an approval decision.
+
+Tasks
+- Extend the plan contract with proposed file edits, verification commands, required approvals, rollback notes, and success criteria.
+- Validate plan paths against the target workspace before approval.
+- Add approval records for file writes, dependency changes, network access, commits, pushes, and merges.
+- Implement CLI commands to approve, deny, or request revision for a plan.
+- Add policy presets for demo mode, assisted mode, and autonomous mode.
+- Store the exact approved plan version used for execution.
+
+Definition Of Done
+- A task cannot apply changes unless its plan is valid and approved by policy.
+- Operators can see what is waiting for approval and why.
+- Approval decisions are tied to a specific immutable plan version.
+
+Phase 4: Patch-Based Code Changes
+Objective: Make code mutation reviewable, reversible, and safe.
+
+Tasks
+- Require code edits to be represented as unified patches or structured edit operations.
+- Apply patches only inside the target project boundary.
+- Reject patches that touch ignored, protected, or out-of-scope files.
+- Capture before and after file hashes for every mutation.
+- Add rollback support for failed attempts.
+- Add tests for partial patch failure, protected path rejection, and rollback behavior.
+
+Definition Of Done
+- The agent can implement a small approved change without rewriting entire files.
+- Failed patch application leaves the repository in a known recoverable state.
+- Operators can inspect the exact diff produced by each attempt.
+
+Phase 5: Verification Loop
+Objective: Treat work as complete only when evidence proves it.
+
+Tasks
+- Add verification command objects with command, purpose, timeout, expected outcome, and safety classification.
+- Run typecheck, targeted tests, lint, and task-specific checks through the command tool.
+- Persist command output summaries and artifact paths.
+- Feed verification failures back into the next attempt with bounded retry limits.
+- Block tickets with a concise failure diagnosis when retries are exhausted.
+- Add support for frontend verification artifacts, including screenshots when applicable.
+
+Definition Of Done
+- A ticket cannot move to completed unless its required verification passes.
+- Failed verification produces actionable retry context or a clear blocked state.
+- Verification evidence is visible from the ticket CLI.
+
+Phase 6: Isolated Workspaces
+Objective: Prevent one task attempt from corrupting the main checkout.
+
+Tasks
+- Create a branch or worktree per ticket attempt.
+- Ensure each attempt starts from a known base commit.
+- Store branch name, base sha, head sha, and dirty-state information with the attempt.
+- Prevent concurrent attempts from writing to the same workspace.
+- Add cleanup commands for abandoned worktrees and stale branches.
+- Support resuming an interrupted attempt from its recorded workspace state.
+
+Definition Of Done
+- Each ticket attempt is isolated from the default branch.
+- Multiple tickets can be prepared without stepping on each other.
+- A failed attempt can be inspected, retried, or cleaned up safely.
+
+Phase 7: Pull Request Delivery
+Objective: Turn completed implementation attempts into reviewable GitHub pull requests.
+
+Tasks
+- Generate commits with concise, traceable messages linked to ticket and attempt ids.
+- Generate PR bodies with summary, plan, changed files, verification evidence, risks, and rollback notes.
+- Open draft PRs by default.
+- Add policy controls for when a PR may be marked ready or merged.
+- Sync PR state back into the ticket store.
+- Record review feedback as ticket events.
+
+Definition Of Done
+- A completed ticket produces a branch or draft PR, not direct default-branch mutation.
+- The PR explains what changed, why, and how it was verified.
+- Merge requires explicit operator or policy approval.
+
+Phase 8: Recovery And Operations
+Objective: Make the system trustworthy during long-running and interrupted operation.
+
+Tasks
+- Add startup reconciliation for claimed, applying, and verifying attempts after a crash.
+- Add stuck-ticket detection based on heartbeat timestamps.
+- Add operator commands for pause, resume, cancel, retry, rollback, and archive.
+- Add a compact status dashboard command for current tickets and system health.
+- Add structured logs with stable event ids.
+- Add backup and export commands for the ticket database.
+
+Definition Of Done
+- Killing the process mid-task does not lose important state.
+- Operators can understand and repair the system from CLI output alone.
+- Long-running operation is boring, observable, and recoverable.
+
+Phase 9: Quality Bar And Evaluation
+Objective: Measure whether Hephaestus is actually improving engineering outcomes.
+
+Tasks
+- Build fixture repositories with known bugs and expected fixes.
+- Add end-to-end tests that create tickets, approve plans, apply patches, run verification, and produce PR metadata.
+- Track success rate, retry rate, blocked rate, verification failures, and time to completed PR.
+- Add regression tests for unsafe path attempts, invalid plans, command denial, and crash recovery.
+- Create benchmark tasks for refactors, test additions, documentation changes, and small bug fixes.
+
+Definition Of Done
+- Hephaestus has repeatable evaluation tasks, not only unit tests.
+- Safety failures are tested as first-class behavior.
+- Progress can be measured across versions.
+
+Near-Term Priority Order
+1. Fix Node and CI compatibility for the ticket store.
+2. Make ticket-store fallback explicit instead of silent.
+3. Add projection disablement through config.
+4. Fix pending-ticket redispatch after temporary admission rejection.
+5. Add attempt records and richer ticket statuses.
+6. Build the typed tool runtime around read, patch, and command tools.
+7. Add approval gates for patch application and command execution.
+8. Add verification artifacts and task completion evidence.
+9. Add isolated branches or worktrees per attempt.
+10. Deliver completed work through draft pull requests.
+
+Design Principles
+- Structured state beats parsed prose.
+- Plans precede mutation.
+- Patches beat full-file rewrites.
+- Verification beats model confidence.
+- Recovery is a product feature, not an afterthought.
+- Human approval should be explicit, durable, and tied to a plan version.
+- The default branch should be protected from autonomous mutation.
+- Every important action should leave an audit trail.

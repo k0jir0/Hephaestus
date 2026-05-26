@@ -80,6 +80,8 @@ export class HephaestusRuntime {
       new TicketStoreRepository({
         tasksFile: config.tasksFile,
         storeFile: config.ticketStoreFile,
+        allowMarkdownFallback: config.allowMarkdownTaskFallback,
+        projectionEnabled: config.taskBoardProjectionEnabled,
       });
     this.executor = dependencies.executor ?? new AIExecutor();
     this.safety = dependencies.safety ?? new SafetySystem();
@@ -243,8 +245,8 @@ export class HephaestusRuntime {
     }, config.checkInterval);
 
     logger.info('='.repeat(50));
-    logger.info('Hephaestus is running and watching TASKS.md');
-    logger.info('Add tasks to TASKS.md to start working');
+    logger.info('Hephaestus is running and watching the ticket store');
+    logger.info('Create work with: npm run tickets -- create "<task>"');
     logger.info('Press Ctrl+C to stop');
     logger.info('='.repeat(50));
   }

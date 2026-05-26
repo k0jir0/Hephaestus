@@ -35,6 +35,8 @@ function makeConfig(baseDir: string): Config {
     baseDir,
     tasksFile: path.join(baseDir, 'TASKS.md'),
     ticketStoreFile: path.join(baseDir, '.hephaestus-tickets.db'),
+    allowMarkdownTaskFallback: false,
+    taskBoardProjectionEnabled: true,
     agentMemoryFile: path.join(baseDir, 'AGENT.md'),
     progressLog: path.join(baseDir, 'PROGRESS.log'),
     ollamaBaseUrl: 'http://localhost:11434',

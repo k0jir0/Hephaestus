@@ -4,7 +4,25 @@
 
 export type AIBackend = 'copilot' | 'openai' | 'claude' | 'ollama';
 
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'blocked' | 'cancelled';
+export type TaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'planned'
+  | 'awaiting_approval'
+  | 'applying'
+  | 'verifying'
+  | 'completed'
+  | 'merged'
+  | 'blocked'
+  | 'failed'
+  | 'cancelled';
+
+export type TaskAttemptStatus =
+  | 'in_progress'
+  | 'completed'
+  | 'blocked'
+  | 'failed'
+  | 'cancelled';
 
 export type AgentStatus = 'idle' | 'working' | 'error' | 'shutdown' | 'blocked';
 
@@ -22,6 +40,7 @@ export interface Task {
   completedAt?: Date;
   blockedAt?: Date;
   cancelledAt?: Date;
+  currentAttemptId?: string;
   result?: string;
   error?: string;
   plan?: TaskPlan;
@@ -40,10 +59,26 @@ export interface TaskEvent {
     | 'claimed'
     | 'completed'
     | 'blocked'
+    | 'cancelled'
     | 'requeued'
+    | 'attempt-started'
+    | 'attempt-finished'
     | 'board-synced';
   createdAt: Date;
   details?: string;
+}
+
+export interface TaskAttempt {
+  id: string;
+  ticketId: string;
+  attemptNumber: number;
+  status: TaskAttemptStatus;
+  startedAt: Date;
+  endedAt?: Date;
+  result?: string;
+  error?: string;
+  plan?: TaskPlan;
+  artifacts: string[];
 }
 
 export interface AgentState {
@@ -106,6 +141,30 @@ export interface ToolCall {
   arguments: Record<string, unknown>;
   result?: string;
   error?: string;
+}
+
+export type EngineeringToolName =
+  | 'repo.search'
+  | 'file.read'
+  | 'patch.apply'
+  | 'command.run'
+  | 'git.branch'
+  | 'git.commit'
+  | 'github.pr';
+
+export type EngineeringToolStatus = 'success' | 'failure' | 'denied' | 'dry_run';
+
+export interface EngineeringToolResult {
+  id: string;
+  tool: EngineeringToolName;
+  status: EngineeringToolStatus;
+  startedAt: Date;
+  endedAt: Date;
+  summary: string;
+  output?: string;
+  error?: string;
+  exitCode?: number;
+  mutatedPaths: string[];
 }
 
 export interface MemoryEntry {
