@@ -17,19 +17,19 @@ echo [start2] OLLAMA_BASE_URL=%OLLAMA_BASE_URL%
 rem quick health check for Ollama
 echo [start2] Checking Ollama availability...
 curl --silent --fail "%OLLAMA_BASE_URL%/api/models" >nul 2>&1
-if %errorlevel%==0 (
-  echo [start2] Ollama appears reachable at %OLLAMA_BASE_URL%.
-) else (
+if errorlevel 1 (
   echo [start2] Ollama not reachable.
   echo [start2] Attempting to start Ollama (best-effort)...
   start "Ollama" cmd /c ollama serve
   timeout /t 3 >nul
   curl --silent --fail "%OLLAMA_BASE_URL%/api/models" >nul 2>&1
-  if %errorlevel%==0 (
-    echo [start2] Ollama started.
-  ) else (
+  if errorlevel 1 (
     echo [start2] Warning: Could not reach Ollama. Hephaestus will continue and will retry connecting.
+  ) else (
+    echo [start2] Ollama started.
   )
+) else (
+  echo [start2] Ollama appears reachable at %OLLAMA_BASE_URL%.
 )
 
 rem Start Hephaestus daemon in a new window so it continues running
