@@ -732,7 +732,7 @@ function buildClientScript(): string {
 
       if (response.status === 401) {
         setLiveStatus('Authentication required', 'warning');
-        throw new Error('Authentication required. Enter a cockpit token to continue.');
+        throw new Error('Authentication required. Enter an access token to continue.');
       }
 
       let payload = null;
@@ -847,7 +847,7 @@ function buildClientScript(): string {
         state.session = session;
         renderSession();
         connectStream();
-        setLiveStatus('Connected to cockpit stream', 'success');
+        setLiveStatus('Connected to live stream', 'success');
         await refreshAll();
       } catch (error) {
         state.session = null;
@@ -869,7 +869,7 @@ function buildClientScript(): string {
 
       if (!state.session) {
         chip.innerHTML = '<span class="session-chip">Unauthenticated</span>';
-        meta.innerHTML = '<div class="helper">Enter a cockpit token to unlock the API, approvals, and live reliability views.</div>';
+        meta.innerHTML = '<div class="helper">Enter an access token to unlock the API, approvals, and live reliability views.</div>';
         return;
       }
 
@@ -1091,7 +1091,7 @@ function buildClientScript(): string {
 
       if (commands.cancel && ticket.status !== 'completed' && ticket.status !== 'merged') {
         actionButtons.push(actionButton('Cancel Ticket', 'ghost-button', async function () {
-          const reason = window.prompt('Cancellation reason', 'Cancelled from cockpit');
+          const reason = window.prompt('Cancellation reason', 'Cancelled by operator.');
           if (reason === null) {
             return;
           }
@@ -1394,7 +1394,7 @@ function buildClientScript(): string {
           if (command === 'approve') {
             await runCommand('/api/tickets/' + encodeURIComponent(ticketId) + '/approve', 'Approve this mutation request?', {
               reviewer: reviewer,
-              rationale: rationale || 'Approved from cockpit.',
+              rationale: rationale || 'Approved by operator.',
             });
             return;
           }
@@ -1402,7 +1402,7 @@ function buildClientScript(): string {
           if (command === 'reject') {
             await runCommand('/api/tickets/' + encodeURIComponent(ticketId) + '/reject', 'Reject this mutation request?', {
               reviewer: reviewer,
-              rationale: rationale || 'Rejected from cockpit.',
+              rationale: rationale || 'Rejected by operator.',
             });
             return;
           }
@@ -1443,7 +1443,7 @@ function buildClientScript(): string {
   `;
 }
 
-export function renderCockpitHtml(title = 'Hephaestus Cockpit'): string {
+export function renderCockpitHtml(title = 'Hephaestus Control Plane'): string {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -1457,7 +1457,7 @@ export function renderCockpitHtml(title = 'Hephaestus Cockpit'): string {
       <section class="hero">
         <article class="hero-panel hero-copy">
           <p class="eyebrow">Operator Control Plane</p>
-          <h1>Hephaestus Cockpit</h1>
+          <h1>Hephaestus Control Plane</h1>
           <p>
             A policy-aware operator console for queue state, approval review, attempt artifacts, and reliability telemetry.
             The browser renders state, but the runtime and ticket store remain the only source of workflow truth.
@@ -1468,13 +1468,13 @@ export function renderCockpitHtml(title = 'Hephaestus Cockpit'): string {
           <div class="form-stack">
             <label>
               <span class="meta-label">Access Token</span>
-              <input id="token-input" type="password" placeholder="Enter cockpit token">
+              <input id="token-input" type="password" placeholder="Enter access token">
             </label>
             <label>
               <span class="meta-label">Reviewer Identity</span>
               <input id="reviewer-input" type="text" placeholder="operator@example.com">
             </label>
-            <button class="action-button" id="connect-button" type="button">Connect to Cockpit</button>
+            <button class="action-button" id="connect-button" type="button">Connect</button>
           </div>
           <div id="session-meta" class="meta-stack"></div>
         </aside>
@@ -1506,7 +1506,7 @@ export function renderCockpitHtml(title = 'Hephaestus Cockpit'): string {
           <section class="live-group">
             <div class="meta-label">Live Signal</div>
             <div id="live-status"><span class="signal-pill warning">Disconnected</span></div>
-            <div class="helper">The cockpit subscribes to a server-sent event stream and refreshes operator views when the store changes.</div>
+            <div class="helper">This interface subscribes to a server-sent event stream and refreshes operator views when the store changes.</div>
           </section>
         </aside>
 
@@ -1514,7 +1514,7 @@ export function renderCockpitHtml(title = 'Hephaestus Cockpit'): string {
           <div id="locked-state" class="locked">
             <div>
               <h2>Connect an Operator Session</h2>
-              <p class="helper">The cockpit UI is available immediately, but API queries, approval actions, and live updates remain locked until a valid token is supplied.</p>
+              <p class="helper">This interface is available immediately, but API queries, approval actions, and live updates remain locked until a valid token is supplied.</p>
             </div>
           </div>
 

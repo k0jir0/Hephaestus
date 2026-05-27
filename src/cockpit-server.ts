@@ -112,7 +112,7 @@ export class CockpitServer {
   private readonly sseIntervalMs: number;
   private readonly authTokens: CockpitAuthToken[];
   private readonly defaultTokenInUse: boolean;
-  private readonly serverName = 'hephaestus-cockpit/v1';
+  private readonly serverName = 'hephaestus-control-plane/v1';
   private server: Server | null = null;
   private ssePollTimer: NodeJS.Timeout | null = null;
   private sseClients = new Set<SseClient>();
@@ -316,7 +316,7 @@ export class CockpitServer {
     if (command === 'cancel') {
       this.requireRole(request, url, 'operator');
       const payload = await this.readJsonBody(request, 8 * 1024);
-      await this.repository.cancelTicket(ticketId, optionalString(payload.reason) ?? 'Cancelled by cockpit operator.');
+      await this.repository.cancelTicket(ticketId, optionalString(payload.reason) ?? 'Cancelled by operator.');
       await this.broadcastRefresh('ticket-cancelled');
       this.respondJson(response, 200, await this.buildTicketDetailResponse(ticketId));
       return;
@@ -326,7 +326,7 @@ export class CockpitServer {
       this.requireRole(request, url, 'approver');
       const payload = await this.readJsonBody(request, 8 * 1024);
       const reviewer = requireNonEmptyString(payload.reviewer, 'reviewer');
-      const rationale = optionalString(payload.rationale) ?? 'Approved from cockpit.';
+      const rationale = optionalString(payload.rationale) ?? 'Approved by operator.';
       await this.repository.approveTicket(ticketId, reviewer, rationale);
       await this.broadcastRefresh('ticket-approved');
       this.respondJson(response, 200, await this.buildTicketDetailResponse(ticketId));
@@ -337,7 +337,7 @@ export class CockpitServer {
       this.requireRole(request, url, 'approver');
       const payload = await this.readJsonBody(request, 8 * 1024);
       const reviewer = requireNonEmptyString(payload.reviewer, 'reviewer');
-      const rationale = optionalString(payload.rationale) ?? 'Rejected from cockpit.';
+      const rationale = optionalString(payload.rationale) ?? 'Rejected by operator.';
       await this.repository.rejectTicket(ticketId, reviewer, rationale);
       await this.broadcastRefresh('ticket-rejected');
       this.respondJson(response, 200, await this.buildTicketDetailResponse(ticketId));
@@ -574,12 +574,12 @@ export class CockpitServer {
   private requireRole(request: IncomingMessage, url: URL, minimumRole: CockpitRole): CockpitRole {
     const token = readAuthToken(request, url);
     if (!token) {
-      throw new HttpError(401, 'Missing cockpit access token.');
+      throw new HttpError(401, 'Missing access token.');
     }
 
     const matchedToken = this.authTokens.find((candidate) => candidate.token === token);
     if (!matchedToken) {
-      throw new HttpError(401, 'Invalid cockpit access token.');
+      throw new HttpError(401, 'Invalid access token.');
     }
 
     if (roleRank[matchedToken.role] < roleRank[minimumRole]) {

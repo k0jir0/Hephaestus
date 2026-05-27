@@ -147,7 +147,7 @@ describe('CockpitServer', () => {
     try {
       const html = await fetch(url);
       assert.equal(html.status, 200);
-      assert.match(await html.text(), /Hephaestus Cockpit/);
+      assert.match(await html.text(), /Hephaestus Control Plane/);
 
       const session = await fetchJson(`${url}/api/session`, 'viewer-token') as { role: string; permissions: string[] };
       assert.equal(session.role, 'viewer');
@@ -221,7 +221,7 @@ describe('CockpitServer', () => {
 
       await fetchJson(`${url}/api/tickets/${seeded.awaitingApprovalId}/approve`, 'approver-token', {
         method: 'POST',
-        body: JSON.stringify({ reviewer: 'approver@example.com', rationale: 'Approved from the cockpit' }),
+        body: JSON.stringify({ reviewer: 'approver@example.com', rationale: 'Approved from the operator console' }),
       });
       await fetchJson(`${url}/api/tickets/${seeded.awaitingApprovalId}/resume`, 'approver-token', {
         method: 'POST',
