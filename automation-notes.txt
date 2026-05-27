@@ -1,0 +1,226 @@
+Automation Notes — Running Hephaestus on itself with local Ollama
+
+Purpose
+
+This document describes how to run Hephaestus continuously on the host where it is developed, using a locally-hosted Ollama LLM as the AI backend so no cloud tokens are required. It includes example startup scripts (Unix + Windows), systemd unit and process-manager snippets, environment variables, health checks, and operational cautions.
+
+Assumptions
+
+- You have Ollama installed and the daemon can run on the host (see https://ollama.ai). 
+- Host has sufficient RAM and disk for the chosen local model. For larger models plan for large RAM (>= 32GB) or GPU usage. 
+- Hephaestus repository is checked out at `McGillSoftware/Hephaestus` and Node.js >= 22.5 is installed.
+
+Configuration
+
+1) .env settings (project root `McGillSoftware/Hephaestus/.env`)
+
+# AI backend selection
+AI_BACKEND=ollama
+OLLAMA_HOST=http://127.0.0.1:11434   # adjust if Ollama is remote or different port
+OLLAMA_MODEL=llama3                   # example model name
+
+# UI and tokens
+UI_TOKENS=hephaestus-local-admin-token
+UI_HOST=127.0.0.1
+UI_PORT=4181
+
+# Task store / projection
+TASKS_FILE=./TASKS.md
+TICKET_STORE_FILE=./ticket-store.sqlite
+
+Notes: use the `UI_TOKENS` value to protect the operator UI; rotate before exposing beyond localhost.
+
+Installing and preparing an Ollama model
+
+# Example commands (local machine)
+ollama pull llama3
+ollama pull mistral
+
+# Start the Ollama daemon (follow Ollama docs for system service or background run)
+ollama start
+
+Confirm Ollama is reachable:
+curl -s http://127.0.0.1:11434/v1/models | jq '.'
+
+Hephaestus start scripts (invented)
+
+The repository already includes `package.json` scripts. Below are recommended wrapper scripts to start Ollama (if not system-managed) and Hephaestus in the right order.
+
+Unix: scripts/start-ollama-and-hephaestus.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+# Load environment if present
+if [ -f .env ]; then
+  set -o allexport
+  source .env
+  set +o allexport
+fi
+
+# Start Ollama if not running (best if Ollama is managed by systemd; optional fallback)
+if ! curl -s ${OLLAMA_HOST:-http://127.0.0.1:11434}/v1/models >/dev/null 2>&1; then
+  echo "Starting Ollama daemon in background..."
+  # This assumes `ollama start` is the correct command on the host
+  ollama start &
+  sleep 4
+fi
+
+# Build TypeScript artifacts
+npm run build
+
+# Start Hephaestus agent in background (daemon mode)
+npm run start:daemon &
+HEPHAESTUS_AGENT_PID=$!
+
+# Start the UI server
+# The `ui` script runs the UI server in the foreground; run it in background for dev
+npm run ui &
+HEPHAESTUS_UI_PID=$!
+
+echo "Hephaestus agent PID: $HEPHAESTUS_AGENT_PID"
+echo "Hephaestus UI PID: $HEPHAESTUS_UI_PID"
+
+# Simple health loop (optional)
+while sleep 60; do
+  if ! curl -s "http://${UI_HOST:-127.0.0.1}:${UI_PORT:-4181}/" >/dev/null; then
+    echo "UI not responding; attempting restart"
+    kill $HEPHAESTUS_UI_PID || true
+    npm run ui &
+    HEPHAESTUS_UI_PID=$!
+  fi
+done
+
+Windows: scripts\start-ollama-and-hephaestus.ps1
+
+# PowerShell script (run as Administrator or appropriate user)
+$root = Split-Path -Parent $MyInvocation.MyCommand.Definition
+Set-Location $root
+
+if (Test-Path .env) {
+  Get-Content .env | ForEach-Object {
+    if ($_ -match "^\s*([A-Z0-9_]+)=(.*)$") { Set-Item -Path Env:$($matches[1]) -Value $matches[2] }
+  }
+}
+
+# Start Ollama if not running
+try {
+  Invoke-RestMethod -Uri ($env:OLLAMA_HOST -or "http://127.0.0.1:11434") -Method GET -ErrorAction Stop | Out-Null
+} catch {
+  Start-Process -NoNewWindow -FilePath "ollama" -ArgumentList "start"
+  Start-Sleep -Seconds 4
+}
+
+npm run build
+Start-Process -NoNewWindow -FilePath "npm" -ArgumentList "run start:daemon"
+Start-Process -NoNewWindow -FilePath "npm" -ArgumentList "run ui"
+
+Example systemd unit (Linux)
+
+# /etc/systemd/system/ollama.service  (if Ollama provides a unit, prefer vendor unit)
+[Unit]
+Description=Ollama daemon
+After=network.target
+
+[Service]
+Type=simple
+User=youruser
+ExecStart=/usr/bin/ollama start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
+# /etc/systemd/system/hephaestus-agent.service
+[Unit]
+Description=Hephaestus Agent (node)
+After=network.target ollama.service
+
+[Service]
+Type=simple
+User=youruser
+WorkingDirectory=/path/to/McGillSoftware/Hephaestus
+EnvironmentFile=/path/to/McGillSoftware/Hephaestus/.env
+ExecStart=/usr/bin/npm run start:daemon
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target
+
+PM2 (alternative for Node processes)
+
+# Install pm2 globally
+npm i -g pm2
+
+# Start agent and UI under pm2
+pm2 start "npm -- run start:daemon" --name hephaestus-agent
+pm2 start "npm -- run ui" --name hephaestus-ui
+pm2 save
+pm2 startup  # follow printed instructions to enable on boot
+
+Windows service (NSSM) summary
+
+- Use NSSM (Non-Sucking Service Manager) to wrap `npm run start:daemon` as a Windows service.
+- Configure the service with the working directory and EnvironmentVariables for `.env` keys.
+
+Health checks and monitoring
+
+- UI health: `curl -f http://127.0.0.1:4181/ || echo UI_DOWN`
+- Agent health endpoint: if Hephaestus exposes `/api/health` (implement if missing) use that for checks.
+- Log rotation: ensure `logs/` or system journal is rotated. If Hephaestus writes to files, run `logrotate`.
+- Disk space: monitor disk and sqlite file size. The test run showed transient TASKS.md write-locks and a `disk full` error — set alerts and provide retention/cleanup.
+
+Backing up and protecting the task store
+
+- Periodically snapshot `ticket-store.sqlite`, `TASKS.md`, and `AGENT.json`. Example cron (daily):
+0 2 * * * /usr/bin/pgzip -c /path/to/Hephaestus/ticket-store.sqlite > /backups/hephaestus-ticket-store-$(date +\%F).sqlite.gz
+
+Handling TASKS.md projection locks
+
+- Hephaestus will retry projection writes on transient locks; if your environment exhibits persistent locks, ensure no other process is editing `TASKS.md` simultaneously (editors, scripts). For robust 24/7 runs consider moving to a dedicated durable store (Postgres or a file-lock aware workflow) if concurrent edits are required.
+
+Security notes
+
+- Keep `UI_TOKENS` secret. When exposing the UI beyond localhost, put it behind a reverse proxy (nginx) with TLS and auth.
+- Do not expose Ollama's HTTP port without a firewall or proxy control if using a shared network.
+- Verify license for any pulled model and follow its terms.
+
+Operational checklist for 24/7 development
+
+- Pull and pin a local model (ollama pull <model>) and set `OLLAMA_MODEL`.
+- Ensure Ollama daemon auto-starts (systemd or vendor mechanism).
+- Run Hephaestus agent and UI under a supervisor (systemd / pm2 / NSSM).
+- Configure monitoring for disk, memory, and health endpoints.
+- Implement automated backups for `ticket-store.sqlite` and `TASKS.md`.
+- Test restart & recovery by simulating failures and verifying tasks remain durable.
+
+Troubleshooting
+
+- UI returns ERR_CONNECTION_REFUSED: confirm UI process listening on expected `UI_PORT` and firewall rules. Example: `ss -ltnp | grep 4181` or `netstat -ano | findstr 4181` on Windows.
+- Ollama unreachable: validate `OLLAMA_HOST` and that `ollama start` is running. `curl ${OLLAMA_HOST}/v1/models` should respond.
+- TASKS.md write errors: check disk space and running processes with locks on the file; ensure atomic editors are not leaving locks.
+
+Appendix: quick commands
+
+# Pull model
+ollama pull llama3
+
+# Start Ollama (manual)
+ollama start
+
+# Build and start Hephaestus agent + UI (dev)
+npm run build
+npm run start:daemon &
+npm run ui &
+
+# Systemd enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable ollama.service hephaestus-agent.service
+sudo systemctl start ollama.service hephaestus-agent.service
+
+-- end of notes --
