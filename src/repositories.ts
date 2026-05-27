@@ -1,4 +1,37 @@
-import type { Task } from './types.js';
+import type { Task, TaskSideEffect, TaskSideEffectType } from './types.js';
+
+export interface RepositoryReadinessIssue {
+  code: string;
+  message: string;
+  blocking: boolean;
+}
+
+export interface RepositoryReadinessProbe {
+  getRepositoryReadiness(): Promise<RepositoryReadinessIssue[]>;
+}
+
+export interface ToolRuntimeReadinessProbe {
+  checkReadiness(): Promise<{ available: boolean; message: string }>;
+}
+
+export interface PendingTaskSideEffect {
+  type: TaskSideEffectType;
+  payload: Record<string, unknown>;
+  idempotencyKey: string;
+  correlationId?: string;
+  attemptId?: string;
+}
+
+export interface TaskSideEffectRepository {
+  enqueueTaskSideEffects(ticketId: string, sideEffects: PendingTaskSideEffect[]): Promise<TaskSideEffect[]>;
+  markTaskSideEffectProcessed(id: string): Promise<void>;
+  markTaskSideEffectFailed(id: string, error: string): Promise<void>;
+  listTaskSideEffects(ticketId?: string): Promise<TaskSideEffect[]>;
+}
+
+export interface TaskArtifactRepository {
+  appendTaskAttemptArtifacts(ticketId: string, artifacts: string[]): Promise<void>;
+}
 
 export interface TaskRepository {
   start(callback: (task: Task) => Promise<void> | void): Promise<void>;

@@ -24,7 +24,7 @@ export type TaskAttemptStatus =
   | 'failed'
   | 'cancelled';
 
-export type AgentStatus = 'idle' | 'working' | 'error' | 'shutdown' | 'blocked';
+export type AgentStatus = 'idle' | 'working' | 'error' | 'shutdown' | 'blocked' | 'paused';
 
 export type PlannedFileChangeType = 'create' | 'update' | 'delete' | 'inspect';
 
@@ -63,9 +63,13 @@ export interface TaskEvent {
     | 'requeued'
     | 'attempt-started'
     | 'attempt-finished'
-    | 'board-synced';
+    | 'board-synced'
+    | 'side-effect-enqueued'
+    | 'side-effect-completed'
+    | 'side-effect-failed';
   createdAt: Date;
   details?: string;
+  correlationId?: string;
 }
 
 export interface TaskAttempt {
@@ -79,6 +83,28 @@ export interface TaskAttempt {
   error?: string;
   plan?: TaskPlan;
   artifacts: string[];
+}
+
+export type TaskSideEffectType =
+  | 'memory.record-task-completion'
+  | 'memory.add-task-history'
+  | 'memory.add-session-summary'
+  | 'memory.record-blocker';
+
+export type TaskSideEffectStatus = 'pending' | 'completed' | 'failed';
+
+export interface TaskSideEffect {
+  id: string;
+  ticketId: string;
+  attemptId?: string;
+  correlationId?: string;
+  type: TaskSideEffectType;
+  payload: Record<string, unknown>;
+  status: TaskSideEffectStatus;
+  idempotencyKey: string;
+  createdAt: Date;
+  processedAt?: Date;
+  lastError?: string;
 }
 
 export interface AgentState {
@@ -161,6 +187,7 @@ export interface EngineeringToolResult {
   startedAt: Date;
   endedAt: Date;
   summary: string;
+  reasonCode?: string;
   output?: string;
   error?: string;
   exitCode?: number;

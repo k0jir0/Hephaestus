@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import type { ToolRuntimeReadinessProbe } from './repositories.js';
 import type { EngineeringToolName, EngineeringToolResult } from './types.js';
 
 type ToolRequest =
@@ -92,9 +93,17 @@ const defaultCommandAllowlist: CommandAllowlistEntry[] = [
   { command: 'node_modules\\.bin\\tsc.cmd', args: ['--noEmit'] },
 ];
 
-class ToolPolicyError extends Error {}
+class ToolPolicyError extends Error {
+  readonly reasonCode: string;
 
-export class EngineeringToolRuntime {
+  constructor(reasonCode: string, message: string) {
+    super(message);
+    this.name = 'ToolPolicyError';
+    this.reasonCode = reasonCode;
+  }
+}
+
+export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
   private readonly workspaceRoot: string;
   private readonly dryRun: boolean;
   private readonly maxReadBytes: number;
@@ -134,6 +143,7 @@ export class EngineeringToolRuntime {
           return this.finish(startedAt, request.tool, {
             status: 'denied',
             summary: `${request.tool} is defined but requires an approval-backed delivery adapter.`,
+            reasonCode: 'delivery-adapter-required',
             mutatedPaths: [],
           });
       }
@@ -142,6 +152,7 @@ export class EngineeringToolRuntime {
         return this.finish(startedAt, request.tool, {
           status: 'denied',
           summary: error.message,
+          reasonCode: error.reasonCode,
           mutatedPaths: [],
         });
       }
@@ -149,9 +160,29 @@ export class EngineeringToolRuntime {
       return this.finish(startedAt, request.tool, {
         status: 'failure',
         summary: `${request.tool} failed.`,
+        reasonCode: 'tool-execution-failed',
         error: error instanceof Error ? error.message : String(error),
         mutatedPaths: [],
       });
+    }
+  }
+
+  async checkReadiness(): Promise<{ available: boolean; message: string }> {
+    try {
+      const stats = await fs.stat(this.workspaceRoot);
+      if (!stats.isDirectory()) {
+        return { available: false, message: `Tool runtime workspace is not a directory: ${this.workspaceRoot}` };
+      }
+
+      return {
+        available: true,
+        message: `Tool runtime ready with ${this.commandAllowlist.length} allowlisted command pattern(s).`,
+      };
+    } catch (error) {
+      return {
+        available: false,
+        message: `Tool runtime workspace is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+      };
     }
   }
 
@@ -161,6 +192,7 @@ export class EngineeringToolRuntime {
       return {
         status: 'denied',
         summary: 'Search query must be non-empty.',
+        reasonCode: 'invalid-query',
         mutatedPaths: [],
       };
     }
@@ -206,6 +238,7 @@ export class EngineeringToolRuntime {
       return {
         status: 'denied',
         summary: `Refusing to read protected path: ${relativePath}`,
+        reasonCode: 'protected-path',
         mutatedPaths: [],
       };
     }
@@ -231,6 +264,7 @@ export class EngineeringToolRuntime {
       return {
         status: 'denied',
         summary: 'Patch did not contain any file paths.',
+        reasonCode: 'patch-no-paths',
         mutatedPaths: [],
       };
     }
@@ -242,6 +276,7 @@ export class EngineeringToolRuntime {
         return {
           status: 'denied',
           summary: `Refusing to patch protected path: ${relativePath}`,
+          reasonCode: 'protected-path',
           mutatedPaths: [],
         };
       }
@@ -256,6 +291,7 @@ export class EngineeringToolRuntime {
       return {
         status: 'failure',
         summary: 'Patch failed validation.',
+        reasonCode: 'patch-check-failed',
         error: check.output,
         exitCode: check.exitCode,
         mutatedPaths: [],
@@ -266,6 +302,7 @@ export class EngineeringToolRuntime {
       return {
         status: 'dry_run',
         summary: `Patch validated for ${touchedPaths.length} file(s).`,
+        reasonCode: 'dry-run-only',
         output: check.output,
         mutatedPaths: touchedPaths,
       };
@@ -282,6 +319,7 @@ export class EngineeringToolRuntime {
       summary: applied.exitCode === 0
         ? `Patch applied to ${touchedPaths.length} file(s).`
         : 'Patch application failed.',
+      reasonCode: applied.exitCode === 0 ? undefined : 'patch-apply-failed',
       output: applied.output,
       error: applied.exitCode === 0 ? undefined : applied.output,
       exitCode: applied.exitCode,
@@ -295,6 +333,7 @@ export class EngineeringToolRuntime {
       return {
         status: 'denied',
         summary: `Command is not allowlisted: ${[request.command, ...args].join(' ')}`,
+        reasonCode: 'command-not-allowlisted',
         mutatedPaths: [],
       };
     }
@@ -310,6 +349,7 @@ export class EngineeringToolRuntime {
       summary: result.exitCode === 0
         ? `Command succeeded: ${[request.command, ...args].join(' ')}`
         : `Command failed: ${[request.command, ...args].join(' ')}`,
+      reasonCode: result.exitCode === 0 ? undefined : 'command-failed',
       output: result.output,
       error: result.exitCode === 0 ? undefined : result.output,
       exitCode: result.exitCode,
@@ -424,7 +464,7 @@ export class EngineeringToolRuntime {
     const resolvedPath = path.resolve(this.workspaceRoot, candidatePath);
     const relativePath = path.relative(this.workspaceRoot, resolvedPath);
     if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-      throw new ToolPolicyError(`Path escapes workspace: ${candidatePath}`);
+      throw new ToolPolicyError('path-escapes-workspace', `Path escapes workspace: ${candidatePath}`);
     }
 
     return resolvedPath;
@@ -462,6 +502,7 @@ export class EngineeringToolRuntime {
       startedAt,
       endedAt: new Date(),
       summary: partial.summary ?? `${tool} completed.`,
+      reasonCode: partial.reasonCode,
       output: partial.output,
       error: partial.error,
       exitCode: partial.exitCode,

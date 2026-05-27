@@ -32,10 +32,13 @@ function withCompletedTask(task: Task): Task {
   };
 }
 
-async function waitFor(assertion: () => boolean, timeoutMs = 500): Promise<void> {
+async function waitFor(
+  assertion: () => boolean | Promise<boolean>,
+  timeoutMs = 500
+): Promise<void> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
-    if (assertion()) {
+    if (await assertion()) {
       return;
     }
 
@@ -232,6 +235,147 @@ describe('TicketStoreRepository', () => {
     const attempts = await repository.listAttempts(ticket.id);
     assert.equal(attempts.length, 1);
     assert.equal(attempts[0]?.status, 'blocked');
+
+    await repository.stop();
+  });
+
+  it('retries TASKS.md projection after transient write failures instead of suspending projection permanently', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const tasksFile = path.join(rootDir, 'TASKS.md');
+    const ticketStoreFile = path.join(rootDir, '.hephaestus-tickets.db');
+    let locked = true;
+    let writes = 0;
+
+    const repository = new TicketStoreRepository({
+      tasksFile,
+      storeFile: ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: true,
+      projectionRetryDelayMs: 10,
+      projectionRetryMaxDelayMs: 20,
+      projectionWriter: async (targetPath, content) => {
+        writes += 1;
+        if (locked) {
+          throw new Error('TASKS.md is temporarily locked');
+        }
+
+        await fs.writeFile(targetPath, content, 'utf-8');
+      },
+    });
+
+    await repository.createTicket('Recover projection after lock');
+
+    await waitFor(() => repository.getProjectionHealthStatus().retryScheduled, 1_000);
+
+    const unhealthyStatus = repository.getProjectionHealthStatus();
+    assert.equal(unhealthyStatus.healthy, false);
+    assert.equal(unhealthyStatus.retryScheduled, true);
+    assert.match(unhealthyStatus.lastError ?? '', /temporarily locked/);
+
+    locked = false;
+
+    await waitFor(async () => {
+      try {
+        const board = await fs.readFile(tasksFile, 'utf-8');
+        return board.includes('Recover projection after lock');
+      } catch {
+        return false;
+      }
+    }, 1_000);
+
+    const healthyStatus = repository.getProjectionHealthStatus();
+    assert.equal(healthyStatus.healthy, true);
+    assert.equal(healthyStatus.retryScheduled, false);
+    assert.ok(writes >= 2);
+
+    await repository.stop();
+  });
+
+  it('stores durable side effects idempotently and records their correlation lifecycle', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(rootDir, 'TASKS.md'),
+      storeFile: path.join(rootDir, '.hephaestus-tickets.db'),
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await repository.createTicket('Capture durable side effects');
+    const sideEffects = await repository.enqueueTaskSideEffects(ticket.id, [
+      {
+        type: 'memory.record-task-completion',
+        payload: { result: 'Plan ready' },
+        idempotencyKey: 'effect-key-1',
+        correlationId: 'corr_demo',
+      },
+      {
+        type: 'memory.add-session-summary',
+        payload: { summary: 'Planned ticket' },
+        idempotencyKey: 'effect-key-2',
+        correlationId: 'corr_demo',
+      },
+    ]);
+    const duplicate = await repository.enqueueTaskSideEffects(ticket.id, [
+      {
+        type: 'memory.record-task-completion',
+        payload: { result: 'Plan ready' },
+        idempotencyKey: 'effect-key-1',
+        correlationId: 'corr_demo',
+      },
+    ]);
+
+    await repository.markTaskSideEffectProcessed(sideEffects[0]!.id);
+    await repository.markTaskSideEffectFailed(sideEffects[1]!.id, 'disk full');
+
+    const persisted = await repository.listTaskSideEffects(ticket.id);
+    const events = await repository.listEvents(ticket.id);
+
+    assert.equal(sideEffects.length, 2);
+    assert.equal(duplicate.length, 1);
+    assert.equal(persisted.length, 2);
+    assert.equal(persisted[0]!.status, 'completed');
+    assert.equal(persisted[1]!.status, 'failed');
+    assert.equal(persisted[1]!.lastError, 'disk full');
+    assert.ok(events.some((event) => event.type === 'side-effect-enqueued' && event.correlationId === 'corr_demo'));
+    assert.ok(events.some((event) => event.type === 'side-effect-completed' && event.correlationId === 'corr_demo'));
+    assert.ok(events.some((event) => event.type === 'side-effect-failed' && event.correlationId === 'corr_demo'));
+
+    await repository.stop();
+  });
+
+  it('persists bounded tool artifacts onto the active attempt', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(rootDir, 'TASKS.md'),
+      storeFile: path.join(rootDir, '.hephaestus-tickets.db'),
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await repository.createTicket('Capture tool artifacts');
+    await repository.markTaskInProgress(ticket);
+    await repository.appendTaskAttemptArtifacts(ticket.id, [
+      '[corr_demo] file.read README.md -> success: file.read completed',
+      '[corr_demo] command.run npm test -> denied: command is not allowlisted',
+    ]);
+    await repository.markTaskCompleted(withCompletedTask({
+      ...ticket,
+      status: 'in_progress',
+    }));
+
+    const attempts = await repository.listAttempts(ticket.id);
+
+    assert.equal(attempts.length, 1);
+    assert.deepEqual(attempts[0]?.artifacts, [
+      '[corr_demo] file.read README.md -> success: file.read completed',
+      '[corr_demo] command.run npm test -> denied: command is not allowlisted',
+    ]);
 
     await repository.stop();
   });

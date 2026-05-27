@@ -1,0 +1,209 @@
+Critiques of Hephaestus v1.0.0
+Architectural and Functional Assessment with Remediation Roadmap
+
+Date: 2026-05-27
+Scope: McGillSoftware/Hephaestus
+
+Abstract
+Hephaestus presents itself as a local-first AI engineering workflow with guardrails, durable tickets, and inspectable plans. The codebase is disciplined in several areas (typed plans, explicit repositories, and passing test contracts), but it currently exhibits structural misalignments between stated autonomy and executed behavior. The most serious concerns are not immediate test failures; they are architectural contradictions and latent correctness risks that emerge under faults, partial failures, and long-lived operation. This document separates architectural critiques from functional critiques and then proposes a remediation roadmap aimed at correctness, composability, and operational robustness. The analysis is grounded in current implementation points, including runtime orchestration, task admission logic, repository projection, backend execution, and safety controls.
+
+1. Evaluation Lens and Method
+This critique uses a systems perspective consistent with PhD-level software architecture review:
+1) Architectural coherence: do modules align with product claims and invariants?
+2) Semantic integrity: are state transitions consistent under failure?
+3) Safety and liveness: do policies enforce intended behavior under degraded conditions?
+4) Evolvability: can the design absorb tool-runtime integration without brittle rewrites?
+
+2. Architectural Critiques
+
+2.1 Capability-Identity Mismatch
+The product identity communicates autonomous software execution, yet current behavior is planner-centric: plans are generated and persisted, while tool-driven code edit execution remains explicitly unwired.
+Implication: users and operators receive a mixed semantic contract. The architecture straddles two incompatible identities: planning service vs autonomous engineering executor.
+Risk: governance and expectation failures; roadmap debt grows because interfaces are shaped by a future capability that the runtime does not yet implement.
+
+2.2 Weak Consistency Boundary Across State Planes
+Hephaestus maintains multiple state planes:
+- runtime in-memory state
+- safety subsystem internal state
+- durable ticket store
+- markdown projection (TASKS.md)
+- memory ledger (AGENT.md)
+No explicit consistency protocol governs updates across these planes.
+Implication: partial failures can yield divergent narratives (for example, memory says completed while store update fails).
+Risk: inconsistent observability and operator confusion during incident response.
+
+2.3 Admission Policy is Underspecified for Real Liveness
+Task admission presently delegates to safety counters and budget checks, but not a comprehensive readiness predicate including backend availability, tool-runtime readiness, and persistence-path health.
+Implication: the system may continue attempting work in a logically unavailable mode rather than entering explicit backpressure.
+Risk: repeated blocked attempts and noisy failure loops.
+
+2.4 Global Configuration Singleton with Import-Time Side Effects
+Configuration is loaded at module import and exported as a global singleton.
+Implication: hidden coupling, reduced test isolation, difficult multi-runtime composition, and accidental side effects during module load.
+Risk: fragile integration tests and constrained deployment topologies.
+
+2.5 Executor Aggregates Too Many Responsibilities
+The executor simultaneously handles backend routing, prompt construction, structured plan parsing, health checks, and token-cost logic.
+Implication: this violates interface segregation and impairs replacement of one concern (for example prompt policy) without touching unrelated concerns (for example backend transport).
+Risk: high change amplification and weaker formal reasoning about behavior.
+
+2.6 Projection Reliability Model is Fail-Silent Over Long Sessions
+TASKS.md projection can be suspended after write failures and remain suspended unless forced sync occurs.
+Implication: human-facing board may quietly drift from canonical ticket truth.
+Risk: operational blind spots in long-running processes.
+
+2.7 Domain Model Incompleteness for Attempt Semantics
+Attempts and events are persisted, but causality between admission decisions, execution outcomes, and projection updates is not encoded as a first-class process model.
+Implication: reconstructing exact failure provenance requires correlating loosely coupled logs/events.
+Risk: poor forensic quality and reduced confidence for autonomous operation.
+
+2.8 Missing Explicit Invariants as Runtime Assertions
+The architecture implies invariants (for example, exactly one terminal outcome per attempt, no completion without in-progress claim), but these are not systematically asserted at runtime boundaries.
+Implication: drift can occur silently under future refactors.
+Risk: regression escape despite unit coverage.
+
+3. Functional Critiques
+
+3.1 Head-of-Line Blocking in Single-Pass Processing
+In single-pass mode, a rejected task can terminate the loop early, preventing subsequent pending tasks from being attempted in the same run.
+Impact: unfair scheduling and avoidable throughput loss.
+
+3.2 Non-Atomic Success Path Across Memory and Ticket Store
+Task completion narrative can be written to AGENT.md before durable completion is persisted to the ticket store.
+Impact: contradictory state under mid-path failure.
+
+3.3 Backend-Unavailable Mode is Not a Hard Runtime Gate
+Startup preflight can mark backend unavailable as warning, but runtime still attempts execution logic that predictably fails.
+Impact: repeated failures and noisy blocked state rather than cleanly paused intake.
+
+3.4 Shell-Interpolated Git Commit Message in Auto-Commit Path
+Auto-commit uses shell string interpolation for commit message construction.
+Impact: command injection and quoting risk, even if practical exploitability is low in trusted local contexts.
+
+3.5 Projection Suspension Reduces Operator Trust Surface
+After projection write error, projection suspension can make operator board stale for the remainder of process lifetime.
+Impact: mismatch between canonical state and human control surface.
+
+3.6 Redispatch Semantics Can Create Repeated Admission Churn
+Pending tickets may be re-dispatched after an interval when admission keeps them queued.
+Impact: repeated evaluation churn without progression policy or adaptive backoff metadata.
+
+3.7 Context Gathering Performs Repeated Best-Effort Shell Calls Per Task
+Project context retrieval performs repeated reads and git-status calls for each processed task.
+Impact: avoidable overhead and potential instability in large repositories or high queue rates.
+
+4. Why Tests Passing Does Not Contradict the Critique
+Current tests are valuable and mostly green, but they primarily validate intended local behaviors and happy-path contracts. They do not yet fully exercise:
+- crash consistency across multi-plane state updates
+- long-run projection drift and recovery
+- adversarial shell/message inputs
+- fairness and throughput under heterogeneous queues
+Therefore, the critique addresses latent system risk, not merely immediate unit-test failure.
+
+5. Remediation Roadmap
+
+Roadmap Principles
+1) Correctness before capability expansion.
+2) Single source of truth plus explicit projection semantics.
+3) Fail closed for unsafe delivery and fail loud for operator visibility.
+4) Measurable invariants with automated regression gates.
+
+Phase P0 (Week 1): Correctness and Safety Hardening
+Objectives:
+- eliminate known correctness hazards without major rewrites
+Actions:
+1) Single-pass fairness: continue processing subsequent tasks after admission rejection; mark only rejected task as blocked/queued with reason.
+2) Backend hard-gate mode: if backend unavailable and no fallback executor is configured, move runtime to explicit paused state and skip execution attempts.
+3) Atomic completion flow: persist ticket terminal state first (or within transaction), then emit memory/projection side effects via outbox.
+4) Shell-safe git operations: replace shell-interpolated commit string with execFile/spawn argument vectors.
+5) Projection observability: emit explicit health status and repeated retry schedule instead of silent suspension.
+Acceptance Criteria:
+- no queue starvation from single rejection
+- no memory/store contradiction in injected failure tests
+- backend-outage run produces zero attempted executions
+- static analyzer and tests confirm no shell interpolation in commit path
+
+Phase P1 (Weeks 2-3): Architectural Decomposition
+Objectives:
+- reduce change coupling and clarify boundaries
+Actions:
+1) Split executor into:
+   a) backend transport adapters
+   b) prompt/plan policy service
+   c) plan parser/validator
+   d) cost/accounting service
+2) Replace global config singleton with dependency-injected runtime configuration object.
+3) Promote admission policy to composite gate:
+   safety + backend readiness + repository readiness + tool-runtime readiness.
+4) Define explicit domain service for task state machine transitions with invariant checks.
+Acceptance Criteria:
+- reduced constructor fan-in and module-level side effects
+- admission decision includes all readiness dimensions
+- transition invariants enforced by runtime assertions and tests
+
+Phase P2 (Weeks 4-5): Durable Consistency and Projection Model
+Objectives:
+- make observable state reconstruction reliable
+Actions:
+1) Introduce transactional outbox for side effects (AGENT.md updates, TASKS.md projection, notification hooks).
+2) Add idempotency keys for attempt transitions and projection events.
+3) Implement projection retry worker with bounded backoff and explicit dead-letter logging.
+4) Add causal correlation IDs linking admission, attempt, execution, and projection events.
+Acceptance Criteria:
+- replaying events reproduces board state deterministically
+- projection failures recover automatically without manual sync in most cases
+- every terminal ticket state has traceable causal chain
+
+Phase P3 (Weeks 6-7): Tool Runtime Integration and Governance
+Objectives:
+- transition from plan-only to controlled execution
+Actions:
+1) Bind validated plans to EngineeringToolRuntime actions via policy-checked command/file tool calls.
+2) Add approval checkpoints for high-risk mutations (for example protected paths, broad patches, delivery tools).
+3) Introduce formal deny-by-default policy schema with signed policy snapshots in run logs.
+4) Add dry-run first pass and explainability artifacts for every mutation.
+Acceptance Criteria:
+- at least one end-to-end task executes through typed tool runtime under policy
+- denied actions are auditable with machine-readable reason codes
+- reproducible dry-run to apply-run delta is captured per attempt
+
+Phase P4 (Weeks 8+): Research-Grade Validation and SLOs
+Objectives:
+- elevate confidence from component correctness to system reliability
+Actions:
+1) Fault injection harness for mid-transition crashes and file-lock contention.
+2) Property-based testing on task-state transitions and projection reconciliation.
+3) Long-run soak tests with synthetic queue workloads and backend intermittency.
+4) Operational SLOs:
+   - state consistency lag (store vs projection)
+   - admission-to-start latency
+   - blocked-retry success ratio
+   - execution failure taxonomy stability
+Acceptance Criteria:
+- quantified reliability curves and error budgets
+- regression suite catches previously observed latent faults
+
+6. Prioritized Worklist (Condensed)
+Critical:
+- single-pass fairness fix
+- backend hard gate semantics
+- shell-safe commit execution
+- atomic completion ordering
+High:
+- composite admission policy
+- executor decomposition
+- projection retry worker with health surfacing
+Medium:
+- event correlation IDs
+- context caching and bounded freshness policy
+- richer invariant assertions
+
+7. Expected Outcomes After Remediation
+If roadmap phases are executed in order, Hephaestus will evolve from a competent plan-centric demo into a robust, auditable, policy-governed engineering runtime with:
+- coherent product identity
+- stronger correctness under partial failure
+- safer execution boundaries
+- higher operator trust through consistent observability
+
+Conclusion
+Hephaestus is not architecturally unsalvageable; it is an evolving system with a solid typed foundation but unresolved semantic gaps between design intent and operational behavior. The highest-value path forward is disciplined correctness hardening, decomposition of overloaded modules, and explicit state-consistency mechanics before broadening autonomous mutation capabilities.

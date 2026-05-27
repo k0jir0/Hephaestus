@@ -43,12 +43,14 @@ describe('EngineeringToolRuntime', () => {
       path: '.env',
     });
     assert.equal(protectedResult.status, 'denied');
+    assert.equal(protectedResult.reasonCode, 'protected-path');
 
     const escapeResult = await runtime.execute({
       tool: 'file.read',
       path: '../outside.txt',
     });
     assert.equal(escapeResult.status, 'denied');
+    assert.equal(escapeResult.reasonCode, 'path-escapes-workspace');
   });
 
   it('searches repository text without traversing ignored directories', async () => {
@@ -90,6 +92,7 @@ describe('EngineeringToolRuntime', () => {
       dryRun: true,
     });
     assert.equal(dryRunResult.status, 'dry_run');
+    assert.equal(dryRunResult.reasonCode, 'dry-run-only');
     assert.deepEqual(dryRunResult.mutatedPaths, ['README.md']);
     assert.equal(await fs.readFile(path.join(workspaceRoot, 'README.md'), 'utf-8'), 'old heading\n');
 
@@ -122,6 +125,7 @@ describe('EngineeringToolRuntime', () => {
       args: ['-e', 'console.log("not allowed")'],
     });
     assert.equal(deniedResult.status, 'denied');
+    assert.equal(deniedResult.reasonCode, 'command-not-allowlisted');
 
     const allowedResult = await runtime.execute({
       tool: 'command.run',
@@ -139,6 +143,7 @@ describe('EngineeringToolRuntime', () => {
     const result = await runtime.execute({ tool: 'github.pr' });
 
     assert.equal(result.status, 'denied');
+    assert.equal(result.reasonCode, 'delivery-adapter-required');
     assert.match(result.summary, /requires an approval-backed delivery adapter/);
   });
 });

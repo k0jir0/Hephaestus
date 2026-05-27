@@ -120,9 +120,9 @@ describe('evaluateTaskAdmission', () => {
       }
     );
 
-    assert.deepEqual(result, {
-      allowed: false,
-      reason: 'Daily budget exceeded',
-    });
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, 'Daily budget exceeded');
+    assert.ok(result.correlationId.startsWith('admission_'));
+    assert.deepEqual(result.issues.map((issue) => issue.code), ['safety-denied']);
   });
 });

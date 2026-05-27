@@ -1,15 +1,33 @@
 import fs from 'fs/promises';
-import { config } from './config.js';
+import { config as defaultConfig, type Config } from './config.js';
+import {
+  AdmissionController,
+  createBackendAdmissionGate,
+  createRepositoryAdmissionGate,
+  createSafetyAdmissionGate,
+  createToolRuntimeAdmissionGate,
+  type AdmissionDecision,
+} from './admission.js';
 import { AIExecutor } from './executor.js';
 import { logger } from './logger.js';
 import { AgentMemory } from './memory.js';
 import { formatTaskPlanSummary } from './plan-contract.js';
 import type { PreflightResult } from './preflight.js';
-import { evaluateTaskAdmission, runStartupPreflight } from './preflight.js';
-import type { MemoryRepository, TaskRepository } from './repositories.js';
+import { runStartupPreflight } from './preflight.js';
+import type {
+  MemoryRepository,
+  PendingTaskSideEffect,
+  RepositoryReadinessProbe,
+  TaskArtifactRepository,
+  TaskRepository,
+  TaskSideEffectRepository,
+  ToolRuntimeReadinessProbe,
+} from './repositories.js';
 import { SafetySystem } from './safety.js';
+import { transitionTask } from './task-lifecycle.js';
 import { TicketStoreRepository } from './task-store.js';
-import type { AIResponse, AgentState, Task } from './types.js';
+import { EngineeringToolRuntime, type EngineeringToolRequest } from './tool-runtime.js';
+import type { AIResponse, AgentState, EngineeringToolResult, Task, TaskPlan } from './types.js';
 
 export interface RuntimeOptions {
   runOnce?: boolean;
@@ -33,12 +51,19 @@ export interface RuntimeSafetyPort {
   resetDailyCounters(): void;
 }
 
+export interface RuntimeToolPort extends ToolRuntimeReadinessProbe {
+  execute?(request: EngineeringToolRequest): Promise<EngineeringToolResult>;
+}
+
 export interface RuntimeDependencies {
+  config?: Config;
   memory?: MemoryRepository;
   tasks?: TaskRepository;
   watcher?: TaskRepository;
   executor?: RuntimeExecutorPort;
   safety?: RuntimeSafetyPort;
+  toolRuntime?: RuntimeToolPort;
+  admissionController?: AdmissionController;
   preflightRunner?: (executor: RuntimeExecutorPort) => Promise<PreflightResult>;
   contextProvider?: () => Promise<string>;
 }
@@ -60,10 +85,13 @@ function createInitialState(): AgentState {
 }
 
 export class HephaestusRuntime {
+  private readonly runtimeConfig: Config;
   private readonly memory: MemoryRepository;
   private readonly tasks: TaskRepository;
   private readonly executor: RuntimeExecutorPort;
   private readonly safety: RuntimeSafetyPort;
+  private readonly toolRuntime: RuntimeToolPort;
+  private readonly admissionController: AdmissionController;
   private readonly preflightRunner: (executor: RuntimeExecutorPort) => Promise<PreflightResult>;
   private readonly contextProvider: () => Promise<string>;
   private readonly state: AgentState = createInitialState();
@@ -71,23 +99,47 @@ export class HephaestusRuntime {
   private statusInterval: NodeJS.Timeout | null = null;
   private watchModeResolver: (() => void) | null = null;
   private budgetWindowDay = new Date().toDateString();
+  private executionPauseReason: string | null = null;
 
   constructor(dependencies: RuntimeDependencies = {}) {
-    this.memory = dependencies.memory ?? new AgentMemory(config.agentMemoryFile);
+    this.runtimeConfig = dependencies.config ?? defaultConfig;
+    this.memory = dependencies.memory ?? new AgentMemory(this.runtimeConfig.agentMemoryFile);
     this.tasks =
       dependencies.tasks ??
       dependencies.watcher ??
       new TicketStoreRepository({
-        tasksFile: config.tasksFile,
-        storeFile: config.ticketStoreFile,
-        allowMarkdownFallback: config.allowMarkdownTaskFallback,
-        projectionEnabled: config.taskBoardProjectionEnabled,
+        tasksFile: this.runtimeConfig.tasksFile,
+        storeFile: this.runtimeConfig.ticketStoreFile,
+        allowMarkdownFallback: this.runtimeConfig.allowMarkdownTaskFallback,
+        projectionEnabled: this.runtimeConfig.taskBoardProjectionEnabled,
       });
-    this.executor = dependencies.executor ?? new AIExecutor();
-    this.safety = dependencies.safety ?? new SafetySystem();
+    this.executor = dependencies.executor ?? new AIExecutor({ config: this.runtimeConfig });
+    this.safety =
+      dependencies.safety ??
+      new SafetySystem({
+        safetyConfig: this.runtimeConfig.safety,
+        targetProject: this.runtimeConfig.targetProject,
+      });
+    this.toolRuntime =
+      dependencies.toolRuntime ??
+      new EngineeringToolRuntime({
+        workspaceRoot: this.runtimeConfig.targetProject,
+        dryRun: true,
+      });
+    this.admissionController =
+      dependencies.admissionController ??
+      new AdmissionController([
+        createSafetyAdmissionGate(this.safety),
+        createBackendAdmissionGate(this.executor),
+        ...('getRepositoryReadiness' in this.tasks
+          ? [createRepositoryAdmissionGate(this.tasks as TaskRepository & RepositoryReadinessProbe)]
+          : []),
+        createToolRuntimeAdmissionGate(this.toolRuntime),
+      ]);
     this.preflightRunner =
       dependencies.preflightRunner ??
-      (async (executor) => runStartupPreflight({ healthChecker: executor }));
+      (async (executor) =>
+        runStartupPreflight({ config: this.runtimeConfig, healthChecker: executor }));
     this.contextProvider = dependencies.contextProvider ?? (() => this.getProjectContext());
   }
 
@@ -106,6 +158,22 @@ export class HephaestusRuntime {
     }
 
     this.logConfiguration(options);
+
+    if (this.executionPauseReason) {
+      await this.enterPausedMode(this.executionPauseReason);
+
+      if (options.runOnce) {
+        await this.tasks.stop();
+        logger.info('Single-pass mode paused before execution');
+        return;
+      }
+
+      this.startStatusLoop(this.executionPauseReason);
+      await new Promise<void>((resolve) => {
+        this.watchModeResolver = resolve;
+      });
+      return;
+    }
 
     if (options.runOnce) {
       await this.runSinglePass();
@@ -161,6 +229,8 @@ export class HephaestusRuntime {
   }
 
   private async handlePreflight(preflight: PreflightResult): Promise<void> {
+    this.executionPauseReason = null;
+
     for (const issue of preflight.issues) {
       if (issue.severity === 'error') {
         logger.error(`Preflight ${issue.code}: ${issue.message}`);
@@ -171,7 +241,11 @@ export class HephaestusRuntime {
     }
 
     if (preflight.issues.some((issue) => issue.code === 'backend-unavailable')) {
-      logger.warn('Agent will run in limited mode without AI execution');
+      this.executionPauseReason = preflight.issues
+        .filter((issue) => issue.code === 'backend-unavailable')
+        .map((issue) => issue.message)
+        .join('; ');
+      logger.warn('Agent will pause task execution until backend readiness is restored');
     }
 
     if (!preflight.ok) {
@@ -196,18 +270,27 @@ export class HephaestusRuntime {
   }
 
   private logConfiguration(options: RuntimeOptions): void {
-    logger.info(`AI Backend: ${config.aiBackend}`);
-    logger.info(`Model: ${config.aiModel || 'default'}`);
-    logger.info(`Target Project: ${config.targetProject}`);
-    logger.info(`Daily Budget: $${config.safety.dailyTokenBudget}`);
-    logger.info(`Max Iterations: ${config.safety.maxIterations}`);
-    logger.info(`Check Interval: ${config.checkInterval / 1000}s`);
+    logger.info(`AI Backend: ${this.runtimeConfig.aiBackend}`);
+    logger.info(`Model: ${this.runtimeConfig.aiModel || 'default'}`);
+    logger.info(`Target Project: ${this.runtimeConfig.targetProject}`);
+    logger.info(`Daily Budget: $${this.runtimeConfig.safety.dailyTokenBudget}`);
+    logger.info(`Max Iterations: ${this.runtimeConfig.safety.maxIterations}`);
+    logger.info(`Check Interval: ${this.runtimeConfig.checkInterval / 1000}s`);
     logger.info(`Mode: ${options.runOnce ? 'single-pass' : 'watch'}`);
+  }
+
+  private async enterPausedMode(reason: string): Promise<void> {
+    this.state.status = 'paused';
+    this.state.currentTask = undefined;
+    this.state.lastActivity = new Date();
+
+    logger.warn(`Execution paused: ${reason}`);
+    await this.memory.addSessionSummary(`Paused: ${reason}`);
+    await this.memory.updateStatus('Paused', reason);
   }
 
   private async runSinglePass(): Promise<void> {
     const pendingTasks = await this.tasks.getPendingTasks();
-    let endedBlocked = false;
 
     if (pendingTasks.length === 0) {
       logger.info('No pending tasks found. Exiting single-pass mode.');
@@ -224,14 +307,13 @@ export class HephaestusRuntime {
 
       const outcome = await this.processTask(task);
       if (outcome === 'rejected') {
-        endedBlocked = true;
-        break;
+        continue;
       }
     }
 
     await this.memory.addSessionSummary('Single-pass run complete');
 
-    if (!endedBlocked) {
+    if (this.state.status !== 'blocked') {
       await this.memory.updateStatus('Idle', 'None');
     }
 
@@ -239,15 +321,21 @@ export class HephaestusRuntime {
     logger.info('Single-pass mode complete');
   }
 
-  private startStatusLoop(): void {
+  private startStatusLoop(pauseReason?: string): void {
     this.statusInterval = setInterval(() => {
       void this.handlePeriodicStatus();
-    }, config.checkInterval);
+    }, this.runtimeConfig.checkInterval);
 
     logger.info('='.repeat(50));
-    logger.info('Hephaestus is running and watching the ticket store');
-    logger.info('Create work with: npm run tickets -- create "<task>"');
-    logger.info('Press Ctrl+C to stop');
+    if (pauseReason) {
+      logger.info('Hephaestus is paused and preserving queued work');
+      logger.info(`Pause reason: ${pauseReason}`);
+      logger.info('Restore backend readiness and restart the agent to resume execution');
+    } else {
+      logger.info('Hephaestus is running and watching the ticket store');
+      logger.info('Create work with: npm run tickets -- create "<task>"');
+      logger.info('Press Ctrl+C to stop');
+    }
     logger.info('='.repeat(50));
   }
 
@@ -279,22 +367,28 @@ export class HephaestusRuntime {
     let taskMarkedInProgress = false;
 
     try {
-      const admission = await evaluateTaskAdmission(task, this.safety);
+      const admission = await this.admissionController.evaluate(task);
       if (!admission.allowed) {
-        logger.warn(`Admission check failed: ${admission.reason}`);
+        this.logAdmissionDecision(task, admission);
         this.state.status = 'blocked';
         this.state.currentTask = undefined;
         this.state.lastActivity = new Date();
-        await this.memory.recordBlocker(task.description, admission.reason);
+        await this.memory.recordBlocker(
+          task.description,
+          `${admission.reason} [${admission.correlationId}]`
+        );
         await this.memory.updateStatus('Blocked', task.description);
         return 'rejected';
       }
+
+      this.logAdmissionDecision(task, admission);
 
       logger.info(`Processing task: ${task.description}`);
       this.state.status = 'working';
       this.state.currentTask = task;
       this.state.lastActivity = new Date();
       await this.memory.updateStatus('Working', task.description);
+      Object.assign(task, transitionTask(task, 'in_progress'));
       await this.tasks.markTaskInProgress(task);
       taskMarkedInProgress = true;
 
@@ -302,26 +396,23 @@ export class HephaestusRuntime {
       const result = await this.executor.executeTask(task, context);
 
       if (result.success) {
-        this.recordSuccessfulTask(task, result);
-        task.plan = result.plan;
-        task.result = formatTaskPlanSummary(result.plan ?? {
+        const taskSummary = formatTaskPlanSummary(result.plan ?? {
           summary: result.content,
           intendedFiles: [],
           commands: [],
           verification: ['Review model output manually.'],
           risks: [],
         });
+        Object.assign(task, transitionTask(task, 'completed'));
+        task.plan = result.plan;
+        task.result = taskSummary;
 
-        await this.memory.recordTaskCompletion(task, formatTaskPlanSummary(result.plan ?? {
-          summary: result.content,
-          intendedFiles: [],
-          commands: [],
-          verification: ['Review model output manually.'],
-          risks: [],
-        }));
-        await this.memory.addToTaskHistory(task, 'Plan ready');
-        await this.memory.addSessionSummary(`Planned: ${task.description}`);
+        const toolArtifacts = await this.executePlannedTools(task, result.plan, admission.correlationId);
+        await this.appendTaskArtifacts(task.id, toolArtifacts);
+
         await this.tasks.markTaskCompleted(task);
+        this.recordSuccessfulTask(task, result);
+        await this.recordCompletionSideEffects(task, taskSummary, admission.correlationId);
 
         logger.info(`Task planned successfully: ${task.description}`);
         logger.info(result.content, {
@@ -346,6 +437,18 @@ export class HephaestusRuntime {
     }
   }
 
+  private logAdmissionDecision(task: Task, admission: AdmissionDecision): void {
+    for (const issue of admission.issues.filter((candidate) => candidate.severity === 'warning')) {
+      logger.warn(`Admission warning [${admission.correlationId}] ${issue.code}: ${issue.message}`, {
+        task: task.description,
+      });
+    }
+
+    if (!admission.allowed) {
+      logger.warn(`Admission check failed [${admission.correlationId}]: ${admission.reason}`);
+    }
+  }
+
   private recordSuccessfulTask(task: Task, result: AIResponse): void {
     this.safety.recordSuccess();
     this.safety.recordTaskCompletion();
@@ -367,6 +470,187 @@ export class HephaestusRuntime {
     this.state.lastActivity = new Date();
   }
 
+  private async recordCompletionSideEffects(
+    task: Task,
+    taskSummary: string,
+    correlationId: string
+  ): Promise<void> {
+    await this.runDurableMemorySideEffects(task, [
+      {
+        type: 'memory.record-task-completion',
+        payload: { result: taskSummary },
+        idempotencyKey: `${correlationId}:memory.record-task-completion`,
+        correlationId,
+        execute: () => this.memory.recordTaskCompletion(task, taskSummary),
+      },
+      {
+        type: 'memory.add-task-history',
+        payload: { result: 'Plan ready' },
+        idempotencyKey: `${correlationId}:memory.add-task-history`,
+        correlationId,
+        execute: () => this.memory.addToTaskHistory(task, 'Plan ready'),
+      },
+      {
+        type: 'memory.add-session-summary',
+        payload: { summary: `Planned: ${task.description}` },
+        idempotencyKey: `${correlationId}:memory.add-session-summary`,
+        correlationId,
+        execute: () => this.memory.addSessionSummary(`Planned: ${task.description}`),
+      },
+    ]);
+  }
+
+  private async runDurableMemorySideEffects(
+    task: Task,
+    sideEffects: Array<
+      PendingTaskSideEffect & {
+        execute: () => Promise<void>;
+      }
+    >
+  ): Promise<void> {
+    const repository = this.getTaskSideEffectRepository();
+    const persistedSideEffects = repository
+      ? await repository.enqueueTaskSideEffects(
+          task.id,
+          sideEffects.map(({ type, payload, idempotencyKey, correlationId, attemptId }) => ({
+            type,
+            payload,
+            idempotencyKey,
+            correlationId,
+            attemptId,
+          }))
+        )
+      : [];
+
+    for (const [index, sideEffect] of sideEffects.entries()) {
+      const persisted = persistedSideEffects[index];
+
+      try {
+        await sideEffect.execute();
+        if (repository && persisted) {
+          await repository.markTaskSideEffectProcessed(persisted.id);
+        }
+      } catch (error) {
+        if (repository && persisted) {
+          await repository.markTaskSideEffectFailed(persisted.id, String(error));
+        }
+        logger.error(`Non-fatal memory side effect failed: ${sideEffect.type}`, {
+          error: String(error),
+          ticketId: task.id,
+          correlationId: sideEffect.correlationId,
+        });
+      }
+    }
+  }
+
+  private getTaskSideEffectRepository(): (TaskRepository & TaskSideEffectRepository) | null {
+    return 'enqueueTaskSideEffects' in this.tasks
+      ? (this.tasks as TaskRepository & TaskSideEffectRepository)
+      : null;
+  }
+
+  private getTaskArtifactRepository(): (TaskRepository & TaskArtifactRepository) | null {
+    return 'appendTaskAttemptArtifacts' in this.tasks
+      ? (this.tasks as TaskRepository & TaskArtifactRepository)
+      : null;
+  }
+
+  private async executePlannedTools(
+    task: Task,
+    plan: TaskPlan | undefined,
+    correlationId: string
+  ): Promise<string[]> {
+    if (!plan || !this.toolRuntime.execute) {
+      return [];
+    }
+
+    const artifacts: string[] = [];
+
+    for (const file of plan.intendedFiles) {
+      if (file.changeType !== 'inspect') {
+        artifacts.push(
+          `[${correlationId}] deferred-mutation ${file.changeType} ${file.path}: mutating file plans require approval-backed patch generation.`
+        );
+        continue;
+      }
+
+      const result = await this.toolRuntime.execute({
+        tool: 'file.read',
+        path: file.path,
+        maxBytes: 8 * 1024,
+      });
+      artifacts.push(this.formatToolArtifact(correlationId, 'file.read', file.path, result));
+    }
+
+    for (const commandPlan of plan.commands) {
+      const parsedCommand = this.parseCommandPlan(commandPlan.command);
+      if (!parsedCommand) {
+        artifacts.push(
+          `[${correlationId}] denied command.parse for "${commandPlan.command}": command string could not be tokenized safely.`
+        );
+        continue;
+      }
+
+      const result = await this.toolRuntime.execute({
+        tool: 'command.run',
+        command: parsedCommand.command,
+        args: parsedCommand.args,
+      });
+      artifacts.push(
+        this.formatToolArtifact(correlationId, 'command.run', commandPlan.command, result)
+      );
+    }
+
+    logger.info('Executed bounded plan tools', {
+      ticketId: task.id,
+      correlationId,
+      artifactCount: artifacts.length,
+    });
+
+    return artifacts;
+  }
+
+  private async appendTaskArtifacts(ticketId: string, artifacts: string[]): Promise<void> {
+    const repository = this.getTaskArtifactRepository();
+    if (!repository || artifacts.length === 0) {
+      return;
+    }
+
+    try {
+      await repository.appendTaskAttemptArtifacts(ticketId, artifacts);
+    } catch (error) {
+      logger.warn('Could not persist task attempt artifacts', {
+        ticketId,
+        error: String(error),
+      });
+    }
+  }
+
+  private formatToolArtifact(
+    correlationId: string,
+    tool: EngineeringToolRequest['tool'],
+    subject: string,
+    result: EngineeringToolResult
+  ): string {
+    const reasonCodeSuffix = result.reasonCode ? ` [${result.reasonCode}]` : '';
+    return `[${correlationId}] ${tool} ${subject} -> ${result.status}${reasonCodeSuffix}: ${result.summary}`;
+  }
+
+  private parseCommandPlan(command: string): { command: string; args: string[] } | null {
+    const tokens = command.match(/(?:"[^"]*"|'[^']*'|\S)+/g);
+    if (!tokens || tokens.length === 0) {
+      return null;
+    }
+
+    const normalizeToken = (token: string) => token.replace(/^['"]|['"]$/g, '');
+    const [binary, ...args] = tokens.map(normalizeToken);
+    if (!binary) {
+      return null;
+    }
+
+    return { command: binary, args };
+  }
+
   private async markIdle(): Promise<void> {
     this.state.status = 'idle';
     this.state.currentTask = undefined;
@@ -384,11 +668,27 @@ export class HephaestusRuntime {
     this.state.currentTask = task;
     this.state.lastActivity = new Date();
 
-    await this.memory.recordBlocker(task.description, reason);
-    await this.memory.addSessionSummary(`Blocked: ${task.description}`);
+    const correlationId = `blocked_${task.id}_${Date.now()}`;
+    await this.runDurableMemorySideEffects(task, [
+      {
+        type: 'memory.record-blocker',
+        payload: { reason },
+        idempotencyKey: `${correlationId}:memory.record-blocker`,
+        correlationId,
+        execute: () => this.memory.recordBlocker(task.description, reason),
+      },
+      {
+        type: 'memory.add-session-summary',
+        payload: { summary: `Blocked: ${task.description}` },
+        idempotencyKey: `${correlationId}:memory.add-session-summary`,
+        correlationId,
+        execute: () => this.memory.addSessionSummary(`Blocked: ${task.description}`),
+      },
+    ]);
     await this.memory.updateStatus('Blocked', task.description);
 
     if (taskMarkedInProgress) {
+      Object.assign(task, transitionTask(task, 'blocked'));
       await this.tasks.markTaskBlocked(task);
     }
   }
@@ -399,7 +699,7 @@ export class HephaestusRuntime {
 
       try {
         const packageJson = await fs.readFile(
-          `${config.targetProject}/package.json`,
+          `${this.runtimeConfig.targetProject}/package.json`,
           'utf-8'
         );
         const pkg = JSON.parse(packageJson) as { name?: string; scripts?: Record<string, string> };
@@ -411,7 +711,7 @@ export class HephaestusRuntime {
 
       try {
         const readme = await fs.readFile(
-          `${config.targetProject}/README.md`,
+          `${this.runtimeConfig.targetProject}/README.md`,
           'utf-8'
         );
         const lines = readme.split('\n').slice(0, 20);
@@ -425,7 +725,7 @@ export class HephaestusRuntime {
         const { promisify } = await import('util');
         const execAsync = promisify(exec);
         const { stdout } = await execAsync('git status --short', {
-          cwd: config.targetProject,
+          cwd: this.runtimeConfig.targetProject,
         });
         if (stdout.trim()) {
           contextParts.push(`Git status:\n${stdout}`);

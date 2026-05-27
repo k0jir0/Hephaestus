@@ -81,9 +81,11 @@ Pending work belongs in the ticket store. As work starts, the projected board mo
 
 Before a task leaves `Queue`, Hephaestus now runs an admission gate that checks policy and runtime readiness first. If admission fails, the task stays queued and the blocker is recorded in `AGENT.md`.
 
+If startup preflight determines that the configured AI backend is unavailable, Hephaestus now enters a paused execution state instead of attempting predictable failures against the queue. That keeps pending work intact until backend readiness is restored.
+
 If a task fails after it has already moved into `In Progress`, Hephaestus now moves it into a `Blocked` section instead of leaving it stranded. That keeps the queue accurate and makes operator follow-up explicit.
 
-`TASKS.md` is now an optional projection, not the canonical source of truth. Hephaestus stores durable ticket state in `TICKETS_DB_FILE` and rewrites the markdown board from that store when projection is available. New work should be created through the ticket CLI rather than by editing markdown. Set `TASK_BOARD_PROJECTION_ENABLED=false` if projection writes are noisy or blocked by local file locks.
+`TASKS.md` is now an optional projection, not the canonical source of truth. Hephaestus stores durable ticket state in `TICKETS_DB_FILE` and rewrites the markdown board from that store when projection is available. New work should be created through the ticket CLI rather than by editing markdown. Projection failures now surface explicit retry scheduling instead of silently disabling board updates for the rest of the process. Set `TASK_BOARD_PROJECTION_ENABLED=false` if projection writes are noisy or intentionally disabled.
 
 When a task is admitted, the executor now returns a structured plan instead of only free-form prose. Each successful plan contains:
 

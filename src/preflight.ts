@@ -1,6 +1,13 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { config as defaultConfig, type Config, validateConfig } from './config.js';
+import {
+  AdmissionController,
+  createSafetyAdmissionGate,
+  type AdmissionDecision,
+  type HealthChecker,
+  type SafetyGate,
+} from './admission.js';
 import type { Task } from './types.js';
 
 export interface PreflightIssue {
@@ -12,19 +19,6 @@ export interface PreflightIssue {
 export interface PreflightResult {
   ok: boolean;
   issues: PreflightIssue[];
-}
-
-export interface HealthChecker {
-  checkHealth(): Promise<{ available: boolean; message: string }>;
-}
-
-export interface SafetyGate {
-  shouldContinue(): Promise<{ allowed: boolean; reason?: string }>;
-}
-
-export interface AdmissionDecision {
-  allowed: boolean;
-  reason?: string;
 }
 
 async function pathType(targetPath: string): Promise<'missing' | 'file' | 'directory'> {
@@ -153,17 +147,9 @@ export async function runStartupPreflight(options: {
 }
 
 export async function evaluateTaskAdmission(
-  _task: Task,
+  task: Task,
   safety: SafetyGate
 ): Promise<AdmissionDecision> {
-  const decision = await safety.shouldContinue();
-
-  if (decision.allowed) {
-    return { allowed: true };
-  }
-
-  return {
-    allowed: false,
-    reason: decision.reason || 'Task rejected by safety policy.',
-  };
+  const controller = new AdmissionController([createSafetyAdmissionGate(safety)]);
+  return controller.evaluate(task);
 }

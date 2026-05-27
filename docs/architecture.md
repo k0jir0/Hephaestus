@@ -40,7 +40,7 @@ That keeps the operator-facing surface area simple:
 Phase 1 focuses on catching failures before the agent mutates task state.
 
 - Startup preflight validates config semantics and repo paths without requiring markdown task sections.
-- Backend reachability is surfaced as a warning before the run starts.
+- Backend reachability is surfaced before the run starts. If the configured backend is unavailable, the runtime enters a paused state instead of attempting queue execution against a known-bad dependency.
 - Task admission happens before the task is moved into `In Progress`.
 - Blocked tasks remain in `Queue`, which preserves an accurate queue history.
 - If a task fails after admission, the runtime moves it from `In Progress` into `Blocked` so the board reflects that operator intervention is required.
@@ -69,6 +69,7 @@ Phase 4 is now implemented and extended.
 - The default task adapter uses a local SQLite ticket store as the source of truth.
 - New work enters through ticket-store operations or the operator CLI instead of markdown edits.
 - `TASKS.md` is projected from ticket state and kept only as an optional human-readable view.
+- Projection failures now enter an explicit unhealthy state with automatic retry scheduling instead of permanently suspending board updates for the rest of the process.
 - A markdown-only fallback remains available only when explicitly enabled by configuration.
 - Ticket attempts are recorded durably so later phases can attach patches, verification output, and recovery decisions to a specific attempt.
 
