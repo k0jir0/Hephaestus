@@ -379,6 +379,121 @@ describe('TicketStoreRepository', () => {
     await repository.stop();
   });
 
+  it('approves and resumes awaiting-approval tickets with durable audit metadata', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(rootDir, 'TASKS.md'),
+      storeFile: path.join(rootDir, '.hephaestus-tickets.db'),
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await repository.createTicket('Resume an approved patch');
+    await repository.markTaskInProgress(ticket);
+    await repository.markTaskAwaitingApproval({
+      ...ticket,
+      status: 'awaiting_approval',
+      error: 'Patch requires approval before apply: patch touches 2 files',
+      plan: {
+        summary: 'Apply the risky patch.',
+        intendedFiles: [
+          { path: 'README.md', changeType: 'update', purpose: 'Update docs' },
+          { path: 'src/runtime.ts', changeType: 'update', purpose: 'Update runtime behavior' },
+        ],
+        commands: [],
+        verification: ['Review the approval request'],
+        risks: ['Touches multiple files'],
+      },
+      toolCalls: [
+        {
+          name: 'patch.apply',
+          arguments: {
+            patch: 'diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new\n',
+          },
+        },
+      ],
+      approval: {
+        requestId: 'approval_req_1',
+        status: 'requested',
+        requestedAt: new Date('2026-05-27T00:00:00.000Z'),
+        requestedReason: 'Patch requires approval before apply: patch touches 2 files',
+        touchedPaths: ['README.md', 'src/runtime.ts'],
+        changedLines: 24,
+      },
+    });
+
+    const approved = await repository.approveTicket(ticket.id, 'operator@example.com', 'Reviewed and approved.');
+    const resumed = await repository.resumeApprovedTicket(ticket.id);
+    const attempts = await repository.listAttempts(ticket.id);
+    const events = await repository.listEvents(ticket.id);
+
+    assert.equal(approved.status, 'awaiting_approval');
+    assert.equal(approved.approval?.status, 'approved');
+    assert.equal(approved.approval?.reviewer, 'operator@example.com');
+    assert.equal(approved.approval?.rationale, 'Reviewed and approved.');
+    assert.match(approved.approval?.approvalId ?? '', /^approval_[a-z0-9]+$/i);
+
+    assert.equal(resumed.status, 'pending');
+    assert.equal(resumed.approval?.status, 'approved');
+    assert.equal(resumed.toolCalls?.length, 1);
+    assert.equal(attempts[0]?.status, 'awaiting_approval');
+    assert.equal(attempts[0]?.approval?.status, 'approved');
+    assert.equal(attempts[0]?.toolCalls?.[0]?.name, 'patch.apply');
+    assert.ok(events.some((event) => event.type === 'approval-requested'));
+    assert.ok(events.some((event) => event.type === 'approval-approved'));
+    assert.ok(events.some((event) => event.type === 'approval-resumed'));
+
+    await repository.stop();
+  });
+
+  it('blocks awaiting-approval tickets when an operator rejects the request', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(rootDir, 'TASKS.md'),
+      storeFile: path.join(rootDir, '.hephaestus-tickets.db'),
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await repository.createTicket('Reject a risky patch');
+    await repository.markTaskInProgress(ticket);
+    await repository.markTaskAwaitingApproval({
+      ...ticket,
+      status: 'awaiting_approval',
+      error: 'Patch requires approval before apply: patch touches 2 files',
+      toolCalls: [
+        {
+          name: 'patch.apply',
+          arguments: {
+            patch: 'diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new\n',
+          },
+        },
+      ],
+      approval: {
+        requestId: 'approval_req_2',
+        status: 'requested',
+        requestedAt: new Date('2026-05-27T00:00:00.000Z'),
+        requestedReason: 'Patch requires approval before apply: patch touches 2 files',
+      },
+    });
+
+    const rejected = await repository.rejectTicket(ticket.id, 'operator@example.com', 'Too broad for this milestone.');
+    const events = await repository.listEvents(ticket.id);
+
+    assert.equal(rejected.status, 'blocked');
+    assert.equal(rejected.approval?.status, 'rejected');
+    assert.equal(rejected.approval?.reviewer, 'operator@example.com');
+    assert.match(rejected.error ?? '', /Approval rejected by operator@example.com: Too broad for this milestone\./);
+    assert.ok(events.some((event) => event.type === 'approval-rejected'));
+    assert.ok(events.some((event) => event.type === 'blocked' && /Approval rejected/.test(event.details ?? '')));
+
+    await repository.stop();
+  });
+
   it('persists bounded tool artifacts onto the active attempt', async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
     tempDirs.push(rootDir);

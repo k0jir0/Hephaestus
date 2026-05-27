@@ -24,6 +24,9 @@ Usage:
   npm run tickets -- list [--status <status>]
   npm run tickets -- show <ticket-id>
   npm run tickets -- retry <ticket-id>
+  npm run tickets -- approve <ticket-id> <reviewer> [reason]
+  npm run tickets -- reject <ticket-id> <reviewer> [reason]
+  npm run tickets -- resume <ticket-id>
   npm run tickets -- cancel <ticket-id> [reason]
   npm run tickets -- attempts <ticket-id>
   npm run tickets -- metrics
@@ -127,6 +130,22 @@ async function main(): Promise<void> {
         if (ticket.plan) {
           console.log(`Plan Summary: ${ticket.plan.summary}`);
         }
+        if (ticket.toolCalls?.length) {
+          console.log(`Pending Tool Calls: ${ticket.toolCalls.length}`);
+        }
+        if (ticket.approval) {
+          console.log(`Approval Status: ${ticket.approval.status}`);
+          console.log(`Approval Requested: ${formatTimestamp(ticket.approval.requestedAt)}`);
+          if (ticket.approval.reviewer) {
+            console.log(`Approval Reviewer: ${ticket.approval.reviewer}`);
+          }
+          if (ticket.approval.rationale) {
+            console.log(`Approval Rationale: ${ticket.approval.rationale}`);
+          }
+          if (ticket.approval.approvalId) {
+            console.log(`Approval Token: ${ticket.approval.approvalId}`);
+          }
+        }
 
         const events = await repository.listEvents(ticket.id);
         if (events.length > 0) {
@@ -158,6 +177,43 @@ async function main(): Promise<void> {
 
         const ticket = await repository.retryTicket(ticketId);
         console.log(`Retried ${ticket.id}; new status: ${ticket.status}`);
+        break;
+      }
+
+      case 'approve': {
+        const ticketId = args[0];
+        const reviewer = args[1];
+        if (!ticketId || !reviewer) {
+          throw new Error('approve requires a ticket id and reviewer.');
+        }
+
+        const rationale = args.slice(2).join(' ').trim() || 'Approved by operator.';
+        const ticket = await repository.approveTicket(ticketId, reviewer, rationale);
+        console.log(`Approved ${ticket.id}; approval status: ${ticket.approval?.status ?? 'unknown'}`);
+        break;
+      }
+
+      case 'reject': {
+        const ticketId = args[0];
+        const reviewer = args[1];
+        if (!ticketId || !reviewer) {
+          throw new Error('reject requires a ticket id and reviewer.');
+        }
+
+        const rationale = args.slice(2).join(' ').trim() || 'Rejected by operator.';
+        const ticket = await repository.rejectTicket(ticketId, reviewer, rationale);
+        console.log(`Rejected ${ticket.id}; new status: ${ticket.status}`);
+        break;
+      }
+
+      case 'resume': {
+        const ticketId = args[0];
+        if (!ticketId) {
+          throw new Error('resume requires a ticket id.');
+        }
+
+        const ticket = await repository.resumeApprovedTicket(ticketId);
+        console.log(`Resumed ${ticket.id}; new status: ${ticket.status}`);
         break;
       }
 

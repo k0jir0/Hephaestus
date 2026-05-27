@@ -32,6 +32,7 @@ import type {
   AgentState,
   EngineeringToolResult,
   Task,
+  TaskApprovalState,
   TaskPlan,
   ToolCall,
   ToolPolicySnapshot,
@@ -68,6 +69,8 @@ interface PlannedToolExecutionOutcome {
   artifacts: string[];
   failureReason?: string;
   awaitingApprovalReason?: string;
+  pendingToolCalls?: ToolCall[];
+  approvalState?: TaskApprovalState;
 }
 
 export interface RuntimeDependencies {
@@ -408,7 +411,15 @@ export class HephaestusRuntime {
       taskMarkedInProgress = true;
 
       const context = await this.contextProvider();
-      const result = await this.executor.executeTask(task, context);
+      const resumedToolCalls = this.getResumableApprovedToolCalls(task);
+      const result = resumedToolCalls
+        ? {
+            success: true,
+            content: `Resume approved execution for ${task.description}.`,
+            plan: task.plan,
+            toolCalls: resumedToolCalls,
+          } satisfies AIResponse
+        : await this.executor.executeTask(task, context);
 
       if (result.success) {
         const taskSummary = formatTaskPlanSummary(result.plan ?? {
@@ -420,17 +431,23 @@ export class HephaestusRuntime {
         });
         task.plan = result.plan;
         task.result = taskSummary;
+        task.toolCalls = result.toolCalls;
 
         const toolExecution = await this.executePlannedTools(
           task,
           result.plan,
           result.toolCalls ?? [],
-          admission.correlationId
+          admission.correlationId,
+          {
+            skipPlanPrelude: resumedToolCalls !== null,
+          }
         );
         await this.appendTaskArtifacts(task.id, toolExecution.artifacts);
 
         if (toolExecution.awaitingApprovalReason) {
           task.error = toolExecution.awaitingApprovalReason;
+          task.toolCalls = toolExecution.pendingToolCalls ?? result.toolCalls ?? [];
+          task.approval = toolExecution.approvalState;
           Object.assign(task, transitionTask(task, 'awaiting_approval'));
           await this.handleAwaitingApprovalTask(task, toolExecution.awaitingApprovalReason, taskMarkedInProgress);
           return 'awaiting_approval';
@@ -593,7 +610,8 @@ export class HephaestusRuntime {
     task: Task,
     plan: TaskPlan | undefined,
     toolCalls: ToolCall[],
-    correlationId: string
+    correlationId: string,
+    options: { skipPlanPrelude?: boolean } = {}
   ): Promise<PlannedToolExecutionOutcome> {
     if ((!plan && toolCalls.length === 0) || !this.toolRuntime.execute) {
       return { artifacts: [] };
@@ -606,7 +624,13 @@ export class HephaestusRuntime {
       artifacts.push(this.formatPolicySnapshotArtifact(correlationId, policySnapshot));
     }
 
-    if (plan) {
+    if (options.skipPlanPrelude && task.approval?.approvalId) {
+      artifacts.push(
+        `[${correlationId}] approval.resume ${task.approval.requestId} -> ${task.approval.approvalId}`
+      );
+    }
+
+    if (plan && !options.skipPlanPrelude) {
       for (const file of plan.intendedFiles) {
         if (file.changeType !== 'inspect') {
           artifacts.push(
@@ -650,7 +674,7 @@ export class HephaestusRuntime {
       }
     }
 
-    for (const toolCall of toolCalls) {
+    for (const [index, toolCall] of toolCalls.entries()) {
       const execution = await this.executeGovernedToolCall(plan, toolCall, correlationId);
       artifacts.push(...execution.artifacts);
 
@@ -659,6 +683,8 @@ export class HephaestusRuntime {
           artifacts,
           awaitingApprovalReason: execution.awaitingApprovalReason,
           failureReason: execution.failureReason,
+          approvalState: execution.approvalState,
+          pendingToolCalls: execution.awaitingApprovalReason ? toolCalls.slice(index) : undefined,
         };
       }
     }
@@ -684,6 +710,9 @@ export class HephaestusRuntime {
     switch (toolCall.name) {
       case 'patch.apply': {
         const patch = typeof toolCall.arguments.patch === 'string' ? toolCall.arguments.patch : null;
+        const approvalId = typeof toolCall.arguments.approvalId === 'string'
+          ? toolCall.arguments.approvalId
+          : undefined;
         if (!patch) {
           return {
             artifacts: [
@@ -722,6 +751,7 @@ export class HephaestusRuntime {
         const applyResult = await this.toolRuntime.execute({
           tool: 'patch.apply',
           patch,
+          approvalId,
         });
         artifacts.push(
           this.formatToolArtifact(correlationId, 'patch.apply', `${patchSubject} [apply]`, applyResult)
@@ -732,6 +762,7 @@ export class HephaestusRuntime {
           return {
             artifacts,
             awaitingApprovalReason: applyResult.summary,
+            approvalState: this.buildApprovalState(correlationId, applyResult),
           };
         }
 
@@ -932,6 +963,67 @@ export class HephaestusRuntime {
     return plan.intendedFiles.some((candidate) => candidate.path === targetPath)
       ? null
       : `File read target ${targetPath} is not declared in the validated plan.`;
+  }
+
+  private getResumableApprovedToolCalls(task: Task): ToolCall[] | null {
+    if (!task.plan || !task.toolCalls || task.toolCalls.length === 0) {
+      return null;
+    }
+
+    if (task.approval?.status !== 'approved' || !task.approval.approvalId) {
+      return null;
+    }
+
+    let appliedApproval = false;
+    const resumedToolCalls = task.toolCalls.map((toolCall) => {
+      if (!appliedApproval && toolCall.name === 'patch.apply') {
+        appliedApproval = true;
+        return {
+          ...toolCall,
+          arguments: {
+            ...toolCall.arguments,
+            approvalId: task.approval?.approvalId,
+          },
+        };
+      }
+
+      return toolCall;
+    });
+
+    return appliedApproval ? resumedToolCalls : null;
+  }
+
+  private buildApprovalState(
+    correlationId: string,
+    result: EngineeringToolResult
+  ): TaskApprovalState {
+    let touchedPaths: string[] | undefined;
+    let changedLines: number | undefined;
+
+    if (result.output) {
+      try {
+        const parsed = JSON.parse(result.output) as {
+          touchedPaths?: unknown;
+          changedLines?: unknown;
+        };
+        touchedPaths = Array.isArray(parsed.touchedPaths)
+          ? parsed.touchedPaths.filter((candidate): candidate is string => typeof candidate === 'string')
+          : undefined;
+        changedLines = typeof parsed.changedLines === 'number' ? parsed.changedLines : undefined;
+      } catch {
+        touchedPaths = undefined;
+        changedLines = undefined;
+      }
+    }
+
+    return {
+      requestId: correlationId,
+      status: 'requested',
+      requestedAt: new Date(),
+      requestedReason: result.summary,
+      touchedPaths,
+      changedLines,
+    };
   }
 
   private parseCommandPlan(command: string): { command: string; args: string[] } | null {

@@ -1,0 +1,327 @@
+Hephaestus UI Cockpit Paper and Implementation Roadmap
+
+Authorial position
+
+Hephaestus can support a frontend UI, but the correct frontend is an operator cockpit rather than a frontend-first product shell. The system already has the backend characteristics that justify an operator interface: durable task state, explicit task lifecycle, governed tool execution, approval holds, telemetry, and published reliability baselines. Those properties mean the UI can be built as a control plane over an existing runtime instead of as a speculative veneer over an immature core.
+
+The important architectural truth is that the frontend must not become a second runtime. It should not own lifecycle semantics, policy decisions, patch risk classification, or workflow truth. Those belong in the backend runtime and store. The browser should render state, provide review surfaces, and invoke explicit backend commands. If the frontend starts deciding state transitions or reconstructing truth from projections, it will damage the architecture rather than improve it.
+
+Core truths
+
+1. A Hephaestus UI is possible because the backend already has durable lifecycle and control semantics.
+2. A Hephaestus UI is desirable only as an operator control plane, not as a cosmetic product layer.
+3. The canonical truth must remain in the backend ticket, attempt, event, artifact, and policy model.
+4. The UI must never infer or implement policy logic that the runtime should own.
+5. The first real justification for a cockpit is human-in-the-loop approval, triage, observability, and intervention.
+6. A chat-first interface would be architecturally premature because it would obscure workflow semantics and encourage state leakage into the client.
+7. The next missing backend capability is the approval-resume loop; that should exist before the cockpit tries to make approvals look complete.
+
+Why the cockpit should exist
+
+The CLI and runtime are now strong enough to support an operator-facing interface. The existing system can represent tasks, attempts, approvals, failures, artifacts, and reliability metrics, but those capabilities are operationally awkward if a human must inspect them repeatedly through logs and commands. A cockpit is justified when it reduces operator friction in four areas:
+
+1. understanding what the system is doing,
+2. reviewing and approving risky mutations,
+3. diagnosing blocked or failed work,
+4. monitoring whether the system remains reliable over time.
+
+That is a serious systems goal. It is not a UI-for-its-own-sake goal.
+
+Why the cockpit should not become the system
+
+The biggest design risk is building a frontend that quietly becomes a shadow orchestrator. That failure mode usually appears in the following ways:
+
+1. the frontend reconstructs lifecycle state instead of reading canonical state,
+2. client code decides whether a patch is safe,
+3. approval logic is spread between browser and server,
+4. derived files or dashboards are treated as truth rather than the store,
+5. conversational UX hides the actual execution and approval semantics.
+
+If that happens, the UI will create architectural confusion, safety gaps, and inconsistent behavior across interfaces. The cockpit should therefore be treated as a thin but high-value operator surface over a disciplined backend.
+
+Cockpit mission
+
+The UI should serve as the primary operator console for visibility, review, approval, and intervention. Its mission is to make the governed runtime legible and actionable without moving domain logic into the client.
+
+The cockpit should answer five questions quickly:
+
+1. What is happening now?
+2. What is stuck or degraded?
+3. Which mutations require human approval?
+4. Why did a task fail or block?
+5. Is overall system behavior improving or regressing against baseline?
+
+System architecture for the cockpit
+
+The cockpit should be built as a three-layer system.
+
+Layer 1: Core engine
+
+This is the current runtime, tool governance layer, task store, event model, and telemetry logic. It remains the sole owner of:
+
+1. lifecycle transitions,
+2. tool policy and risk classification,
+3. approval hold semantics,
+4. retry and failure semantics,
+5. metrics computation.
+
+Layer 2: Control API
+
+A thin HTTP service should expose read models and command endpoints over the existing runtime and store. This layer exists to present stable contracts to the frontend without duplicating domain logic.
+
+It should expose query endpoints for:
+
+1. tickets,
+2. task details,
+3. attempts,
+4. events,
+5. tool artifacts,
+6. approval queue,
+7. metrics and baseline comparisons.
+
+It should expose command endpoints for:
+
+1. create task,
+2. retry task,
+3. cancel task,
+4. approve patch,
+5. reject patch,
+6. resume approval-held task.
+
+For live updates, server-sent events should be used first. The cockpit mostly needs one-way streaming of runtime changes and metrics updates. WebSockets would add complexity before the use case demands it.
+
+Layer 3: Browser cockpit
+
+The browser client should provide dense operator workflows: boards, timelines, queues, diffs, artifact inspection, and reliability views. It should never implement business logic for transitions or safety decisions.
+
+Functional design of the cockpit
+
+The first usable cockpit should contain four primary surfaces.
+
+1. Operations board
+
+This is the landing page. It should show:
+
+1. ticket counts by lifecycle state,
+2. active queue depth,
+3. awaiting approval backlog,
+4. blocked task clusters by failure taxonomy,
+5. service-level metrics,
+6. regression or improvement relative to the published baseline.
+
+This page is for situational awareness.
+
+2. Task detail view
+
+This page should show the full narrative of one task:
+
+1. current state,
+2. planned work and tool-call intent,
+3. attempt history,
+4. event timeline,
+5. artifacts such as policy snapshot and dry-run delta,
+6. failure reason taxonomy,
+7. correlation identifiers and timestamps,
+8. actions such as retry or cancel where policy allows.
+
+This page is for diagnosis and intervention.
+
+3. Approval queue
+
+This is the highest-value human-in-the-loop screen. It should show, for each approval-held mutation:
+
+1. task summary and intent,
+2. reason approval is required,
+3. touched paths,
+4. rendered patch diff,
+5. policy snapshot at time of decision,
+6. review metadata,
+7. explicit approve and reject actions.
+
+This page should feel like an engineering review surface, not a generic confirmation dialog.
+
+4. Reliability and incident view
+
+This page should show:
+
+1. admission-to-start latency trend,
+2. blocked-retry success ratio,
+3. failure taxonomy stability,
+4. consistency lag,
+5. counts by state over time,
+6. recent incident clusters,
+7. comparison against current published baseline.
+
+This page is for operational confidence, trend analysis, and regression detection.
+
+Secondary surfaces that can come later
+
+1. Audit log browser for approvals and operator actions.
+2. Policy explorer for inspecting current governance thresholds and signatures.
+3. Repository or workload segmentation views if Hephaestus begins managing multiple domains.
+4. Search across tasks, attempts, events, and artifacts.
+
+Design principles
+
+1. The UI should look like an engineering console, not a chatbot.
+2. Dense information is preferable to oversized consumer-style cards.
+3. State distinctions must be visually unambiguous, especially for blocked and approval-held work.
+4. Diff review and artifact inspection should be first-class, not buried in drawers.
+5. Auditability should be visible in the normal flow of the interface.
+6. Keyboard-friendly triage matters more than decorative motion.
+7. The design should reward clarity, not theatricality.
+
+Interaction model
+
+The best interaction model is a combination of board, detail pane, timeline, and review workflow.
+
+1. The operator starts on the operations board.
+2. A click drills into a task without losing queue context.
+3. Approval-held items move through a review surface with explicit rationale.
+4. Reliability views expose trends rather than static totals.
+5. Filters should be persistent across pages so operators can stay inside a relevant slice.
+
+The cockpit should not begin with a free-form assistant as the primary interface. Natural-language entry can be added later if it remains a thin convenience layer over explicit commands and views.
+
+Required backend work before the cockpit is honest
+
+The current architecture still has one important missing capability: an approval-resume loop for awaiting-approval tasks. High-risk patches can already be held correctly, but a complete workflow requires:
+
+1. durable approval decisions,
+2. approval identity and reason capture,
+3. a mechanism to resume execution with an approval token or approved intent,
+4. audit events for the resume path,
+5. rejection handling that closes the loop cleanly.
+
+Without that, the cockpit can display the queue but cannot complete the lifecycle elegantly.
+
+Implementation roadmap
+
+Phase 0: Close backend semantic gaps
+
+Goal: make approval workflows truly complete before the UI tries to expose them.
+
+Deliverables:
+
+1. implement approval and rejection commands in the backend,
+2. implement task resumption from awaiting approval,
+3. persist reviewer identity, timestamps, and rationale,
+4. record audit events for approve, reject, and resume,
+5. add tests for the full approval lifecycle.
+
+Why first:
+
+The cockpit should not present buttons for workflows that the backend cannot carry to completion.
+
+Phase 1: Introduce a control API
+
+Goal: create a clean server boundary between the browser and the engine.
+
+Deliverables:
+
+1. HTTP endpoints for tickets, attempts, events, artifacts, metrics, and approval queue,
+2. command endpoints for create, retry, cancel, approve, reject, and resume,
+3. authentication and authorization roles,
+4. server-sent event stream for live updates,
+5. API contract tests.
+
+Why second:
+
+The browser must not bind directly to internal runtime modules. The control API creates a stable integration surface and keeps domain logic out of the client.
+
+Phase 2: Build a read-only cockpit shell
+
+Goal: deliver observability first, before control actions.
+
+Deliverables:
+
+1. application shell and navigation,
+2. operations board,
+3. task detail page,
+4. metrics summary cards,
+5. timeline and artifact readers.
+
+Why third:
+
+Read-only visibility is the safest way to validate information architecture and operational usefulness before adding approval actions.
+
+Phase 3: Add the approval cockpit
+
+Goal: make human-in-the-loop governance usable and auditable.
+
+Deliverables:
+
+1. approval queue page,
+2. diff review surface,
+3. policy snapshot viewer,
+4. approve and reject actions,
+5. operator audit trail in the UI,
+6. resume-state feedback after approval.
+
+Why fourth:
+
+Approval is the highest-value interactive workflow, but it depends on both backend lifecycle completion and clear read models.
+
+Phase 4: Add live operations and incident analysis
+
+Goal: make the cockpit suitable for ongoing operations rather than occasional inspection.
+
+Deliverables:
+
+1. live event updates via server-sent events,
+2. failure taxonomy dashboards,
+3. baseline comparison views,
+4. trend charts for latency and success ratios,
+5. incident filters and saved views.
+
+Why fifth:
+
+Once the primary surfaces are usable, real-time awareness and trend analysis provide the next practical gain.
+
+Phase 5: Harden and scale
+
+Goal: make the cockpit durable under production-style use.
+
+Deliverables:
+
+1. role-based authorization hardening,
+2. API pagination and search,
+3. accessibility review,
+4. end-to-end tests for critical operator flows,
+5. error-budget and alert integration,
+6. multi-tenant or multi-repository segmentation if needed.
+
+Why last:
+
+Hardening should follow validated workflows rather than speculative infrastructure.
+
+Recommended build order
+
+The concrete build order should be:
+
+1. approval-resume backend semantics,
+2. control API contracts,
+3. read-only operations board and task detail,
+4. approval queue and review flow,
+5. live updates and reliability views,
+6. hardening, search, and advanced operations.
+
+This order matters because it preserves architectural honesty. Each UI layer is built only after the underlying semantics exist and can be tested independently.
+
+Suggested technology direction
+
+The frontend should be a thin TypeScript web client with a strong bias toward clarity and inspectability. The exact framework matters less than the boundary discipline, but the project should favor:
+
+1. typed API contracts,
+2. server-sent events for live updates,
+3. a routing model that supports board, detail, and queue views,
+4. a component system that handles dense tables, timelines, and diff panels well,
+5. test coverage for critical operator flows.
+
+The system should avoid premature complexity such as collaborative editing protocols, client-side workflow engines, or conversational orchestration layers.
+
+Final recommendation
+
+Hephaestus should have a frontend UI, but only as a cockpit for operators. The correct design is a control plane over the governed runtime, not a frontend that attempts to become the runtime. The most important near-term work is not visual design; it is completing the approval-resume lifecycle and exposing a disciplined control API. Once those exist, a cockpit becomes not only possible but strategically justified.
+
+In short: build the UI, but build it as a rigorous operator console, in the correct order, and only on top of backend semantics that already exist or are deliberately completed first.

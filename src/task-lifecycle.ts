@@ -4,7 +4,7 @@ const allowedTransitions: Record<TaskStatus, readonly TaskStatus[]> = {
   pending: ['in_progress', 'blocked', 'cancelled'],
   in_progress: ['planned', 'awaiting_approval', 'applying', 'verifying', 'completed', 'blocked', 'cancelled'],
   planned: ['awaiting_approval', 'applying', 'verifying', 'completed', 'blocked', 'cancelled'],
-  awaiting_approval: ['applying', 'verifying', 'completed', 'blocked', 'cancelled'],
+  awaiting_approval: ['pending', 'applying', 'verifying', 'completed', 'blocked', 'cancelled'],
   applying: ['verifying', 'completed', 'blocked', 'cancelled'],
   verifying: ['completed', 'blocked', 'cancelled'],
   completed: ['merged'],

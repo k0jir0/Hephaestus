@@ -45,6 +45,8 @@ export interface Task {
   result?: string;
   error?: string;
   plan?: TaskPlan;
+  toolCalls?: ToolCall[];
+  approval?: TaskApprovalState;
 }
 
 export interface TaskTicket extends Task {
@@ -65,6 +67,9 @@ export interface TaskEvent {
     | 'attempt-started'
     | 'attempt-finished'
     | 'approval-requested'
+    | 'approval-approved'
+    | 'approval-rejected'
+    | 'approval-resumed'
     | 'board-synced'
     | 'side-effect-enqueued'
     | 'side-effect-completed'
@@ -84,7 +89,22 @@ export interface TaskAttempt {
   result?: string;
   error?: string;
   plan?: TaskPlan;
+  toolCalls?: ToolCall[];
+  approval?: TaskApprovalState;
   artifacts: string[];
+}
+
+export interface TaskApprovalState {
+  requestId: string;
+  status: 'requested' | 'approved' | 'rejected';
+  requestedAt: Date;
+  requestedReason?: string;
+  touchedPaths?: string[];
+  changedLines?: number;
+  decisionAt?: Date;
+  reviewer?: string;
+  rationale?: string;
+  approvalId?: string;
 }
 
 export type TaskSideEffectType =

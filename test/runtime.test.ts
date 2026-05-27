@@ -1064,4 +1064,173 @@ describe('HephaestusRuntime', () => {
     assert.ok(calls.statuses.includes('Awaiting Approval'));
     assert.ok(calls.artifacts.some((artifact) => /patch\.delta README\.md, src\/runtime\.ts: dry-run=dry_run\/dry-run-only; apply=denied\/approval-required/.test(artifact)));
   });
+
+  it('resumes approved patch tool calls without replanning and forwards the approval token', async () => {
+    const task: Task = {
+      ...makeTask('Resume an approved patch'),
+      plan: {
+        summary: 'Apply the approved patch.',
+        intendedFiles: [
+          {
+            path: 'README.md',
+            purpose: 'Update documentation',
+            changeType: 'update',
+          },
+        ],
+        commands: [],
+        verification: ['Review the approved patch'],
+        risks: ['Requires approved mutation replay'],
+      },
+      toolCalls: [
+        {
+          name: 'patch.apply',
+          arguments: {
+            patch: 'diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new\n',
+          },
+        },
+      ],
+      approval: {
+        requestId: 'approval_req_resume',
+        status: 'approved',
+        requestedAt: new Date('2026-05-27T00:00:00.000Z'),
+        requestedReason: 'Patch requires approval before apply: patch touches 1 file',
+        decisionAt: new Date('2026-05-27T00:05:00.000Z'),
+        reviewer: 'operator@example.com',
+        rationale: 'Approved for replay.',
+        approvalId: 'approval_token_demo',
+        touchedPaths: ['README.md'],
+      },
+    };
+
+    const calls = {
+      completed: 0,
+      blocked: 0,
+      awaitingApproval: 0,
+      toolRequests: [] as Array<{ tool: string; dryRun?: boolean; approvalId?: string }>,
+    };
+
+    const runtime = new HephaestusRuntime({
+      memory: {
+        async initialize() {},
+        async updateStatus() {},
+        async recordTaskCompletion() {},
+        async recordBlocker() {},
+        async addToTaskHistory() {},
+        async addSessionSummary() {},
+      },
+      tasks: {
+        async start() {},
+        async stop() {},
+        async getPendingTasks() {
+          return [task];
+        },
+        async markTaskInProgress() {},
+        async markTaskAwaitingApproval() {
+          calls.awaitingApproval += 1;
+        },
+        async markTaskCompleted() {
+          calls.completed += 1;
+        },
+        async markTaskBlocked() {
+          calls.blocked += 1;
+        },
+        async appendTaskAttemptArtifacts() {},
+      },
+      executor: {
+        async executeTask(): Promise<AIResponse> {
+          assert.fail('approved resume should not call the planner again');
+        },
+        async checkHealth() {
+          return { available: true, message: 'ok' };
+        },
+      },
+      toolRuntime: {
+        async checkReadiness() {
+          return { available: true, message: 'ok' };
+        },
+        getPolicySnapshot() {
+          return {
+            version: 'hephaestus-tool-policy/v1',
+            workspaceRoot: '.',
+            dryRunByDefault: false,
+            maxReadBytes: 1024,
+            maxOutputBytes: 1024,
+            maxSearchResults: 10,
+            commandTimeoutMs: 1000,
+            commandAllowlist: ['npm test'],
+            protectedPathPrefixes: ['.git'],
+            patchRiskThresholds: {
+              maxSafeTouchedPaths: 1,
+              maxSafeChangedLines: 20,
+            },
+            generatedAt: new Date('2026-05-27T00:00:00.000Z'),
+            signature: 'policy1234abcd5678',
+          };
+        },
+        async execute(request) {
+          if (request.tool !== 'patch.apply') {
+            assert.fail(`unexpected resumed tool request: ${request.tool}`);
+          }
+
+          calls.toolRequests.push({
+            tool: request.tool,
+            dryRun: request.dryRun,
+            approvalId: request.approvalId,
+          });
+
+          return request.dryRun
+            ? {
+                id: 'tool_dry_run',
+                tool: 'patch.apply',
+                status: 'dry_run' as const,
+                startedAt: new Date(),
+                endedAt: new Date(),
+                summary: 'Patch validated for 1 file(s).',
+                reasonCode: 'dry-run-only',
+                mutatedPaths: ['README.md'],
+              }
+            : {
+                id: 'tool_apply',
+                tool: 'patch.apply',
+                status: 'success' as const,
+                startedAt: new Date(),
+                endedAt: new Date(),
+                summary: 'Patch applied to 1 file(s).',
+                mutatedPaths: ['README.md'],
+              };
+        },
+      },
+      safety: {
+        async shouldContinue() {
+          return { allowed: true };
+        },
+        recordSuccess() {},
+        recordError() {},
+        recordTaskCompletion() {},
+        recordTokenUsage() {},
+        shouldAutoCommit() {
+          return false;
+        },
+        async performAutoCommit() {
+          return false;
+        },
+        getStatusSummary() {
+          return 'ok';
+        },
+        resetDailyCounters() {},
+      },
+      preflightRunner: async () => ({ ok: true, issues: [] }),
+      contextProvider: async () => 'README excerpt',
+    });
+
+    await runtime.run({ runOnce: true });
+
+    assert.equal(calls.completed, 1);
+    assert.equal(calls.blocked, 0);
+    assert.equal(calls.awaitingApproval, 0);
+    assert.deepEqual(calls.toolRequests, [
+      { tool: 'patch.apply', dryRun: true, approvalId: undefined },
+      { tool: 'patch.apply', dryRun: undefined, approvalId: 'approval_token_demo' },
+    ]);
+  });
 });

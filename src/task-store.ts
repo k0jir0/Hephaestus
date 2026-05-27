@@ -18,6 +18,7 @@ import {
 } from './task-board.js';
 import type {
   Task,
+  TaskApprovalState,
   TaskAttempt,
   TaskAttemptStatus,
   TaskEvent,
@@ -25,6 +26,7 @@ import type {
   TaskSideEffectStatus,
   TaskStatus,
   TaskTicket,
+  ToolCall,
 } from './types.js';
 import { TaskWatcher } from './watcher.js';
 
@@ -69,6 +71,8 @@ interface TicketRow {
   result: string | null;
   error: string | null;
   plan_json: string | null;
+  tool_calls_json: string | null;
+  approval_json: string | null;
   attempt_count: number;
   source_order: number;
 }
@@ -83,6 +87,8 @@ interface TaskAttemptRow {
   result: string | null;
   error: string | null;
   plan_json: string | null;
+  tool_calls_json: string | null;
+  approval_json: string | null;
   artifacts_json: string | null;
 }
 
@@ -297,6 +303,8 @@ export class TicketStoreRepository
       endedAt: now,
       error: task.error,
       planJson: task.plan ? JSON.stringify(task.plan) : undefined,
+      toolCallsJson: serializeToolCalls(task.toolCalls),
+      approvalJson: serializeApprovalState(task.approval),
     });
 
     this.getDatabase()
@@ -306,10 +314,19 @@ export class TicketStoreRepository
              updated_at = ?,
              error = ?,
              plan_json = ?,
+             tool_calls_json = coalesce(?, tool_calls_json),
+             approval_json = coalesce(?, approval_json),
              current_attempt_id = null
          where id = ?`
       )
-      .run(now, task.error ?? null, task.plan ? JSON.stringify(task.plan) : null, ticket.id);
+      .run(
+        now,
+        task.error ?? null,
+        task.plan ? JSON.stringify(task.plan) : null,
+        serializeToolCalls(task.toolCalls),
+        serializeApprovalState(task.approval),
+        ticket.id
+      );
     this.recordEvent({
       ticketId: ticket.id,
       type: 'approval-requested',
@@ -348,6 +365,8 @@ export class TicketStoreRepository
       endedAt: now,
       result: task.result,
       planJson: task.plan ? JSON.stringify(task.plan) : undefined,
+      toolCallsJson: serializeToolCalls(task.toolCalls),
+      approvalJson: serializeApprovalState(task.approval),
     });
 
     this.getDatabase()
@@ -358,10 +377,20 @@ export class TicketStoreRepository
              completed_at = ?,
              result = ?,
              error = null,
-             plan_json = ?
+             plan_json = ?,
+             tool_calls_json = coalesce(?, tool_calls_json),
+             approval_json = coalesce(?, approval_json)
          where id = ?`
       )
-      .run(now, now, task.result ?? null, task.plan ? JSON.stringify(task.plan) : null, ticket.id);
+      .run(
+        now,
+        now,
+        task.result ?? null,
+        task.plan ? JSON.stringify(task.plan) : null,
+        serializeToolCalls(task.toolCalls),
+        serializeApprovalState(task.approval),
+        ticket.id
+      );
     this.recordEvent({
       ticketId: ticket.id,
       type: 'completed',
@@ -400,6 +429,8 @@ export class TicketStoreRepository
       endedAt: now,
       error: task.error,
       planJson: task.plan ? JSON.stringify(task.plan) : undefined,
+      toolCallsJson: serializeToolCalls(task.toolCalls),
+      approvalJson: serializeApprovalState(task.approval),
     });
 
     this.getDatabase()
@@ -409,10 +440,20 @@ export class TicketStoreRepository
              updated_at = ?,
              blocked_at = ?,
              error = ?,
-             plan_json = ?
+             plan_json = ?,
+             tool_calls_json = coalesce(?, tool_calls_json),
+             approval_json = coalesce(?, approval_json)
          where id = ?`
       )
-      .run(now, now, task.error ?? null, task.plan ? JSON.stringify(task.plan) : null, ticket.id);
+      .run(
+        now,
+        now,
+        task.error ?? null,
+        task.plan ? JSON.stringify(task.plan) : null,
+        serializeToolCalls(task.toolCalls),
+        serializeApprovalState(task.approval),
+        ticket.id
+      );
     this.recordEvent({
       ticketId: ticket.id,
       type: 'blocked',
@@ -642,6 +683,233 @@ export class TicketStoreRepository
     return updatedTicket;
   }
 
+  async approveTicket(
+    ticketId: string,
+    reviewer: string,
+    rationale = 'Approved by operator.'
+  ): Promise<TaskTicket> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      throw new Error(
+        'Approval decisions are unavailable in markdown fallback mode. Enable SQLite to approve held tasks.'
+      );
+    }
+
+    const reviewerName = reviewer.trim();
+    if (!reviewerName) {
+      throw new Error('approve requires a non-empty reviewer identity.');
+    }
+
+    const ticket = await this.getTicket(ticketId);
+    if (!ticket) {
+      throw new Error(`Ticket not found: ${ticketId}`);
+    }
+
+    const approval = requireApprovalState(ticket, 'requested', 'approve');
+    const now = new Date();
+    const updatedApproval: TaskApprovalState = {
+      ...approval,
+      status: 'approved',
+      decisionAt: now,
+      reviewer: reviewerName,
+      rationale,
+      approvalId: approval.approvalId ?? `approval_${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+    };
+
+    this.getDatabase()
+      .prepare(
+        `update tickets
+         set updated_at = ?,
+             approval_json = ?
+         where id = ?`
+      )
+      .run(now.toISOString(), serializeApprovalState(updatedApproval), ticketId);
+
+    const latestAttemptId = this.getLatestAttemptId(ticketId);
+    if (latestAttemptId) {
+      this.getDatabase()
+        .prepare(
+          `update ticket_attempts
+           set approval_json = coalesce(?, approval_json)
+           where id = ?`
+        )
+        .run(serializeApprovalState(updatedApproval), latestAttemptId);
+    }
+
+    this.recordEvent({
+      ticketId,
+      type: 'approval-approved',
+      createdAt: now,
+      details: formatApprovalEventDetails(updatedApproval),
+      correlationId: updatedApproval.approvalId,
+    });
+
+    await this.writeProjectionSafely();
+
+    const updatedTicket = await this.getTicket(ticketId);
+    if (!updatedTicket) {
+      throw new Error(`Approved ticket ${ticketId} could not be loaded.`);
+    }
+
+    return updatedTicket;
+  }
+
+  async rejectTicket(
+    ticketId: string,
+    reviewer: string,
+    rationale = 'Rejected by operator.'
+  ): Promise<TaskTicket> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      throw new Error(
+        'Approval decisions are unavailable in markdown fallback mode. Enable SQLite to reject held tasks.'
+      );
+    }
+
+    const reviewerName = reviewer.trim();
+    if (!reviewerName) {
+      throw new Error('reject requires a non-empty reviewer identity.');
+    }
+
+    const ticket = await this.getTicket(ticketId);
+    if (!ticket) {
+      throw new Error(`Ticket not found: ${ticketId}`);
+    }
+
+    const approval = requireApprovalState(ticket, 'requested', 'reject');
+    assertValidTaskTransition(ticket.status, 'blocked', `ticket ${ticket.id}`);
+
+    const now = new Date();
+    const updatedApproval: TaskApprovalState = {
+      ...approval,
+      status: 'rejected',
+      decisionAt: now,
+      reviewer: reviewerName,
+      rationale,
+    };
+    const rejectionReason = `Approval rejected by ${reviewerName}: ${rationale}`;
+
+    this.getDatabase()
+      .prepare(
+        `update tickets
+         set status = 'blocked',
+             updated_at = ?,
+             blocked_at = ?,
+             error = ?,
+             approval_json = ?,
+             current_attempt_id = null
+         where id = ?`
+      )
+      .run(
+        now.toISOString(),
+        now.toISOString(),
+        rejectionReason,
+        serializeApprovalState(updatedApproval),
+        ticketId
+      );
+
+    const latestAttemptId = this.getLatestAttemptId(ticketId);
+    if (latestAttemptId) {
+      this.getDatabase()
+        .prepare(
+          `update ticket_attempts
+           set approval_json = coalesce(?, approval_json)
+           where id = ?`
+        )
+        .run(serializeApprovalState(updatedApproval), latestAttemptId);
+    }
+
+    this.recordEvent({
+      ticketId,
+      type: 'approval-rejected',
+      createdAt: now,
+      details: formatApprovalEventDetails(updatedApproval),
+      correlationId: updatedApproval.requestId,
+    });
+    this.recordEvent({
+      ticketId,
+      type: 'blocked',
+      createdAt: now,
+      details: rejectionReason,
+      correlationId: updatedApproval.requestId,
+    });
+
+    await this.writeProjectionSafely();
+
+    const updatedTicket = await this.getTicket(ticketId);
+    if (!updatedTicket) {
+      throw new Error(`Rejected ticket ${ticketId} could not be loaded.`);
+    }
+
+    return updatedTicket;
+  }
+
+  async resumeApprovedTicket(ticketId: string): Promise<TaskTicket> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      throw new Error(
+        'Approval-backed resume is unavailable in markdown fallback mode. Enable SQLite to resume held tasks.'
+      );
+    }
+
+    const ticket = await this.getTicket(ticketId);
+    if (!ticket) {
+      throw new Error(`Ticket not found: ${ticketId}`);
+    }
+
+    const approval = requireApprovalState(ticket, 'approved', 'resume');
+    if (!approval.approvalId) {
+      throw new Error(`Ticket ${ticket.id} does not have an approval token and cannot be resumed.`);
+    }
+
+    if (!ticket.plan) {
+      throw new Error(`Ticket ${ticket.id} does not have a persisted plan to resume.`);
+    }
+
+    if (!ticket.toolCalls || ticket.toolCalls.length === 0) {
+      throw new Error(`Ticket ${ticket.id} does not have persisted tool calls to resume.`);
+    }
+
+    if (!ticket.toolCalls.some((toolCall) => toolCall.name === 'patch.apply')) {
+      throw new Error(`Ticket ${ticket.id} does not contain a resumable patch.apply tool call.`);
+    }
+
+    assertValidTaskTransition(ticket.status, 'pending', `ticket ${ticket.id}`);
+
+    const now = new Date().toISOString();
+    this.getDatabase()
+      .prepare(
+        `update tickets
+         set status = 'pending',
+             updated_at = ?,
+             error = null,
+             current_attempt_id = null,
+             source_order = ?
+         where id = ?`
+      )
+      .run(now, this.getNextSourceOrder(), ticketId);
+
+    this.recordEvent({
+      ticketId,
+      type: 'approval-resumed',
+      createdAt: new Date(now),
+      details: formatApprovalEventDetails(approval),
+      correlationId: approval.approvalId,
+    });
+
+    await this.writeProjectionSafely();
+
+    const updatedTicket = await this.getTicket(ticketId);
+    if (!updatedTicket) {
+      throw new Error(`Resumed ticket ${ticketId} could not be loaded.`);
+    }
+
+    return updatedTicket;
+  }
+
   async listAttempts(ticketId: string): Promise<TaskAttempt[]> {
     await this.ensureInitialized();
 
@@ -849,14 +1117,14 @@ export class TicketStoreRepository
               `select *
                from task_side_effects
                where ticket_id = ?
-               order by created_at asc, id asc`
+               order by created_at asc, rowid asc`
             )
             .all(ticketId)
         : this.getDatabase()
             .prepare(
               `select *
                from task_side_effects
-               order by created_at asc, id asc`
+               order by created_at asc, rowid asc`
             )
             .all()
     ) as unknown as TaskSideEffectRow[];
@@ -956,6 +1224,8 @@ export class TicketStoreRepository
           result text,
           error text,
           plan_json text,
+          tool_calls_json text,
+          approval_json text,
           attempt_count integer not null default 0,
           source_order integer not null
         );
@@ -988,6 +1258,8 @@ export class TicketStoreRepository
           result text,
           error text,
           plan_json text,
+          tool_calls_json text,
+          approval_json text,
           artifacts_json text,
           unique(ticket_id, attempt_number)
         );
@@ -1077,8 +1349,26 @@ export class TicketStoreRepository
       db.exec('alter table tickets add column current_attempt_id text;');
     }
 
+    if (!ticketColumnNames.has('tool_calls_json')) {
+      db.exec('alter table tickets add column tool_calls_json text;');
+    }
+
+    if (!ticketColumnNames.has('approval_json')) {
+      db.exec('alter table tickets add column approval_json text;');
+    }
+
     if (!ticketEventColumnNames.has('correlation_id')) {
       db.exec('alter table ticket_events add column correlation_id text;');
+    }
+
+    const attemptColumns = db.prepare('pragma table_info(ticket_attempts)').all() as Array<{ name: string }>;
+    const attemptColumnNames = new Set(attemptColumns.map((column) => column.name));
+    if (!attemptColumnNames.has('tool_calls_json')) {
+      db.exec('alter table ticket_attempts add column tool_calls_json text;');
+    }
+
+    if (!attemptColumnNames.has('approval_json')) {
+      db.exec('alter table ticket_attempts add column approval_json text;');
     }
 
     db.prepare(
@@ -1096,6 +1386,15 @@ export class TicketStoreRepository
     ).run(
       2,
       'add correlation-aware side effect outbox records',
+      new Date().toISOString()
+    );
+
+    db.prepare(
+      `insert or ignore into schema_migrations (version, description, applied_at)
+       values (?, ?, ?)`
+    ).run(
+      3,
+      'persist approval state and pending tool calls for resume workflows',
       new Date().toISOString()
     );
   }
@@ -1224,6 +1523,8 @@ export class TicketStoreRepository
       result?: string;
       error?: string;
       planJson?: string;
+      toolCallsJson?: string | null;
+      approvalJson?: string | null;
     }
   ): void {
     const attemptId = ticket.current_attempt_id ?? this.getLatestAttemptId(ticket.id);
@@ -1238,7 +1539,9 @@ export class TicketStoreRepository
              ended_at = ?,
              result = coalesce(?, result),
              error = coalesce(?, error),
-             plan_json = coalesce(?, plan_json)
+             plan_json = coalesce(?, plan_json),
+             tool_calls_json = coalesce(?, tool_calls_json),
+             approval_json = coalesce(?, approval_json)
          where id = ?`
       )
       .run(
@@ -1247,6 +1550,8 @@ export class TicketStoreRepository
         update.result ?? null,
         update.error ?? null,
         update.planJson ?? null,
+        update.toolCallsJson ?? null,
+        update.approvalJson ?? null,
         attemptId
       );
   }
@@ -1332,6 +1637,8 @@ export class TicketStoreRepository
       result: row.result ?? undefined,
       error: row.error ?? undefined,
       plan: row.plan_json ? JSON.parse(row.plan_json) : undefined,
+      toolCalls: parseToolCalls(row.tool_calls_json),
+      approval: parseApprovalState(row.approval_json),
       attemptCount: row.attempt_count,
       sourceOrder: row.source_order,
     };
@@ -1348,6 +1655,8 @@ export class TicketStoreRepository
       result: row.result ?? undefined,
       error: row.error ?? undefined,
       plan: row.plan_json ? JSON.parse(row.plan_json) : undefined,
+      toolCalls: parseToolCalls(row.tool_calls_json),
+      approval: parseApprovalState(row.approval_json),
       artifacts: row.artifacts_json ? JSON.parse(row.artifacts_json) as string[] : [],
     };
   }
@@ -1397,22 +1706,35 @@ export class TicketStoreRepository
   }
 
   private async writeProjectionSafely(force = false): Promise<void> {
-    if (!this.projectionEnabled) {
+    if (!this.projectionEnabled || this.usingFallback || !this.db) {
       return;
     }
 
-    const board = renderTaskBoard(this.listAllTasks());
-
     try {
+      const board = renderTaskBoard(this.listAllTasks());
       await this.projectionWriter(this.tasksFile, board);
       this.clearProjectionFailureState();
-      this.recordEvent({
-        ticketId: 'board',
-        type: 'board-synced',
-        createdAt: new Date(),
-        details: formatTaskBoardTicketComment('projection'),
-      });
+
+      if (this.db) {
+        try {
+          this.recordEvent({
+            ticketId: 'board',
+            type: 'board-synced',
+            createdAt: new Date(),
+            details: formatTaskBoardTicketComment('projection'),
+          });
+        } catch (error) {
+          logger.warn('Projected TASKS.md write succeeded, but board sync event could not be recorded.', {
+            error: error instanceof Error ? error.message : String(error),
+            tasksFile: this.tasksFile,
+          });
+        }
+      }
     } catch (error) {
+      if (!this.db) {
+        return;
+      }
+
       this.projectionLastError = error instanceof Error ? error.message : String(error);
       this.projectionConsecutiveFailures += 1;
       logger.error('Error writing projected TASKS.md', {
@@ -1491,4 +1813,84 @@ export class TicketStoreRepository
 
 function createDescriptionKey(description: string): string {
   return normalizeTaskDescription(description).toLowerCase();
+}
+
+function serializeToolCalls(toolCalls: ToolCall[] | undefined): string | null {
+  return toolCalls && toolCalls.length > 0 ? JSON.stringify(toolCalls) : null;
+}
+
+function parseToolCalls(raw: string | null): ToolCall[] | undefined {
+  if (!raw) {
+    return undefined;
+  }
+
+  return JSON.parse(raw) as ToolCall[];
+}
+
+function serializeApprovalState(approval: TaskApprovalState | undefined): string | null {
+  if (!approval) {
+    return null;
+  }
+
+  return JSON.stringify({
+    ...approval,
+    requestedAt: approval.requestedAt.toISOString(),
+    decisionAt: approval.decisionAt?.toISOString(),
+  });
+}
+
+function parseApprovalState(raw: string | null): TaskApprovalState | undefined {
+  if (!raw) {
+    return undefined;
+  }
+
+  const parsed = JSON.parse(raw) as Omit<TaskApprovalState, 'requestedAt' | 'decisionAt'> & {
+    requestedAt: string;
+    decisionAt?: string;
+  };
+
+  return {
+    ...parsed,
+    requestedAt: new Date(parsed.requestedAt),
+    decisionAt: parsed.decisionAt ? new Date(parsed.decisionAt) : undefined,
+  };
+}
+
+function requireApprovalState(
+  ticket: TaskTicket,
+  expectedStatus: TaskApprovalState['status'],
+  action: 'approve' | 'reject' | 'resume'
+): TaskApprovalState {
+  if (ticket.status !== 'awaiting_approval') {
+    throw new Error(
+      `Only awaiting approval tickets can be ${action}d. Current status: ${ticket.status}`
+    );
+  }
+
+  if (!ticket.approval) {
+    throw new Error(`Ticket ${ticket.id} does not have a persisted approval request to ${action}.`);
+  }
+
+  if (ticket.approval.status !== expectedStatus) {
+    throw new Error(
+      `Ticket ${ticket.id} approval must be ${expectedStatus} to ${action}. Current approval status: ${ticket.approval.status}`
+    );
+  }
+
+  return ticket.approval;
+}
+
+function formatApprovalEventDetails(approval: TaskApprovalState): string {
+  return JSON.stringify({
+    requestId: approval.requestId,
+    status: approval.status,
+    reviewer: approval.reviewer,
+    rationale: approval.rationale,
+    approvalId: approval.approvalId,
+    requestedReason: approval.requestedReason,
+    touchedPaths: approval.touchedPaths,
+    changedLines: approval.changedLines,
+    requestedAt: approval.requestedAt.toISOString(),
+    decisionAt: approval.decisionAt?.toISOString(),
+  });
 }
