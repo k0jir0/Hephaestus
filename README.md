@@ -9,6 +9,7 @@ This repository is configured to run Hephaestus on itself by default. That makes
 - Queue-driven automation through durable ticket objects
 - Canonical ticket objects backed by a local SQLite task store
 - Operator ticket management through `npm run tickets`
+- Browser-based operator cockpit through `npm run cockpit`
 - Startup preflight and policy-first task admission before queue mutation
 - Structured planning contracts with intended files, commands, verification, and risks
 - Typed engineering tool runtime for bounded reads, search, patch validation/application, and allowlisted commands
@@ -41,6 +42,9 @@ npm run tickets -- create "Inspect the runtime flow"
 # Run one bounded demo pass
 npm run start:once
 
+# Or launch the operator cockpit
+npm run cockpit
+
 # Or run in watcher mode
 npm run start
 ```
@@ -63,6 +67,7 @@ That means the agent reads and reasons about this repository itself. To point it
 - `npm run preflight` validates config, repo files, and backend reachability
 - `npm run start` builds and starts watcher mode
 - `npm run start:once` builds, processes the current queue once, and exits
+- `npm run cockpit` starts the local cockpit server with REST, SSE, and the operator UI
 - `npm run dev` runs the agent directly from source with `tsx`
 - `npm run dev:once` runs a single-pass source-mode demo
 - `npm run tickets -- <command>` creates, lists, retries, and inspects canonical tickets
@@ -102,11 +107,28 @@ The runtime now talks to explicit task and memory repository interfaces. The def
 npm run tickets -- create "Add a retry policy"
 npm run tickets -- list --status blocked
 npm run tickets -- show ticket_abc123
+npm run tickets -- approve ticket_abc123 approver@example.com "Looks safe to resume"
+npm run tickets -- resume ticket_abc123
 npm run tickets -- retry ticket_abc123
 npm run tickets -- cancel ticket_abc123 "Superseded by ticket_456"
 npm run tickets -- attempts ticket_abc123
 npm run tickets -- render-board
 ```
+
+## Cockpit Access
+
+The cockpit server is local-first and token-gated. By default it binds to `127.0.0.1:4180`.
+
+If `COCKPIT_TOKENS` is unset, Hephaestus starts the cockpit with a local development admin token and logs that token on startup. To define explicit roles, set:
+
+```env
+COCKPIT_TOKENS=viewer:viewer-token,operator:operator-token,approver:approver-token,admin:admin-token
+COCKPIT_PORT=4180
+COCKPIT_HOST=127.0.0.1
+COCKPIT_SSE_INTERVAL_MS=2000
+```
+
+Supported cockpit roles are `viewer`, `operator`, `approver`, and `admin`.
 
 ## Runtime Requirements
 

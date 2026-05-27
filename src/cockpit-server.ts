@@ -1,0 +1,894 @@
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { config } from './config.js';
+import { logger } from './logger.js';
+import { computeOperationalSLOMetrics, type OperationalSLOMetrics } from './slo-metrics.js';
+import { TicketStoreRepository } from './task-store.js';
+import type {
+  TaskAttempt,
+  TaskEvent,
+  TaskStatus,
+  TaskTicket,
+  ToolCall,
+} from './types.js';
+import { renderCockpitHtml } from './cockpit-ui.js';
+
+export type CockpitRole = 'viewer' | 'operator' | 'approver' | 'admin';
+
+export interface CockpitAuthToken {
+  role: CockpitRole;
+  token: string;
+  label: string;
+}
+
+export interface CockpitServerOptions {
+  host?: string;
+  port?: number;
+  repository?: TicketStoreRepository;
+  tasksFile?: string;
+  storeFile?: string;
+  baselineFile?: string;
+  sseIntervalMs?: number;
+  authTokens?: CockpitAuthToken[];
+}
+
+interface CockpitPermissionSet {
+  query: boolean;
+  create: boolean;
+  retry: boolean;
+  cancel: boolean;
+  approve: boolean;
+  reject: boolean;
+  resume: boolean;
+}
+
+interface StoreSnapshot {
+  tickets: TaskTicket[];
+  attemptsByTicket: Map<string, TaskAttempt[]>;
+  events: TaskEvent[];
+  metrics: OperationalSLOMetrics;
+}
+
+interface BaselineSnapshot {
+  markdown: string;
+  values: Record<string, string>;
+}
+
+interface PolicySnapshotArtifact {
+  raw: string;
+  correlationId?: string;
+  signature?: string;
+  parsed?: Record<string, unknown>;
+}
+
+interface PatchDeltaArtifact {
+  raw: string;
+  correlationId?: string;
+  subject: string;
+  dryRun: string;
+  apply: string;
+  mutatedPaths: string[];
+}
+
+interface FlattenedArtifact {
+  attemptId: string;
+  attemptNumber: number;
+  raw: string;
+}
+
+interface ApprovalQueueItem {
+  ticket: TaskTicket;
+  currentPatch?: string;
+  policySnapshots: PolicySnapshotArtifact[];
+  patchDeltas: PatchDeltaArtifact[];
+  patchDeltaSummary?: string;
+}
+
+interface SseClient {
+  id: string;
+  response: ServerResponse;
+}
+
+const roleRank: Record<CockpitRole, number> = {
+  viewer: 0,
+  operator: 1,
+  approver: 2,
+  admin: 3,
+};
+
+const defaultAdminToken = 'hephaestus-local-admin-token';
+const defaultHost = '127.0.0.1';
+const defaultPort = 4180;
+const defaultSseIntervalMs = 2_000;
+
+export class CockpitServer {
+  private readonly host: string;
+  private readonly port: number;
+  private readonly repository: TicketStoreRepository;
+  private readonly ownsRepository: boolean;
+  private readonly baselineFile: string;
+  private readonly sseIntervalMs: number;
+  private readonly authTokens: CockpitAuthToken[];
+  private readonly defaultTokenInUse: boolean;
+  private readonly serverName = 'hephaestus-cockpit/v1';
+  private server: Server | null = null;
+  private ssePollTimer: NodeJS.Timeout | null = null;
+  private sseClients = new Set<SseClient>();
+  private revisionStamp = '';
+
+  constructor(options: CockpitServerOptions = {}) {
+    this.host = options.host ?? getEnv('COCKPIT_HOST', defaultHost);
+    this.port = options.port ?? getEnvNumber('COCKPIT_PORT', defaultPort);
+    this.repository = options.repository ?? new TicketStoreRepository({
+      tasksFile: options.tasksFile ?? config.tasksFile,
+      storeFile: options.storeFile ?? config.ticketStoreFile,
+      allowMarkdownFallback: config.allowMarkdownTaskFallback,
+      projectionEnabled: config.taskBoardProjectionEnabled,
+    });
+    this.ownsRepository = !options.repository;
+    this.baselineFile = options.baselineFile ?? path.join(config.baseDir, 'docs', 'reliability-baselines.md');
+    this.sseIntervalMs = options.sseIntervalMs ?? getEnvNumber('COCKPIT_SSE_INTERVAL_MS', defaultSseIntervalMs);
+    const parsedTokens = options.authTokens ?? parseCockpitTokens(getEnv('COCKPIT_TOKENS'));
+    this.authTokens = parsedTokens;
+    this.defaultTokenInUse = options.authTokens === undefined && parsedTokens.length === 1 && parsedTokens[0]?.token === defaultAdminToken;
+  }
+
+  async start(): Promise<{ url: string }> {
+    if (this.server) {
+      return { url: this.getBaseUrl() };
+    }
+
+    this.server = createServer((request, response) => {
+      void this.handleRequest(request, response);
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      this.server?.once('error', reject);
+      this.server?.listen(this.port, this.host, () => resolve());
+    });
+
+    this.revisionStamp = await this.computeRevisionStamp();
+    this.startSsePolling();
+
+    const url = this.getBaseUrl();
+    logger.info(`Cockpit listening on ${url}`);
+    if (this.defaultTokenInUse) {
+      logger.warn(`Cockpit is using the default local admin token: ${defaultAdminToken}`);
+      logger.warn('Set COCKPIT_TOKENS to replace the local development token before wider use.');
+    }
+
+    return { url };
+  }
+
+  async stop(): Promise<void> {
+    if (this.ssePollTimer) {
+      clearInterval(this.ssePollTimer);
+      this.ssePollTimer = null;
+    }
+
+    for (const client of this.sseClients) {
+      try {
+        client.response.end();
+      } catch {
+        // Ignore shutdown cleanup errors.
+      }
+    }
+    this.sseClients.clear();
+
+    if (this.server) {
+      const server = this.server;
+      this.server = null;
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+    }
+
+    if (this.ownsRepository) {
+      await this.repository.stop();
+    }
+  }
+
+  private getBaseUrl(): string {
+    if (!this.server) {
+      return `http://${this.host}:${this.port}`;
+    }
+
+    const address = this.server.address();
+    if (!address || typeof address === 'string') {
+      return `http://${this.host}:${this.port}`;
+    }
+
+    const host = address.address === '::' ? '127.0.0.1' : address.address;
+    return `http://${host}:${address.port}`;
+  }
+
+  private async handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    try {
+      const url = new URL(request.url ?? '/', this.getBaseUrl());
+
+      if (request.method === 'GET' && url.pathname === '/') {
+        this.respondHtml(response, renderCockpitHtml());
+        return;
+      }
+
+      if (request.method === 'GET' && url.pathname === '/favicon.ico') {
+        response.statusCode = 204;
+        response.end();
+        return;
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/session') {
+        const role = this.requireRole(request, url, 'viewer');
+        this.respondJson(response, 200, await this.buildSessionResponse(role));
+        return;
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/overview') {
+        this.requireRole(request, url, 'viewer');
+        this.respondJson(response, 200, await this.buildOverviewResponse());
+        return;
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/tickets') {
+        this.requireRole(request, url, 'viewer');
+        this.respondJson(response, 200, await this.buildTicketListResponse(url.searchParams));
+        return;
+      }
+
+      if (request.method === 'POST' && url.pathname === '/api/tickets') {
+        this.requireRole(request, url, 'operator');
+        const payload = await this.readJsonBody(request, 16 * 1024);
+        const description = requireNonEmptyString(payload.description, 'description');
+        const ticket = await this.repository.createTicket(description);
+        await this.broadcastRefresh('ticket-created');
+        this.respondJson(response, 201, await this.buildTicketDetailResponse(ticket.id));
+        return;
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/approvals') {
+        this.requireRole(request, url, 'viewer');
+        this.respondJson(response, 200, await this.buildApprovalQueueResponse());
+        return;
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/reliability') {
+        this.requireRole(request, url, 'viewer');
+        this.respondJson(response, 200, await this.buildReliabilityResponse());
+        return;
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/stream') {
+        this.requireRole(request, url, 'viewer');
+        await this.openEventStream(response);
+        return;
+      }
+
+      const ticketDetailMatch = url.pathname.match(/^\/api\/tickets\/([^/]+)$/);
+      if (request.method === 'GET' && ticketDetailMatch) {
+        this.requireRole(request, url, 'viewer');
+        this.respondJson(response, 200, await this.buildTicketDetailResponse(decodeURIComponent(ticketDetailMatch[1] ?? '')));
+        return;
+      }
+
+      const ticketCommandMatch = url.pathname.match(/^\/api\/tickets\/([^/]+)\/(retry|cancel|approve|reject|resume)$/);
+      if (request.method === 'POST' && ticketCommandMatch) {
+        const ticketId = decodeURIComponent(ticketCommandMatch[1] ?? '');
+        const command = ticketCommandMatch[2] ?? '';
+        await this.handleTicketCommand(request, response, url, ticketId, command);
+        return;
+      }
+
+      this.respondJson(response, 404, { error: `Not found: ${url.pathname}` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const statusCode = error instanceof HttpError ? error.statusCode : 500;
+      if (statusCode >= 500) {
+        logger.error('Cockpit request failed', { error: message });
+      }
+      this.respondJson(response, statusCode, { error: message });
+    }
+  }
+
+  private async handleTicketCommand(
+    request: IncomingMessage,
+    response: ServerResponse,
+    url: URL,
+    ticketId: string,
+    command: string
+  ): Promise<void> {
+    if (command === 'retry') {
+      this.requireRole(request, url, 'operator');
+      await this.repository.retryTicket(ticketId);
+      await this.broadcastRefresh('ticket-retried');
+      this.respondJson(response, 200, await this.buildTicketDetailResponse(ticketId));
+      return;
+    }
+
+    if (command === 'cancel') {
+      this.requireRole(request, url, 'operator');
+      const payload = await this.readJsonBody(request, 8 * 1024);
+      await this.repository.cancelTicket(ticketId, optionalString(payload.reason) ?? 'Cancelled by cockpit operator.');
+      await this.broadcastRefresh('ticket-cancelled');
+      this.respondJson(response, 200, await this.buildTicketDetailResponse(ticketId));
+      return;
+    }
+
+    if (command === 'approve') {
+      this.requireRole(request, url, 'approver');
+      const payload = await this.readJsonBody(request, 8 * 1024);
+      const reviewer = requireNonEmptyString(payload.reviewer, 'reviewer');
+      const rationale = optionalString(payload.rationale) ?? 'Approved from cockpit.';
+      await this.repository.approveTicket(ticketId, reviewer, rationale);
+      await this.broadcastRefresh('ticket-approved');
+      this.respondJson(response, 200, await this.buildTicketDetailResponse(ticketId));
+      return;
+    }
+
+    if (command === 'reject') {
+      this.requireRole(request, url, 'approver');
+      const payload = await this.readJsonBody(request, 8 * 1024);
+      const reviewer = requireNonEmptyString(payload.reviewer, 'reviewer');
+      const rationale = optionalString(payload.rationale) ?? 'Rejected from cockpit.';
+      await this.repository.rejectTicket(ticketId, reviewer, rationale);
+      await this.broadcastRefresh('ticket-rejected');
+      this.respondJson(response, 200, await this.buildTicketDetailResponse(ticketId));
+      return;
+    }
+
+    if (command === 'resume') {
+      this.requireRole(request, url, 'approver');
+      await this.repository.resumeApprovedTicket(ticketId);
+      await this.broadcastRefresh('ticket-resumed');
+      this.respondJson(response, 200, await this.buildTicketDetailResponse(ticketId));
+      return;
+    }
+
+    throw new HttpError(404, `Unsupported ticket command: ${command}`);
+  }
+
+  private async openEventStream(response: ServerResponse): Promise<void> {
+    response.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-store, no-transform',
+      Connection: 'keep-alive',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    response.write(`event: ready\ndata: ${JSON.stringify({ server: this.serverName, revision: this.revisionStamp })}\n\n`);
+
+    const client: SseClient = {
+      id: `sse_${Math.random().toString(36).slice(2, 10)}`,
+      response,
+    };
+    this.sseClients.add(client);
+
+    response.on('close', () => {
+      this.sseClients.delete(client);
+    });
+  }
+
+  private startSsePolling(): void {
+    if (this.ssePollTimer) {
+      return;
+    }
+
+    this.ssePollTimer = setInterval(() => {
+      void this.pollForStoreChanges();
+    }, this.sseIntervalMs);
+  }
+
+  private async pollForStoreChanges(): Promise<void> {
+    if (this.sseClients.size === 0) {
+      return;
+    }
+
+    const nextRevision = await this.computeRevisionStamp();
+    if (nextRevision !== this.revisionStamp) {
+      this.revisionStamp = nextRevision;
+      this.emitSseEvent('refresh', { revision: nextRevision });
+      return;
+    }
+
+    this.emitSseEvent('heartbeat', { revision: nextRevision, at: new Date().toISOString() });
+  }
+
+  private async broadcastRefresh(reason: string): Promise<void> {
+    this.revisionStamp = await this.computeRevisionStamp();
+    this.emitSseEvent('refresh', {
+      reason,
+      revision: this.revisionStamp,
+      at: new Date().toISOString(),
+    });
+  }
+
+  private emitSseEvent(event: string, payload: Record<string, unknown>): void {
+    for (const client of this.sseClients) {
+      try {
+        client.response.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+      } catch {
+        this.sseClients.delete(client);
+      }
+    }
+  }
+
+  private async computeRevisionStamp(): Promise<string> {
+    const tickets = await this.repository.listTickets('all');
+    const events = await this.repository.listEvents();
+    const latestTicketUpdate = tickets.reduce((latest, ticket) => {
+      return Math.max(latest, ticket.updatedAt.getTime());
+    }, 0);
+    const latestEvent = events.reduce((latest, event) => {
+      return Math.max(latest, event.createdAt.getTime());
+    }, 0);
+    return [tickets.length, latestTicketUpdate, events.length, latestEvent].join(':');
+  }
+
+  private async buildSessionResponse(role: CockpitRole): Promise<Record<string, unknown>> {
+    return {
+      role,
+      permissions: Object.entries(getPermissionSet(role))
+        .filter(([, enabled]) => enabled)
+        .map(([permission]) => permission),
+      commands: getPermissionSet(role),
+      server: this.serverName,
+      projectionEnabled: config.taskBoardProjectionEnabled,
+      baselineAvailable: await fileExists(this.baselineFile),
+    };
+  }
+
+  private async loadStoreSnapshot(): Promise<StoreSnapshot> {
+    const tickets = await this.repository.listTickets('all');
+    const attemptsByTicket = new Map<string, TaskAttempt>();
+    const attemptsMap = new Map<string, TaskAttempt[]>();
+    const attemptsEntries = await Promise.all(
+      tickets.map(async (ticket) => [ticket.id, await this.repository.listAttempts(ticket.id)] as const)
+    );
+    for (const [ticketId, attempts] of attemptsEntries) {
+      attemptsMap.set(ticketId, attempts);
+      const latestAttempt = attempts[attempts.length - 1];
+      if (latestAttempt) {
+        attemptsByTicket.set(ticketId, latestAttempt);
+      }
+    }
+    const events = await this.repository.listEvents();
+    const metrics = computeOperationalSLOMetrics({
+      tickets,
+      attemptsByTicket: attemptsMap,
+      events,
+    });
+
+    return {
+      tickets,
+      attemptsByTicket: attemptsMap,
+      events,
+      metrics,
+    };
+  }
+
+  private async buildOverviewResponse(): Promise<Record<string, unknown>> {
+    const snapshot = await this.loadStoreSnapshot();
+    const recentTickets = [...snapshot.tickets]
+      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
+      .slice(0, 12);
+    const recentEvents = [...snapshot.events].slice(-18).reverse();
+
+    return {
+      ticketCounts: buildTicketCounts(snapshot.tickets),
+      metrics: snapshot.metrics,
+      recentTickets,
+      recentEvents,
+    };
+  }
+
+  private async buildTicketListResponse(searchParams: URLSearchParams): Promise<Record<string, unknown>> {
+    const status = (searchParams.get('status') ?? 'all') as TaskStatus | 'all';
+    const query = (searchParams.get('query') ?? '').trim().toLowerCase();
+    const limit = clampNumber(searchParams.get('limit'), 200, 1, 500);
+    const sourceTickets = status === 'all'
+      ? await this.repository.listTickets('all')
+      : await this.repository.listTickets(status);
+    const tickets = sourceTickets
+      .filter((ticket) => {
+        if (!query) {
+          return true;
+        }
+
+        return ticket.id.toLowerCase().includes(query) || ticket.description.toLowerCase().includes(query);
+      })
+      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
+      .slice(0, limit);
+    return { tickets };
+  }
+
+  private async buildTicketDetailResponse(ticketId: string): Promise<Record<string, unknown>> {
+    const ticket = await this.repository.getTicket(ticketId);
+    if (!ticket) {
+      throw new HttpError(404, `Ticket not found: ${ticketId}`);
+    }
+
+    const attempts = await this.repository.listAttempts(ticketId);
+    const events = await this.repository.listEvents(ticketId);
+    const sideEffects = await this.repository.listTaskSideEffects(ticketId);
+    const artifacts = flattenArtifacts(attempts);
+    const policySnapshots = extractPolicySnapshots(attempts);
+    const patchDeltas = extractPatchDeltas(attempts);
+
+    return {
+      ticket,
+      attempts,
+      events,
+      sideEffects,
+      derived: {
+        artifacts,
+        policySnapshots,
+        patchDeltas,
+        currentPatch: extractPatchFromToolCalls(ticket.toolCalls),
+      },
+    };
+  }
+
+  private async buildApprovalQueueResponse(): Promise<Record<string, unknown>> {
+    const tickets = await this.repository.listTickets('awaiting_approval');
+    const items = await Promise.all(
+      tickets.map(async (ticket) => {
+        const attempts = await this.repository.listAttempts(ticket.id);
+        const policySnapshots = extractPolicySnapshots(attempts);
+        const patchDeltas = extractPatchDeltas(attempts);
+        return {
+          ticket,
+          currentPatch: extractPatchFromToolCalls(ticket.toolCalls),
+          policySnapshots,
+          patchDeltas,
+          patchDeltaSummary: patchDeltas[0]
+            ? `${patchDeltas[0].subject} | dry-run=${patchDeltas[0].dryRun} | apply=${patchDeltas[0].apply}`
+            : undefined,
+        } satisfies ApprovalQueueItem;
+      })
+    );
+
+    return {
+      items: items.sort((left, right) => right.ticket.updatedAt.getTime() - left.ticket.updatedAt.getTime()),
+    };
+  }
+
+  private async buildReliabilityResponse(): Promise<Record<string, unknown>> {
+    const snapshot = await this.loadStoreSnapshot();
+    const baseline = await readBaselineSnapshot(this.baselineFile);
+
+    return {
+      metrics: snapshot.metrics,
+      comparisons: buildMetricComparisons(snapshot.metrics, baseline.values),
+      baseline,
+      recentEvents: [...snapshot.events].slice(-24).reverse(),
+    };
+  }
+
+  private requireRole(request: IncomingMessage, url: URL, minimumRole: CockpitRole): CockpitRole {
+    const token = readAuthToken(request, url);
+    if (!token) {
+      throw new HttpError(401, 'Missing cockpit access token.');
+    }
+
+    const matchedToken = this.authTokens.find((candidate) => candidate.token === token);
+    if (!matchedToken) {
+      throw new HttpError(401, 'Invalid cockpit access token.');
+    }
+
+    if (roleRank[matchedToken.role] < roleRank[minimumRole]) {
+      throw new HttpError(403, `Role ${matchedToken.role} does not have permission for this action.`);
+    }
+
+    return matchedToken.role;
+  }
+
+  private respondHtml(response: ServerResponse, html: string): void {
+    response.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'",
+      'Referrer-Policy': 'no-referrer',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+    });
+    response.end(html);
+  }
+
+  private respondJson(response: ServerResponse, statusCode: number, payload: Record<string, unknown>): void {
+    response.writeHead(statusCode, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer',
+    });
+    response.end(JSON.stringify(payload));
+  }
+
+  private async readJsonBody(request: IncomingMessage, maxBytes: number): Promise<Record<string, unknown>> {
+    const chunks: Buffer[] = [];
+    let totalBytes = 0;
+
+    for await (const chunk of request) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      totalBytes += buffer.byteLength;
+      if (totalBytes > maxBytes) {
+        throw new HttpError(413, `Request body exceeded ${maxBytes} bytes.`);
+      }
+
+      chunks.push(buffer);
+    }
+
+    if (chunks.length === 0) {
+      return {};
+    }
+
+    try {
+      return JSON.parse(Buffer.concat(chunks).toString('utf-8')) as Record<string, unknown>;
+    } catch {
+      throw new HttpError(400, 'Request body must be valid JSON.');
+    }
+  }
+}
+
+class HttpError extends Error {
+  readonly statusCode: number;
+
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.statusCode = statusCode;
+    this.name = 'HttpError';
+  }
+}
+
+function getEnv(key: string, defaultValue = ''): string {
+  return process.env[key] ?? defaultValue;
+}
+
+function getEnvNumber(key: string, defaultValue: number): number {
+  const raw = process.env[key];
+  if (raw === undefined) {
+    return defaultValue;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : defaultValue;
+}
+
+function parseCockpitTokens(raw: string): CockpitAuthToken[] {
+  const entries = raw
+    .split(/[;,\n]/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (entries.length === 0) {
+    return [{
+      role: 'admin',
+      token: defaultAdminToken,
+      label: 'Local admin',
+    }];
+  }
+
+  return entries.map((entry, index) => {
+    const [roleCandidate, tokenCandidate, ...labelParts] = entry.split(':').map((value) => value.trim());
+    if (!roleCandidate || !tokenCandidate) {
+      throw new Error(`Invalid COCKPIT_TOKENS entry at position ${index + 1}. Expected role:token[:label].`);
+    }
+
+    if (!isCockpitRole(roleCandidate)) {
+      throw new Error(`Invalid cockpit role in COCKPIT_TOKENS: ${roleCandidate}`);
+    }
+
+    return {
+      role: roleCandidate,
+      token: tokenCandidate,
+      label: labelParts.join(':') || `${roleCandidate} token`,
+    } satisfies CockpitAuthToken;
+  });
+}
+
+function isCockpitRole(value: string): value is CockpitRole {
+  return value === 'viewer' || value === 'operator' || value === 'approver' || value === 'admin';
+}
+
+function getPermissionSet(role: CockpitRole): CockpitPermissionSet {
+  return {
+    query: roleRank[role] >= roleRank.viewer,
+    create: roleRank[role] >= roleRank.operator,
+    retry: roleRank[role] >= roleRank.operator,
+    cancel: roleRank[role] >= roleRank.operator,
+    approve: roleRank[role] >= roleRank.approver,
+    reject: roleRank[role] >= roleRank.approver,
+    resume: roleRank[role] >= roleRank.approver,
+  };
+}
+
+function buildTicketCounts(tickets: TaskTicket[]): Record<string, number> {
+  const counts: Record<string, number> = { total: tickets.length };
+  for (const ticket of tickets) {
+    counts[ticket.status] = (counts[ticket.status] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function readAuthToken(request: IncomingMessage, url: URL): string | null {
+  const authorization = request.headers.authorization;
+  if (authorization?.startsWith('Bearer ')) {
+    return authorization.slice('Bearer '.length).trim();
+  }
+
+  const queryToken = url.searchParams.get('token');
+  return queryToken?.trim() || null;
+}
+
+function requireNonEmptyString(value: unknown, fieldName: string): string {
+  const candidate = typeof value === 'string' ? value.trim() : '';
+  if (!candidate) {
+    throw new HttpError(400, `Field "${fieldName}" must be a non-empty string.`);
+  }
+
+  return candidate;
+}
+
+function optionalString(value: unknown): string | undefined {
+  const candidate = typeof value === 'string' ? value.trim() : '';
+  return candidate || undefined;
+}
+
+function clampNumber(raw: string | null, fallback: number, min: number, max: number): number {
+  const parsed = Number.parseInt(raw ?? '', 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(Math.max(parsed, min), max);
+}
+
+function flattenArtifacts(attempts: TaskAttempt[]): FlattenedArtifact[] {
+  return attempts.flatMap((attempt) =>
+    attempt.artifacts.map((artifact) => ({
+      attemptId: attempt.id,
+      attemptNumber: attempt.attemptNumber,
+      raw: artifact,
+    }))
+  );
+}
+
+function extractPatchFromToolCalls(toolCalls: ToolCall[] | undefined): string | undefined {
+  const patchCall = toolCalls?.find((toolCall) => toolCall.name === 'patch.apply');
+  return typeof patchCall?.arguments.patch === 'string' ? patchCall.arguments.patch : undefined;
+}
+
+function extractPolicySnapshots(attempts: TaskAttempt[]): PolicySnapshotArtifact[] {
+  const results: PolicySnapshotArtifact[] = [];
+
+  for (const attempt of attempts) {
+    for (const artifact of attempt.artifacts) {
+      const match = artifact.match(/^\[(?<correlation>[^\]]+)\] policy\.snapshot \[(?<signature>[^\]]+)\] (?<payload>.+)$/);
+      if (!match?.groups) {
+        continue;
+      }
+
+      let parsed: Record<string, unknown> | undefined;
+      try {
+        parsed = JSON.parse(match.groups.payload) as Record<string, unknown>;
+      } catch {
+        parsed = undefined;
+      }
+
+      results.push({
+        raw: artifact,
+        correlationId: match.groups.correlation,
+        signature: match.groups.signature,
+        parsed,
+      });
+    }
+  }
+
+  return results;
+}
+
+function extractPatchDeltas(attempts: TaskAttempt[]): PatchDeltaArtifact[] {
+  const results: PatchDeltaArtifact[] = [];
+
+  for (const attempt of attempts) {
+    for (const artifact of attempt.artifacts) {
+      const match = artifact.match(/^\[(?<correlation>[^\]]+)\] patch\.delta (?<subject>.+?): dry-run=(?<dryRun>[^;]+); apply=(?<apply>[^;]+); mutatedPaths=(?<paths>.*)$/);
+      if (!match?.groups) {
+        continue;
+      }
+
+      const mutatedPaths = match.groups.paths && match.groups.paths !== '-'
+        ? match.groups.paths.split(',').map((value) => value.trim()).filter(Boolean)
+        : [];
+
+      results.push({
+        raw: artifact,
+        correlationId: match.groups.correlation,
+        subject: match.groups.subject,
+        dryRun: match.groups.dryRun,
+        apply: match.groups.apply,
+        mutatedPaths,
+      });
+    }
+  }
+
+  return results;
+}
+
+async function readBaselineSnapshot(filePath: string): Promise<BaselineSnapshot> {
+  try {
+    const markdown = await readFile(filePath, 'utf-8');
+    const values: Record<string, string> = {};
+    for (const line of markdown.split(/\r?\n/)) {
+      const match = line.match(/^([A-Za-z0-9 \-()]+):\s+(.+)$/);
+      if (match) {
+        values[match[1].trim()] = match[2].trim();
+      }
+    }
+
+    return { markdown, values };
+  } catch {
+    return { markdown: '', values: {} };
+  }
+}
+
+function buildMetricComparisons(
+  metrics: OperationalSLOMetrics,
+  baselineValues: Record<string, string>
+): Array<{ label: string; current: string; baseline: string }> {
+  const rows = [
+    ['State consistency lag (ms)', String(metrics.stateConsistencyLagMs)],
+    ['Average admission-to-start latency (ms)', metrics.averageAdmissionToStartLatencyMs.toFixed(2)],
+    ['Blocked-retry success ratio', metrics.blockedRetrySuccessRatio.toFixed(2)],
+    ['Execution failure taxonomy stability', metrics.executionFailureTaxonomyStability.toFixed(2)],
+    ['Awaiting approval tickets', String(metrics.awaitingApprovalTickets)],
+  ] as const;
+
+  return rows.map(([label, current]) => ({
+    label,
+    current,
+    baseline: baselineValues[label] ?? '-',
+  }));
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await readFile(filePath, 'utf-8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function main(): Promise<void> {
+  const server = new CockpitServer();
+  await server.start();
+
+  const shutdown = async (signal: string): Promise<void> => {
+    logger.info(`Cockpit shutdown requested: ${signal}`);
+    await server.stop();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', () => {
+    void shutdown('SIGINT');
+  });
+  process.on('SIGTERM', () => {
+    void shutdown('SIGTERM');
+  });
+}
+
+const currentFilePath = fileURLToPath(import.meta.url);
+if (process.argv[1] && path.resolve(process.argv[1]) === currentFilePath) {
+  main().catch(async (error) => {
+    logger.error('Cockpit server failed', { error: String(error) });
+    process.exit(1);
+  });
+}
