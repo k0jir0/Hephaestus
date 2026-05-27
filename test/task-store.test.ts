@@ -347,6 +347,38 @@ describe('TicketStoreRepository', () => {
     await repository.stop();
   });
 
+  it('persists awaiting approval as a durable attempt and ticket state', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(rootDir, 'TASKS.md'),
+      storeFile: path.join(rootDir, '.hephaestus-tickets.db'),
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await repository.createTicket('Await approval for a patch');
+    await repository.markTaskInProgress(ticket);
+    await repository.markTaskAwaitingApproval({
+      ...ticket,
+      status: 'awaiting_approval',
+      error: 'Patch requires approval before apply: patch touches 2 files',
+    });
+
+    const updatedTicket = await repository.getTicket(ticket.id);
+    const attempts = await repository.listAttempts(ticket.id);
+    const events = await repository.listEvents(ticket.id);
+
+    assert.equal(updatedTicket?.status, 'awaiting_approval');
+    assert.equal(updatedTicket?.error, 'Patch requires approval before apply: patch touches 2 files');
+    assert.equal(attempts.length, 1);
+    assert.equal(attempts[0]?.status, 'awaiting_approval');
+    assert.ok(events.some((event) => event.type === 'approval-requested'));
+
+    await repository.stop();
+  });
+
   it('persists bounded tool artifacts onto the active attempt', async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
     tempDirs.push(rootDir);

@@ -27,7 +27,15 @@ import { SafetySystem } from './safety.js';
 import { transitionTask } from './task-lifecycle.js';
 import { TicketStoreRepository } from './task-store.js';
 import { EngineeringToolRuntime, type EngineeringToolRequest } from './tool-runtime.js';
-import type { AIResponse, AgentState, EngineeringToolResult, Task, TaskPlan } from './types.js';
+import type {
+  AIResponse,
+  AgentState,
+  EngineeringToolResult,
+  Task,
+  TaskPlan,
+  ToolCall,
+  ToolPolicySnapshot,
+} from './types.js';
 
 export interface RuntimeOptions {
   runOnce?: boolean;
@@ -53,6 +61,13 @@ export interface RuntimeSafetyPort {
 
 export interface RuntimeToolPort extends ToolRuntimeReadinessProbe {
   execute?(request: EngineeringToolRequest): Promise<EngineeringToolResult>;
+  getPolicySnapshot?(): ToolPolicySnapshot;
+}
+
+interface PlannedToolExecutionOutcome {
+  artifacts: string[];
+  failureReason?: string;
+  awaitingApprovalReason?: string;
 }
 
 export interface RuntimeDependencies {
@@ -359,7 +374,7 @@ export class HephaestusRuntime {
     }
   }
 
-  private async processTask(task: Task): Promise<'completed' | 'failed' | 'rejected'> {
+  private async processTask(task: Task): Promise<'completed' | 'failed' | 'rejected' | 'awaiting_approval'> {
     if (this.isShuttingDown) {
       return 'rejected';
     }
@@ -403,12 +418,31 @@ export class HephaestusRuntime {
           verification: ['Review model output manually.'],
           risks: [],
         });
-        Object.assign(task, transitionTask(task, 'completed'));
         task.plan = result.plan;
         task.result = taskSummary;
 
-        const toolArtifacts = await this.executePlannedTools(task, result.plan, admission.correlationId);
-        await this.appendTaskArtifacts(task.id, toolArtifacts);
+        const toolExecution = await this.executePlannedTools(
+          task,
+          result.plan,
+          result.toolCalls ?? [],
+          admission.correlationId
+        );
+        await this.appendTaskArtifacts(task.id, toolExecution.artifacts);
+
+        if (toolExecution.awaitingApprovalReason) {
+          task.error = toolExecution.awaitingApprovalReason;
+          Object.assign(task, transitionTask(task, 'awaiting_approval'));
+          await this.handleAwaitingApprovalTask(task, toolExecution.awaitingApprovalReason, taskMarkedInProgress);
+          return 'awaiting_approval';
+        }
+
+        if (toolExecution.failureReason) {
+          task.error = toolExecution.failureReason;
+          await this.handleBlockedTask(task, toolExecution.failureReason, taskMarkedInProgress);
+          return 'failed';
+        }
+
+        Object.assign(task, transitionTask(task, 'completed'));
 
         await this.tasks.markTaskCompleted(task);
         this.recordSuccessfulTask(task, result);
@@ -558,47 +592,75 @@ export class HephaestusRuntime {
   private async executePlannedTools(
     task: Task,
     plan: TaskPlan | undefined,
+    toolCalls: ToolCall[],
     correlationId: string
-  ): Promise<string[]> {
-    if (!plan || !this.toolRuntime.execute) {
-      return [];
+  ): Promise<PlannedToolExecutionOutcome> {
+    if ((!plan && toolCalls.length === 0) || !this.toolRuntime.execute) {
+      return { artifacts: [] };
     }
 
     const artifacts: string[] = [];
 
-    for (const file of plan.intendedFiles) {
-      if (file.changeType !== 'inspect') {
-        artifacts.push(
-          `[${correlationId}] deferred-mutation ${file.changeType} ${file.path}: mutating file plans require approval-backed patch generation.`
-        );
-        continue;
-      }
-
-      const result = await this.toolRuntime.execute({
-        tool: 'file.read',
-        path: file.path,
-        maxBytes: 8 * 1024,
-      });
-      artifacts.push(this.formatToolArtifact(correlationId, 'file.read', file.path, result));
+    const policySnapshot = this.toolRuntime.getPolicySnapshot?.();
+    if (policySnapshot) {
+      artifacts.push(this.formatPolicySnapshotArtifact(correlationId, policySnapshot));
     }
 
-    for (const commandPlan of plan.commands) {
-      const parsedCommand = this.parseCommandPlan(commandPlan.command);
-      if (!parsedCommand) {
-        artifacts.push(
-          `[${correlationId}] denied command.parse for "${commandPlan.command}": command string could not be tokenized safely.`
-        );
-        continue;
+    if (plan) {
+      for (const file of plan.intendedFiles) {
+        if (file.changeType !== 'inspect') {
+          artifacts.push(
+            `[${correlationId}] deferred-mutation ${file.changeType} ${file.path}: mutating file plans require governed tool calls.`
+          );
+          continue;
+        }
+
+        const result = await this.toolRuntime.execute({
+          tool: 'file.read',
+          path: file.path,
+          maxBytes: 8 * 1024,
+        });
+        artifacts.push(this.formatToolArtifact(correlationId, 'file.read', file.path, result));
       }
 
-      const result = await this.toolRuntime.execute({
-        tool: 'command.run',
-        command: parsedCommand.command,
-        args: parsedCommand.args,
-      });
-      artifacts.push(
-        this.formatToolArtifact(correlationId, 'command.run', commandPlan.command, result)
-      );
+      for (const commandPlan of plan.commands) {
+        const parsedCommand = this.parseCommandPlan(commandPlan.command);
+        if (!parsedCommand) {
+          artifacts.push(
+            `[${correlationId}] denied command.parse for "${commandPlan.command}": command string could not be tokenized safely.`
+          );
+          continue;
+        }
+
+        const result = await this.toolRuntime.execute({
+          tool: 'command.run',
+          command: parsedCommand.command,
+          args: parsedCommand.args,
+        });
+        artifacts.push(
+          this.formatToolArtifact(correlationId, 'command.run', commandPlan.command, result)
+        );
+
+        if (result.status === 'failure' || result.status === 'denied') {
+          return {
+            artifacts,
+            failureReason: `${result.summary}${result.error ? `: ${result.error}` : ''}`,
+          };
+        }
+      }
+    }
+
+    for (const toolCall of toolCalls) {
+      const execution = await this.executeGovernedToolCall(plan, toolCall, correlationId);
+      artifacts.push(...execution.artifacts);
+
+      if (execution.awaitingApprovalReason || execution.failureReason) {
+        return {
+          artifacts,
+          awaitingApprovalReason: execution.awaitingApprovalReason,
+          failureReason: execution.failureReason,
+        };
+      }
     }
 
     logger.info('Executed bounded plan tools', {
@@ -607,7 +669,162 @@ export class HephaestusRuntime {
       artifactCount: artifacts.length,
     });
 
-    return artifacts;
+    return { artifacts };
+  }
+
+  private async executeGovernedToolCall(
+    plan: TaskPlan | undefined,
+    toolCall: ToolCall,
+    correlationId: string
+  ): Promise<PlannedToolExecutionOutcome> {
+    if (!this.toolRuntime.execute) {
+      return { artifacts: [] };
+    }
+
+    switch (toolCall.name) {
+      case 'patch.apply': {
+        const patch = typeof toolCall.arguments.patch === 'string' ? toolCall.arguments.patch : null;
+        if (!patch) {
+          return {
+            artifacts: [
+              `[${correlationId}] denied patch.apply: tool call is missing a string patch argument.`
+            ],
+            failureReason: 'Tool call patch.apply must provide a string patch argument.',
+          };
+        }
+
+        const dryRunResult = await this.toolRuntime.execute({
+          tool: 'patch.apply',
+          patch,
+          dryRun: true,
+        });
+        const patchSubject = this.describePatchSubject(dryRunResult.mutatedPaths);
+        const artifacts = [
+          this.formatToolArtifact(correlationId, 'patch.apply', `${patchSubject} [dry-run]`, dryRunResult),
+        ];
+
+        if (dryRunResult.status !== 'dry_run') {
+          return {
+            artifacts,
+            failureReason: `${dryRunResult.summary}${dryRunResult.error ? `: ${dryRunResult.error}` : ''}`,
+          };
+        }
+
+        const bindingError = this.validatePatchCallAgainstPlan(plan, dryRunResult.mutatedPaths);
+        if (bindingError) {
+          artifacts.push(`[${correlationId}] denied patch.binding ${patchSubject}: ${bindingError}`);
+          return {
+            artifacts,
+            failureReason: bindingError,
+          };
+        }
+
+        const applyResult = await this.toolRuntime.execute({
+          tool: 'patch.apply',
+          patch,
+        });
+        artifacts.push(
+          this.formatToolArtifact(correlationId, 'patch.apply', `${patchSubject} [apply]`, applyResult)
+        );
+        artifacts.push(this.formatPatchDeltaArtifact(correlationId, patchSubject, dryRunResult, applyResult));
+
+        if (applyResult.status === 'denied' && applyResult.reasonCode === 'approval-required') {
+          return {
+            artifacts,
+            awaitingApprovalReason: applyResult.summary,
+          };
+        }
+
+        if (applyResult.status === 'failure' || applyResult.status === 'denied') {
+          return {
+            artifacts,
+            failureReason: `${applyResult.summary}${applyResult.error ? `: ${applyResult.error}` : ''}`,
+          };
+        }
+
+        return { artifacts };
+      }
+
+      case 'command.run': {
+        const command = typeof toolCall.arguments.command === 'string'
+          ? toolCall.arguments.command
+          : null;
+        const args = Array.isArray(toolCall.arguments.args)
+          ? toolCall.arguments.args.filter((candidate): candidate is string => typeof candidate === 'string')
+          : [];
+        if (!command) {
+          return {
+            artifacts: [`[${correlationId}] denied command.run: tool call is missing a command string.`],
+            failureReason: 'Tool call command.run must provide a command string.',
+          };
+        }
+
+        const bindingError = this.validateCommandCallAgainstPlan(plan, command, args);
+        if (bindingError) {
+          return {
+            artifacts: [`[${correlationId}] denied command.binding ${command}: ${bindingError}`],
+            failureReason: bindingError,
+          };
+        }
+
+        const result = await this.toolRuntime.execute({
+          tool: 'command.run',
+          command,
+          args,
+        });
+        const subject = [command, ...args].join(' ');
+        const artifacts = [this.formatToolArtifact(correlationId, 'command.run', subject, result)];
+        return result.status === 'failure' || result.status === 'denied'
+          ? {
+              artifacts,
+              failureReason: `${result.summary}${result.error ? `: ${result.error}` : ''}`,
+            }
+          : { artifacts };
+      }
+
+      case 'file.read': {
+        const targetPath = typeof toolCall.arguments.path === 'string'
+          ? toolCall.arguments.path
+          : null;
+        if (!targetPath) {
+          return {
+            artifacts: [`[${correlationId}] denied file.read: tool call is missing a path string.`],
+            failureReason: 'Tool call file.read must provide a path string.',
+          };
+        }
+
+        const bindingError = this.validateReadCallAgainstPlan(plan, targetPath);
+        if (bindingError) {
+          return {
+            artifacts: [`[${correlationId}] denied file.binding ${targetPath}: ${bindingError}`],
+            failureReason: bindingError,
+          };
+        }
+
+        const result = await this.toolRuntime.execute({
+          tool: 'file.read',
+          path: targetPath,
+          startLine: typeof toolCall.arguments.startLine === 'number' ? toolCall.arguments.startLine : undefined,
+          endLine: typeof toolCall.arguments.endLine === 'number' ? toolCall.arguments.endLine : undefined,
+          maxBytes: typeof toolCall.arguments.maxBytes === 'number' ? toolCall.arguments.maxBytes : undefined,
+        });
+        const artifacts = [this.formatToolArtifact(correlationId, 'file.read', targetPath, result)];
+        return result.status === 'failure' || result.status === 'denied'
+          ? {
+              artifacts,
+              failureReason: `${result.summary}${result.error ? `: ${result.error}` : ''}`,
+            }
+          : { artifacts };
+      }
+
+      default:
+        return {
+          artifacts: [
+            `[${correlationId}] denied ${toolCall.name}: governed runtime does not yet bind this tool call to the plan.`
+          ],
+          failureReason: `Tool call ${toolCall.name} is not yet supported by the governed runtime.`,
+        };
+    }
   }
 
   private async appendTaskArtifacts(ticketId: string, artifacts: string[]): Promise<void> {
@@ -634,6 +851,87 @@ export class HephaestusRuntime {
   ): string {
     const reasonCodeSuffix = result.reasonCode ? ` [${result.reasonCode}]` : '';
     return `[${correlationId}] ${tool} ${subject} -> ${result.status}${reasonCodeSuffix}: ${result.summary}`;
+  }
+
+  private formatPolicySnapshotArtifact(
+    correlationId: string,
+    snapshot: ToolPolicySnapshot
+  ): string {
+    return `[${correlationId}] policy.snapshot [${snapshot.signature}] ${JSON.stringify({
+      ...snapshot,
+      generatedAt: snapshot.generatedAt.toISOString(),
+    })}`;
+  }
+
+  private formatPatchDeltaArtifact(
+    correlationId: string,
+    subject: string,
+    dryRunResult: EngineeringToolResult,
+    applyResult: EngineeringToolResult
+  ): string {
+    const dryRunCode = dryRunResult.reasonCode ? `${dryRunResult.status}/${dryRunResult.reasonCode}` : dryRunResult.status;
+    const applyCode = applyResult.reasonCode ? `${applyResult.status}/${applyResult.reasonCode}` : applyResult.status;
+    return `[${correlationId}] patch.delta ${subject}: dry-run=${dryRunCode}; apply=${applyCode}; mutatedPaths=${applyResult.mutatedPaths.join(',') || dryRunResult.mutatedPaths.join(',') || '-'}`;
+  }
+
+  private describePatchSubject(mutatedPaths: string[]): string {
+    if (mutatedPaths.length === 0) {
+      return 'patch';
+    }
+
+    return mutatedPaths.join(', ');
+  }
+
+  private validatePatchCallAgainstPlan(
+    plan: TaskPlan | undefined,
+    mutatedPaths: string[]
+  ): string | null {
+    if (!plan) {
+      return 'Patch tool calls require a validated plan.';
+    }
+
+    const allowedPaths = new Set(
+      plan.intendedFiles
+        .filter((file) => file.changeType !== 'inspect')
+        .map((file) => file.path.replace(/\\/g, '/'))
+    );
+
+    if (allowedPaths.size === 0) {
+      return 'Patch tool calls require at least one non-inspect intended file in the plan.';
+    }
+
+    for (const mutatedPath of mutatedPaths.map((candidate) => candidate.replace(/\\/g, '/'))) {
+      if (!allowedPaths.has(mutatedPath)) {
+        return `Patch touches ${mutatedPath}, which is not declared as a mutable intended file.`;
+      }
+    }
+
+    return null;
+  }
+
+  private validateCommandCallAgainstPlan(
+    plan: TaskPlan | undefined,
+    command: string,
+    args: string[]
+  ): string | null {
+    if (!plan) {
+      return 'Command tool calls require a validated plan.';
+    }
+
+    const fullCommand = [command, ...args].join(' ');
+    return plan.commands.some((candidate) => candidate.command === fullCommand)
+      ? null
+      : `Command ${fullCommand} is not declared in the validated plan commands.`;
+  }
+
+  private validateReadCallAgainstPlan(plan: TaskPlan | undefined, targetPath: string): string | null {
+    if (!plan) {
+      return 'File read tool calls require a validated plan.';
+    }
+
+    return plan.intendedFiles.some((candidate) => candidate.path === targetPath)
+      ? null
+      : `File read target ${targetPath} is not declared in the validated plan.`;
   }
 
   private parseCommandPlan(command: string): { command: string; args: string[] } | null {
@@ -690,6 +988,24 @@ export class HephaestusRuntime {
     if (taskMarkedInProgress) {
       Object.assign(task, transitionTask(task, 'blocked'));
       await this.tasks.markTaskBlocked(task);
+    }
+  }
+
+  private async handleAwaitingApprovalTask(
+    task: Task,
+    reason: string,
+    taskMarkedInProgress: boolean
+  ): Promise<void> {
+    this.state.status = 'idle';
+    this.state.currentTask = undefined;
+    this.state.lastActivity = new Date();
+
+    await this.memory.addSessionSummary(`Awaiting approval: ${task.description}`);
+    await this.memory.addToTaskHistory(task, `Awaiting approval: ${reason}`);
+    await this.memory.updateStatus('Awaiting Approval', task.description);
+
+    if (taskMarkedInProgress) {
+      await this.tasks.markTaskAwaitingApproval(task);
     }
   }
 

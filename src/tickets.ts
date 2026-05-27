@@ -1,4 +1,5 @@
 import { TicketStoreRepository } from './task-store.js';
+import { computeOperationalSLOMetrics, formatOperationalSLOMetrics } from './slo-metrics.js';
 import type { TaskStatus } from './types.js';
 
 const validStatuses: TaskStatus[] = [
@@ -25,6 +26,7 @@ Usage:
   npm run tickets -- retry <ticket-id>
   npm run tickets -- cancel <ticket-id> [reason]
   npm run tickets -- attempts <ticket-id>
+  npm run tickets -- metrics
   npm run tickets -- render-board
   npm run tickets -- sync-board
 
@@ -189,6 +191,19 @@ async function main(): Promise<void> {
             `${attempt.id}\t#${attempt.attemptNumber}\t${attempt.status}\t${attempt.startedAt.toISOString()}\t${endedAt}`
           );
         }
+        break;
+      }
+
+      case 'metrics': {
+        const tickets = await repository.listTickets('all');
+        const attemptsByTicket = new Map(
+          await Promise.all(
+            tickets.map(async (ticket) => [ticket.id, await repository.listAttempts(ticket.id)] as const)
+          )
+        );
+        const events = await repository.listEvents();
+        const metrics = computeOperationalSLOMetrics({ tickets, attemptsByTicket, events });
+        console.log(formatOperationalSLOMetrics(metrics));
         break;
       }
 

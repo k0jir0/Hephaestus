@@ -19,6 +19,7 @@ export type TaskStatus =
 
 export type TaskAttemptStatus =
   | 'in_progress'
+  | 'awaiting_approval'
   | 'completed'
   | 'blocked'
   | 'failed'
@@ -63,6 +64,7 @@ export interface TaskEvent {
     | 'requeued'
     | 'attempt-started'
     | 'attempt-finished'
+    | 'approval-requested'
     | 'board-synced'
     | 'side-effect-enqueued'
     | 'side-effect-completed'
@@ -163,7 +165,7 @@ export interface AIResponse {
 }
 
 export interface ToolCall {
-  name: string;
+  name: EngineeringToolName;
   arguments: Record<string, unknown>;
   result?: string;
   error?: string;
@@ -192,6 +194,24 @@ export interface EngineeringToolResult {
   error?: string;
   exitCode?: number;
   mutatedPaths: string[];
+}
+
+export interface ToolPolicySnapshot {
+  version: string;
+  workspaceRoot: string;
+  dryRunByDefault: boolean;
+  maxReadBytes: number;
+  maxOutputBytes: number;
+  maxSearchResults: number;
+  commandTimeoutMs: number;
+  commandAllowlist: string[];
+  protectedPathPrefixes: string[];
+  patchRiskThresholds: {
+    maxSafeTouchedPaths: number;
+    maxSafeChangedLines: number;
+  };
+  generatedAt: Date;
+  signature: string;
 }
 
 export interface MemoryEntry {

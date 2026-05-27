@@ -4,9 +4,20 @@ import type {
   PlannedFileChangeType,
   Task,
   TaskPlan,
+  ToolCall,
+  EngineeringToolName,
 } from './types.js';
 
 const changeTypes: PlannedFileChangeType[] = ['create', 'update', 'delete', 'inspect'];
+const engineeringToolNames: EngineeringToolName[] = [
+  'repo.search',
+  'file.read',
+  'patch.apply',
+  'command.run',
+  'git.branch',
+  'git.commit',
+  'github.pr',
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -127,6 +138,29 @@ function parsePlannedCommand(value: unknown, index: number): PlannedCommand {
   };
 }
 
+function parseToolCall(value: unknown, index: number): ToolCall {
+  if (!isRecord(value)) {
+    throw new Error(`toolCalls[${index}] must be an object.`);
+  }
+
+  const name = requireStringFromKeys(value, ['name', 'tool'], `toolCalls[${index}].name`);
+  if (!engineeringToolNames.includes(name as EngineeringToolName)) {
+    throw new Error(
+      `toolCalls[${index}].name must be one of: ${engineeringToolNames.join(', ')}`
+    );
+  }
+
+  const argumentsValue = value.arguments;
+  if (!isRecord(argumentsValue)) {
+    throw new Error(`toolCalls[${index}].arguments must be an object.`);
+  }
+
+  return {
+    name: name as EngineeringToolName,
+    arguments: argumentsValue,
+  };
+}
+
 function extractJsonPayload(rawContent: string): string {
   const trimmed = rawContent.trim();
   const fencedMatch = trimmed.match(/^```(?:json)?\s*([\s\S]+?)\s*```$/i);
@@ -163,6 +197,9 @@ export function buildStructuredPlanPrompt(task: Task, context: string | undefine
     '  "commands": [',
     '    { "command": "npm test", "purpose": "what this command validates", "expectedOutcome": "what success looks like" }',
     '  ],',
+    '  "toolCalls": [',
+    '    { "name": "file.read", "arguments": { "path": "src/example.ts", "startLine": 1, "endLine": 40 } }',
+    '  ],',
     '  "verification": ["at least one verification step"],',
     '  "risks": ["optional risk or dependency notes"]',
     '}',
@@ -173,6 +210,8 @@ export function buildStructuredPlanPrompt(task: Task, context: string | undefine
     '- Keep commands limited to the smallest useful set.',
     '- If no files need changes, return an empty intendedFiles array.',
     '- If no commands are needed, return an empty commands array.',
+    '- toolCalls may be empty when execution should remain plan-only.',
+    '- Only include toolCalls that are justified by the intendedFiles or commands in the same plan.',
     '- verification must always contain at least one step.',
     '- risks may be empty when there are no meaningful risks.',
   ].join('\n');
@@ -188,6 +227,13 @@ export function getStructuredPlanSystemPrompt(): string {
 }
 
 export function parseTaskPlan(rawContent: string): TaskPlan {
+  return parseStructuredExecutionResponse(rawContent).plan;
+}
+
+export function parseStructuredExecutionResponse(rawContent: string): {
+  plan: TaskPlan;
+  toolCalls: ToolCall[];
+} {
   const payload = extractJsonPayload(rawContent);
   const parsed = JSON.parse(payload) as unknown;
 
@@ -205,12 +251,20 @@ export function parseTaskPlan(rawContent: string): TaskPlan {
     throw new Error('Field "commands" must be an array.');
   }
 
+  const toolCallsRaw = parsed.toolCalls;
+  if (toolCallsRaw !== undefined && !Array.isArray(toolCallsRaw)) {
+    throw new Error('Field "toolCalls" must be an array when present.');
+  }
+
   return {
-    summary: requireString(parsed.summary, 'summary'),
-    intendedFiles: intendedFilesRaw.map((value, index) => parsePlannedFileChange(value, index)),
-    commands: commandsRaw.map((value, index) => parsePlannedCommand(value, index)),
-    verification: requireStringArray(parsed.verification, 'verification', false),
-    risks: requireStringArray(parsed.risks, 'risks', true),
+    plan: {
+      summary: requireString(parsed.summary, 'summary'),
+      intendedFiles: intendedFilesRaw.map((value, index) => parsePlannedFileChange(value, index)),
+      commands: commandsRaw.map((value, index) => parsePlannedCommand(value, index)),
+      verification: requireStringArray(parsed.verification, 'verification', false),
+      risks: requireStringArray(parsed.risks, 'risks', true),
+    },
+    toolCalls: (toolCallsRaw ?? []).map((value, index) => parseToolCall(value, index)),
   };
 }
 

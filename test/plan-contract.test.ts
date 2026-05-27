@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   buildStructuredPlanPrompt,
   formatTaskPlanSummary,
+  parseStructuredExecutionResponse,
   parseTaskPlan,
 } from '../src/plan-contract.js';
 
@@ -88,6 +89,41 @@ describe('parseTaskPlan', () => {
     assert.deepEqual(plan.verification, ['Review the generated task plan']);
   });
 
+  it('parses optional typed tool calls alongside the validated plan', () => {
+    const patch = [
+      'diff --git a/README.md b/README.md',
+      '--- a/README.md',
+      '+++ b/README.md',
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+      '',
+    ].join('\\n');
+
+    const parsed = parseStructuredExecutionResponse(`{
+      "summary": "Apply a bounded README patch.",
+      "intendedFiles": [
+        { "path": "README.md", "changeType": "update", "purpose": "document the workflow" }
+      ],
+      "commands": [],
+      "toolCalls": [
+        {
+          "name": "patch.apply",
+          "arguments": {
+            "patch": ${JSON.stringify(patch)}
+          }
+        }
+      ],
+      "verification": ["Review the patch result"],
+      "risks": []
+    }`);
+
+    assert.equal(parsed.plan.summary, 'Apply a bounded README patch.');
+    assert.equal(parsed.toolCalls.length, 1);
+    assert.equal(parsed.toolCalls[0]?.name, 'patch.apply');
+    assert.equal(typeof parsed.toolCalls[0]?.arguments.patch, 'string');
+  });
+
   it('rejects a payload without verification steps', () => {
     assert.throws(
       () =>
@@ -117,6 +153,7 @@ describe('buildStructuredPlanPrompt', () => {
     );
 
     assert.match(prompt, /"summary"/);
+    assert.match(prompt, /"toolCalls"/);
     assert.match(prompt, /README excerpt/);
     assert.match(prompt, /Project path: \./);
   });

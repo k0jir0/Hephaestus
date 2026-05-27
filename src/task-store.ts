@@ -276,6 +276,56 @@ export class TicketStoreRepository
     await this.writeProjectionSafely();
   }
 
+  async markTaskAwaitingApproval(task: Task): Promise<void> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      throw new Error('Approval checkpoints are unavailable in markdown fallback mode.');
+    }
+
+    const ticket = this.findTicketForTask(task);
+    if (!ticket) {
+      logger.warn('Could not find ticket to mark awaiting approval', { task: task.description });
+      return;
+    }
+
+    assertValidTaskTransition(ticket.status, 'awaiting_approval', `ticket ${ticket.id}`);
+
+    const now = new Date().toISOString();
+    this.finishCurrentAttempt(ticket, {
+      status: 'awaiting_approval',
+      endedAt: now,
+      error: task.error,
+      planJson: task.plan ? JSON.stringify(task.plan) : undefined,
+    });
+
+    this.getDatabase()
+      .prepare(
+        `update tickets
+         set status = 'awaiting_approval',
+             updated_at = ?,
+             error = ?,
+             plan_json = ?,
+             current_attempt_id = null
+         where id = ?`
+      )
+      .run(now, task.error ?? null, task.plan ? JSON.stringify(task.plan) : null, ticket.id);
+    this.recordEvent({
+      ticketId: ticket.id,
+      type: 'approval-requested',
+      createdAt: new Date(now),
+      details: task.error,
+    });
+    this.recordEvent({
+      ticketId: ticket.id,
+      type: 'attempt-finished',
+      createdAt: new Date(now),
+      details: ticket.current_attempt_id ?? undefined,
+    });
+
+    await this.writeProjectionSafely();
+  }
+
   async markTaskCompleted(task: Task): Promise<void> {
     await this.ensureInitialized();
 

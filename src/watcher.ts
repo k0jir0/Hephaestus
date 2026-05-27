@@ -188,6 +188,30 @@ export class TaskWatcher implements TaskRepository {
   }
 
   /**
+   * Keep approval-held tasks visible in the in-progress section for markdown fallback mode.
+   */
+  async markTaskAwaitingApproval(task: Task): Promise<void> {
+    try {
+      const content = await fs.readFile(this.tasksFile, 'utf-8');
+      const updatedContent = this.moveTaskBetweenSections(
+        content,
+        task,
+        'Queue',
+        'In Progress',
+        '- [ ]'
+      );
+
+      if (updatedContent !== content) {
+        await fs.writeFile(this.tasksFile, updatedContent, 'utf-8');
+      }
+
+      logger.debug(`Task is awaiting approval: ${task.description}`);
+    } catch (error) {
+      logger.error('Error marking task awaiting approval', { error: String(error) });
+    }
+  }
+
+  /**
    * Move a task into the Completed section.
    */
   async markTaskCompleted(task: Task): Promise<void> {

@@ -14,6 +14,9 @@
     "dev": "tsx src/agent.ts",
     "dev:once": "tsx src/agent.ts --once",
     "tickets": "tsx src/tickets.ts",
+    "fault-harness": "tsx src/reliability-harness.ts --mode fault",
+    "soak": "tsx src/reliability-harness.ts --mode soak",
+    "publish:reliability": "tsx src/reliability-harness.ts --mode publish",
     "lint": "eslint src/**/*.ts",
     "test": "node scripts/run-tests.mjs"
   },

@@ -1,9 +1,9 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ToolRuntimeReadinessProbe } from './repositories.js';
-import type { EngineeringToolName, EngineeringToolResult } from './types.js';
+import type { EngineeringToolName, EngineeringToolResult, ToolPolicySnapshot } from './types.js';
 
 type ToolRequest =
   | RepoSearchRequest
@@ -30,6 +30,7 @@ interface PatchApplyRequest {
   tool: 'patch.apply';
   patch: string;
   dryRun?: boolean;
+  approvalId?: string;
 }
 
 interface CommandRunRequest {
@@ -60,6 +61,14 @@ export interface EngineeringToolPolicy {
   commandTimeoutMs?: number;
   commandAllowlist?: CommandAllowlistEntry[];
   protectedPathPrefixes?: string[];
+  maxSafePatchPaths?: number;
+  maxSafePatchChangedLines?: number;
+}
+
+interface PatchRiskAssessment {
+  requiresApproval: boolean;
+  changedLines: number;
+  reasons: string[];
 }
 
 const ignoredDirectoryNames = new Set([
@@ -112,6 +121,8 @@ export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
   private readonly commandTimeoutMs: number;
   private readonly commandAllowlist: CommandAllowlistEntry[];
   private readonly protectedPathPrefixes: string[];
+  private readonly maxSafePatchPaths: number;
+  private readonly maxSafePatchChangedLines: number;
 
   constructor(policy: EngineeringToolPolicy) {
     this.workspaceRoot = path.resolve(policy.workspaceRoot);
@@ -122,6 +133,36 @@ export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
     this.commandTimeoutMs = policy.commandTimeoutMs ?? 60_000;
     this.commandAllowlist = policy.commandAllowlist ?? defaultCommandAllowlist;
     this.protectedPathPrefixes = policy.protectedPathPrefixes ?? defaultProtectedPathPrefixes;
+    this.maxSafePatchPaths = policy.maxSafePatchPaths ?? 1;
+    this.maxSafePatchChangedLines = policy.maxSafePatchChangedLines ?? 20;
+  }
+
+  getPolicySnapshot(): ToolPolicySnapshot {
+    const snapshotBase = {
+      version: 'hephaestus-tool-policy/v1',
+      workspaceRoot: this.workspaceRoot,
+      dryRunByDefault: this.dryRun,
+      maxReadBytes: this.maxReadBytes,
+      maxOutputBytes: this.maxOutputBytes,
+      maxSearchResults: this.maxSearchResults,
+      commandTimeoutMs: this.commandTimeoutMs,
+      commandAllowlist: this.commandAllowlist.map((entry) => [entry.command, ...entry.args].join(' ')),
+      protectedPathPrefixes: [...this.protectedPathPrefixes],
+      patchRiskThresholds: {
+        maxSafeTouchedPaths: this.maxSafePatchPaths,
+        maxSafeChangedLines: this.maxSafePatchChangedLines,
+      },
+    };
+    const signature = createHash('sha256')
+      .update(JSON.stringify(snapshotBase))
+      .digest('hex')
+      .slice(0, 16);
+
+    return {
+      ...snapshotBase,
+      generatedAt: new Date(),
+      signature,
+    };
   }
 
   async execute(request: EngineeringToolRequest): Promise<EngineeringToolResult> {
@@ -282,6 +323,8 @@ export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
       }
     }
 
+    const patchRisk = this.assessPatchRisk(request.patch, touchedPaths);
+
     const check = await this.runProcess('git', ['apply', '--check', '--whitespace=nowarn', '-'], {
       cwd: this.workspaceRoot,
       input: request.patch,
@@ -301,9 +344,23 @@ export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
     if (this.dryRun || request.dryRun) {
       return {
         status: 'dry_run',
-        summary: `Patch validated for ${touchedPaths.length} file(s).`,
+        summary: `Patch validated for ${touchedPaths.length} file(s).${patchRisk.requiresApproval ? ` Approval will be required to apply: ${patchRisk.reasons.join('; ')}` : ''}`,
         reasonCode: 'dry-run-only',
         output: check.output,
+        mutatedPaths: touchedPaths,
+      };
+    }
+
+    if (patchRisk.requiresApproval && !request.approvalId) {
+      return {
+        status: 'denied',
+        summary: `Patch requires approval before apply: ${patchRisk.reasons.join('; ')}`,
+        reasonCode: 'approval-required',
+        output: JSON.stringify({
+          touchedPaths,
+          changedLines: patchRisk.changedLines,
+          reasons: patchRisk.reasons,
+        }),
         mutatedPaths: touchedPaths,
       };
     }
@@ -433,6 +490,32 @@ export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
     }
 
     return [...paths];
+  }
+
+  private assessPatchRisk(patch: string, touchedPaths: string[]): PatchRiskAssessment {
+    const changedLines = patch
+      .split(/\r?\n/)
+      .filter((line) => /^(?:\+|-)/.test(line) && !/^(?:\+\+\+|---)/.test(line)).length;
+    const createsOrDeletes = /^(?:---|\+\+\+) \/dev\/null$/m.test(patch);
+    const reasons: string[] = [];
+
+    if (touchedPaths.length > this.maxSafePatchPaths) {
+      reasons.push(`patch touches ${touchedPaths.length} files`);
+    }
+
+    if (changedLines > this.maxSafePatchChangedLines) {
+      reasons.push(`patch changes ${changedLines} lines`);
+    }
+
+    if (createsOrDeletes) {
+      reasons.push('patch creates or deletes files');
+    }
+
+    return {
+      requiresApproval: reasons.length > 0,
+      changedLines,
+      reasons,
+    };
   }
 
   private async *walkFiles(directory: string): AsyncGenerator<string> {

@@ -107,6 +107,49 @@ describe('EngineeringToolRuntime', () => {
     );
   });
 
+  it('returns a signed policy snapshot and requires approval for risky patch apply requests', async () => {
+    const workspaceRoot = await createWorkspace();
+    const runtime = new EngineeringToolRuntime({
+      workspaceRoot,
+      maxSafePatchPaths: 1,
+      maxSafePatchChangedLines: 2,
+    });
+    const patch = [
+      'diff --git a/README.md b/README.md',
+      '--- a/README.md',
+      '+++ b/README.md',
+      '@@ -1 +1 @@',
+      '-old heading',
+      '+new heading',
+      'diff --git a/src/demo.ts b/src/demo.ts',
+      '--- a/src/demo.ts',
+      '+++ b/src/demo.ts',
+      '@@ -1 +1 @@',
+      '-export const answer = 42;',
+      '+export const answer = 43;',
+      '',
+    ].join('\n');
+
+    const snapshot = runtime.getPolicySnapshot();
+    const dryRunResult = await runtime.execute({
+      tool: 'patch.apply',
+      patch,
+      dryRun: true,
+    });
+    const applyResult = await runtime.execute({
+      tool: 'patch.apply',
+      patch,
+    });
+
+    assert.equal(snapshot.version, 'hephaestus-tool-policy/v1');
+    assert.match(snapshot.signature, /^[a-f0-9]{16}$/);
+    assert.equal(dryRunResult.status, 'dry_run');
+    assert.equal(applyResult.status, 'denied');
+    assert.equal(applyResult.reasonCode, 'approval-required');
+    assert.match(applyResult.summary, /requires approval/);
+    assert.deepEqual(applyResult.mutatedPaths, ['README.md', 'src/demo.ts']);
+  });
+
   it('denies non-allowlisted commands and runs explicit verification commands', async () => {
     const workspaceRoot = await createWorkspace();
     const runtime = new EngineeringToolRuntime({

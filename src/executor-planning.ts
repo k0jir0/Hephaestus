@@ -2,7 +2,7 @@ import { createComponentLogger } from './logger.js';
 import {
   buildStructuredPlanPrompt,
   getStructuredPlanSystemPrompt,
-  parseTaskPlan,
+  parseStructuredExecutionResponse,
 } from './plan-contract.js';
 import type { AIResponse, Task } from './types.js';
 
@@ -36,13 +36,14 @@ export class StructuredPlanParser implements StructuredPlanResponseParser {
     }
 
     try {
-      const plan = parseTaskPlan(response.content);
+      const parsed = parseStructuredExecutionResponse(response.content);
 
       return {
         ...response,
-        content: plan.summary,
+        content: parsed.plan.summary,
         rawContent: response.content,
-        plan,
+        plan: parsed.plan,
+        toolCalls: parsed.toolCalls,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

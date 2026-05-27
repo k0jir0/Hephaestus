@@ -83,18 +83,12 @@ function makePlan(summary: string): TaskPlan {
     summary,
     intendedFiles: [
       {
-        path: 'src/runtime.ts',
+        path: 'README.md',
         changeType: 'inspect',
-        purpose: 'Check the runtime flow before applying changes.',
+        purpose: 'Check the fixture repository before completing the smoke flow.',
       },
     ],
-    commands: [
-      {
-        command: 'npm test',
-        purpose: 'Validate smoke flow assumptions.',
-        expectedOutcome: 'Tests pass.',
-      },
-    ],
+    commands: [],
     verification: ['Confirm the queue moved the task into Completed.'],
     risks: ['Requires the repository files to remain well-formed markdown.'],
   };
