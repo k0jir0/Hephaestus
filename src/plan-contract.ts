@@ -19,6 +19,27 @@ const engineeringToolNames: EngineeringToolName[] = [
   'github.pr',
 ];
 
+const toolNameAliases: Record<string, EngineeringToolName> = {
+  'repo.search': 'repo.search',
+  'search_repo': 'repo.search',
+  'search': 'repo.search',
+  'file.read': 'file.read',
+  'read_file': 'file.read',
+  'read': 'file.read',
+  'patch.apply': 'patch.apply',
+  'apply_patch': 'patch.apply',
+  'patch': 'patch.apply',
+  'command.run': 'command.run',
+  'run_command': 'command.run',
+  'run': 'command.run',
+  'git.branch': 'git.branch',
+  'branch': 'git.branch',
+  'git.commit': 'git.commit',
+  'commit': 'git.commit',
+  'github.pr': 'github.pr',
+  'create_pr': 'github.pr',
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -143,8 +164,11 @@ function parseToolCall(value: unknown, index: number): ToolCall {
     throw new Error(`toolCalls[${index}] must be an object.`);
   }
 
-  const name = requireStringFromKeys(value, ['name', 'tool'], `toolCalls[${index}].name`);
-  if (!engineeringToolNames.includes(name as EngineeringToolName)) {
+  const nameRaw = requireStringFromKeys(value, ['name', 'tool'], `toolCalls[${index}].name`);
+  const nameKey = nameRaw.trim().toLowerCase();
+  const mapped = toolNameAliases[nameKey] ?? toolNameAliases[nameRaw] ?? undefined;
+  const finalName = mapped ?? (engineeringToolNames.includes(nameRaw as EngineeringToolName) ? (nameRaw as EngineeringToolName) : undefined);
+  if (!finalName) {
     throw new Error(
       `toolCalls[${index}].name must be one of: ${engineeringToolNames.join(', ')}`
     );
@@ -156,7 +180,7 @@ function parseToolCall(value: unknown, index: number): ToolCall {
   }
 
   return {
-    name: name as EngineeringToolName,
+    name: finalName,
     arguments: argumentsValue,
   };
 }
