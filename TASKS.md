@@ -37,6 +37,7 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Add an allowlisted command runner with per-command timeouts, captured stdout or stderr, exit-code handling, and blocked-action reporting for unsafe commands <!-- hephaestus-ticket:ticket_f6977ebfb6f9 -->
 - [x] Persist structured execution events to AGENT.md and PROGRESS.log including approvals, blocked actions, applied edits, command outcomes, and rollback notes <!-- hephaestus-ticket:ticket_cc59ef4de623 -->
 - [x] Add end-to-end fixture tests that cover successful edit application, approval denial, blocked command attempts, and failure recovery without stranded task state <!-- hephaestus-ticket:ticket_1a9f3faaa7b1 -->
+- [x] retry ticket_927126d736f1 <!-- hephaestus-ticket:ticket_1ac8aa7b7866 -->
 
 ## Blocked
 
@@ -44,6 +45,11 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [ ] Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery <!-- hephaestus-ticket:ticket_ecb969cec9d4 -->
 - [ ] Extend the plan contract and executor prompt so plans can declare executable edit operations, verification commands, and approval requirements in a machine-runnable format <!-- hephaestus-ticket:ticket_a612151dbdd0 -->
 - [ ] Add operator approval gating so file mutations and non-safe verification commands pause for approval instead of executing automatically <!-- hephaestus-ticket:ticket_2537693f1939 -->
+- [ ] \ test ticket from cli\ <!-- hephaestus-ticket:ticket_1f34b1711087 -->
+- [ ] Self-audit: analyze repository and create prioritized improvement tickets <!-- hephaestus-ticket:ticket_bce8692f7c69 -->
+- [ ] Self-audit (read-only) analyze repo and create improvement tickets - READ ONLY <!-- hephaestus-ticket:ticket_2da0176fc0e6 -->
+- [ ] retry ticket_bce8692f7c69 <!-- hephaestus-ticket:ticket_9dc3e4b392da -->
+- [ ] Self-audit: Analyze repository and generate prioritized improvement tickets. For each low-risk item (<=1 file, <=20 lines changed), implement the change, run tests, and verify. For higher-risk changes request approval. Commit each change separately and update TASKS.md with ticket references. Continue iteratively until no more low-risk improvements remain. <!-- hephaestus-ticket:ticket_927126d736f1 -->
 
 ## Cancelled
 

@@ -97,6 +97,9 @@ const defaultCommandAllowlist: CommandAllowlistEntry[] = [
   { command: 'npm.cmd', args: ['run', 'test'] },
   { command: 'npm', args: ['run', 'lint'] },
   { command: 'npm.cmd', args: ['run', 'lint'] },
+    // Allow ticket CLI commands so the agent can create/list tickets when instructed
+    { command: 'npm', args: ['run', 'tickets'] },
+    { command: 'npm.cmd', args: ['run', 'tickets'] },
   { command: 'node', args: ['scripts/run-tests.mjs'] },
   { command: 'node_modules/.bin/tsc', args: ['--noEmit'] },
   { command: 'node_modules\\.bin\\tsc.cmd', args: ['--noEmit'] },
@@ -419,57 +422,99 @@ export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
     args: string[],
     options: { cwd: string; input?: string; timeoutMs: number }
   ): Promise<{ exitCode: number; output: string }> {
-    return new Promise((resolve) => {
-      const child = spawn(command, args, {
-        cwd: options.cwd,
-        shell: false,
-        windowsHide: true,
-      });
-      let output = '';
-      let settled = false;
-
-      const timeout = setTimeout(() => {
-        if (settled) {
-          return;
-        }
-
-        settled = true;
-        child.kill();
-        resolve({
-          exitCode: -1,
-          output: this.truncateOutput(`${output}\nCommand timed out after ${options.timeoutMs}ms.`),
+    const doSpawn = (cmd: string, argsList: string[]) =>
+      new Promise<{ exitCode: number; output: string }>((resolve, reject) => {
+        const child = spawn(cmd, argsList, {
+          cwd: options.cwd,
+          shell: false,
+          windowsHide: true,
         });
-      }, options.timeoutMs);
+        let output = '';
+        let settled = false;
 
-      child.stdout.on('data', (chunk: Buffer) => {
-        output = this.truncateOutput(output + chunk.toString('utf-8'));
-      });
-      child.stderr.on('data', (chunk: Buffer) => {
-        output = this.truncateOutput(output + chunk.toString('utf-8'));
-      });
-      child.on('error', (error) => {
-        if (settled) {
-          return;
+        const timeout = setTimeout(() => {
+          if (settled) {
+            return;
+          }
+
+          settled = true;
+          child.kill();
+          resolve({
+            exitCode: -1,
+            output: this.truncateOutput(`${output}\nCommand timed out after ${options.timeoutMs}ms.`),
+          });
+        }, options.timeoutMs);
+
+        child.stdout.on('data', (chunk: Buffer) => {
+          output = this.truncateOutput(output + chunk.toString('utf-8'));
+        });
+        child.stderr.on('data', (chunk: Buffer) => {
+          output = this.truncateOutput(output + chunk.toString('utf-8'));
+        });
+        child.on('error', (error: NodeJS.ErrnoException) => {
+          if (settled) {
+            return;
+          }
+
+          settled = true;
+          clearTimeout(timeout);
+          reject(error);
+        });
+        child.on('close', (code) => {
+          if (settled) {
+            return;
+          }
+
+          settled = true;
+          clearTimeout(timeout);
+          resolve({ exitCode: code ?? 0, output: this.truncateOutput(output) });
+        });
+
+        if (options.input !== undefined) {
+          child.stdin.end(options.input);
         }
-
-        settled = true;
-        clearTimeout(timeout);
-        resolve({ exitCode: -1, output: error.message });
       });
-      child.on('close', (code) => {
-        if (settled) {
-          return;
+
+    try {
+      return await doSpawn(command, args);
+    } catch (firstError) {
+      // On Windows, trying to spawn 'npm' can result in ENOENT even when npm.cmd exists.
+      // Retry by appending '.cmd' for common executables when appropriate.
+      const isWindows = process.platform === 'win32';
+      const err = firstError as NodeJS.ErrnoException;
+      if (isWindows) {
+        // If the initial spawn failed, try common Windows fallbacks:
+        // 1) append .cmd to the command (e.g., npm -> npm.cmd)
+        // 2) spawn via shell (cmd.exe) with the full command line
+        try {
+          const tryCmd = `${command}.cmd`;
+          return await doSpawn(tryCmd, args);
+        } catch {
+          // try shell fallback
+          try {
+            const cmdLine = [command, ...args].join(' ');
+            return await new Promise<{ exitCode: number; output: string }>((resolve) => {
+              const child = spawn(cmdLine, { cwd: options.cwd, shell: true, windowsHide: true });
+              let output = '';
+              const timeout = setTimeout(() => {
+                child.kill();
+                resolve({ exitCode: -1, output: `Command timed out after ${options.timeoutMs}ms.` });
+              }, options.timeoutMs);
+              child.stdout?.on('data', (c: Buffer) => (output += c.toString('utf8')));
+              child.stderr?.on('data', (c: Buffer) => (output += c.toString('utf8')));
+              child.on('close', (code) => {
+                clearTimeout(timeout);
+                resolve({ exitCode: code ?? 0, output: this.truncateOutput(output) });
+              });
+            });
+          } catch (secondError) {
+            return { exitCode: -1, output: String(secondError instanceof Error ? secondError.message : secondError) };
+          }
         }
-
-        settled = true;
-        clearTimeout(timeout);
-        resolve({ exitCode: code ?? 0, output: this.truncateOutput(output) });
-      });
-
-      if (options.input !== undefined) {
-        child.stdin.end(options.input);
       }
-    });
+
+      return { exitCode: -1, output: String(err instanceof Error ? err.message : err) };
+    }
   }
 
   private isAllowedCommand(command: string, args: string[]): boolean {

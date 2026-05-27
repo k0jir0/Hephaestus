@@ -13,6 +13,7 @@
     "start:once": "npm run build && node dist/agent.js --once",
     "watch": "tsc --watch",
     "dev": "tsx src/agent.ts",
+    "cli": "tsx src/cli.ts",
     "dev:once": "tsx src/agent.ts --once",
     "tickets": "tsx src/tickets.ts",
     "fault-harness": "tsx src/reliability-harness.ts --mode fault",

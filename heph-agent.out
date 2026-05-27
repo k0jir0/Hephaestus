@@ -1,0 +1,243 @@
+
+> hephaestus@1.0.0 start:daemon
+> npm run build && node dist/agent.js --daemon
+
+
+> hephaestus@1.0.0 build
+> tsc
+
+[16:50:10] [32minfo[39m: AgentMemory initialized {"component":"Memory"}
+[16:50:10] [32minfo[39m: TaskWatcher initialized {"component":"Watcher"}
+[16:50:10] [32minfo[39m: AIExecutor initialized with backend: ollama {"component":"Executor"}
+[16:50:10] [32minfo[39m: SafetySystem initialized {"component":"Safety"}
+[16:50:10] [32minfo[39m: ================================================== 
+[16:50:10] [32minfo[39m: Hephaestus v1.0.0 - Starting up... 
+[16:50:10] [32minfo[39m: ================================================== 
+[16:50:10] [32minfo[39m: Startup preflight passed with no issues 
+[16:50:10] [32minfo[39m: AI Backend: ollama 
+[16:50:10] [32minfo[39m: Model: codellama 
+[16:50:10] [32minfo[39m: Target Project: C:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus 
+[16:50:10] [32minfo[39m: Daily Budget: $10 
+[16:50:10] [32minfo[39m: Max Iterations: 50 
+[16:50:10] [32minfo[39m: Check Interval: 60s 
+[16:50:10] [32minfo[39m: Mode: watch 
+[16:50:10] [32minfo[39m: ================================================== 
+[16:50:10] [32minfo[39m: Hephaestus is running and watching the ticket store 
+[16:50:10] [32minfo[39m: Create work with: npm run tickets -- create "<task>" 
+[16:50:10] [32minfo[39m: Press Ctrl+C to stop 
+[16:50:10] [32minfo[39m: ================================================== 
+[16:51:10] [32minfo[39m: Periodic status check 
+[16:51:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 0/50
+Consecutive Errors: 0/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T20:50:10.199Z 
+[16:52:10] [32minfo[39m: Periodic status check 
+[16:52:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 0/50
+Consecutive Errors: 0/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T20:50:10.199Z 
+[16:53:10] [32minfo[39m: Periodic status check 
+[16:53:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 0/50
+Consecutive Errors: 0/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T20:50:10.199Z 
+[16:54:10] [32minfo[39m: Periodic status check 
+[16:54:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 0/50
+Consecutive Errors: 0/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T20:50:10.199Z 
+[16:55:10] [32minfo[39m: Periodic status check 
+[16:55:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 0/50
+Consecutive Errors: 0/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T20:50:10.199Z 
+[16:56:10] [32minfo[39m: Periodic status check 
+[16:56:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 0/50
+Consecutive Errors: 0/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T20:50:10.199Z 
+[16:57:10] [32minfo[39m: Periodic status check 
+[16:57:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 0/50
+Consecutive Errors: 0/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T20:50:10.199Z 
+[16:58:10] [32minfo[39m: Periodic status check 
+[16:58:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 0/50
+Consecutive Errors: 0/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T20:50:10.199Z 
+[16:59:10] [32minfo[39m: Periodic status check 
+[16:59:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 0/50
+Consecutive Errors: 0/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T20:50:10.199Z 
+[17:00:10] [32minfo[39m: Periodic status check 
+[17:00:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 0/50
+Consecutive Errors: 0/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T20:50:10.199Z 
+[17:01:10] [32minfo[39m: Periodic status check 
+[17:01:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 0/50
+Consecutive Errors: 0/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T20:50:10.199Z 
+[17:02:10] [32minfo[39m: Periodic status check 
+[17:02:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 0/50
+Consecutive Errors: 0/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T20:50:10.199Z 
+[17:02:47] [32minfo[39m: Found 1 new task(s) in the ticket store {"component":"TaskStore"}
+[17:02:47] [32minfo[39m: Processing task: Self-audit (read-only) analyze repo and create improvement tickets - READ ONLY 
+[17:02:47] [32minfo[39m: Executing task: Self-audit (read-only) analyze repo and create improvement tickets - READ ONLY {"component":"Executor"}
+[17:02:51] [33mwarn[39m: Recorded error {"component":"Safety","error":"Command failed: npm test: spawn npm ENOENT","consecutiveErrors":1}
+[17:02:51] [32minfo[39m: Recorded blocker: Self-audit (read-only) analyze repo and create improvement tickets - READ ONLY {"component":"Memory"}
+[17:03:10] [32minfo[39m: Periodic status check 
+[17:03:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 1/50
+Consecutive Errors: 1/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T21:02:51.673Z 
+[17:04:10] [32minfo[39m: Periodic status check 
+[17:04:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 1/50
+Consecutive Errors: 1/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T21:02:51.673Z 
+[17:05:10] [32minfo[39m: Periodic status check 
+[17:05:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 1/50
+Consecutive Errors: 1/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T21:02:51.673Z 
+[17:06:10] [32minfo[39m: Periodic status check 
+[17:06:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 1/50
+Consecutive Errors: 1/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T21:02:51.673Z 
+[17:07:10] [32minfo[39m: Periodic status check 
+[17:07:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 1/50
+Consecutive Errors: 1/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T21:02:51.673Z 
+[17:08:10] [32minfo[39m: Periodic status check 
+[17:08:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 1/50
+Consecutive Errors: 1/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T21:02:51.673Z 
+[17:09:10] [32minfo[39m: Periodic status check 
+[17:09:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 1/50
+Consecutive Errors: 1/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T21:02:51.673Z 
+[17:10:10] [32minfo[39m: Periodic status check 
+[17:10:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 1/50
+Consecutive Errors: 1/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T21:02:51.673Z 
+[17:11:10] [32minfo[39m: Periodic status check 
+[17:11:10] [32minfo[39m: === Hephaestus Safety Status ===
+Session Started: 2026-05-27T20:50:10.199Z
+Budget Window Started: 2026-05-27T20:50:10.199Z
+Total Tasks Completed: 0
+Iteration Count: 1/50
+Consecutive Errors: 1/5
+Session Cost: $0.0000/$10
+Remaining Budget: $10.0000
+Last Activity: 2026-05-27T21:02:51.673Z 
