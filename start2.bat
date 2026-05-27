@@ -20,8 +20,9 @@ curl --silent --fail "%OLLAMA_BASE_URL%/api/models" >nul 2>&1
 if %errorlevel%==0 (
   echo [start2] Ollama appears reachable at %OLLAMA_BASE_URL%.
 ) else (
-  echo [start2] Ollama not reachable. Attempting to start Ollama in background (best-effort)...
-  start "" /B ollama serve
+  echo [start2] Ollama not reachable.
+  echo [start2] Attempting to start Ollama (best-effort)...
+  start "Ollama" cmd /c "ollama serve"
   timeout /t 3 >nul
   curl --silent --fail "%OLLAMA_BASE_URL%/api/models" >nul 2>&1
   if %errorlevel%==0 (
@@ -33,11 +34,11 @@ if %errorlevel%==0 (
 
 rem Start Hephaestus daemon in a new window so it continues running
 echo [start2] Starting Hephaestus daemon (npm run start:daemon)...
-start "Hephaestus - daemon" cmd /k "cd /d "%~dp0" && npm run start:daemon"
+start "Hephaestus - daemon" cmd /k "npm run start:daemon"
 
 rem Start the UI server in a separate window
 echo [start2] Starting Hephaestus UI (npx tsx src/ui-server.ts) on port %UI_PORT%...
-start "Hephaestus - UI" cmd /k "cd /d "%~dp0" && set UI_PORT=%UI_PORT% && npx tsx src/ui-server.ts"
+start "Hephaestus - UI" cmd /k "set UI_PORT=%UI_PORT% && npx tsx src/ui-server.ts"
 
 echo [start2] All processes launched (or attempted). Use the CLI with: npm run cli -- list
 
