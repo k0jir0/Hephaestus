@@ -8,17 +8,12 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Set-Location $ScriptDir
 
 # Environment defaults (override in user/system env if desired)
-$vars = @{
-    OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
-    AI_BACKEND = 'ollama'
-    AI_MODEL = 'codellama'
-    DAILY_TOKEN_BUDGET = '10.00'
-    MAX_ITERATIONS = '50'
-    UI_PORT = '4181'
-}
-foreach ($k in $vars.Keys) {
-    if (-not $env:$k -or [string]::IsNullOrWhiteSpace($env:$k)) { $env:$k = $vars[$k] }
-}
+if (-not $env:OLLAMA_BASE_URL -or [string]::IsNullOrWhiteSpace($env:OLLAMA_BASE_URL)) { $env:OLLAMA_BASE_URL = 'http://127.0.0.1:11434' }
+if (-not $env:AI_BACKEND -or [string]::IsNullOrWhiteSpace($env:AI_BACKEND)) { $env:AI_BACKEND = 'ollama' }
+if (-not $env:AI_MODEL -or [string]::IsNullOrWhiteSpace($env:AI_MODEL)) { $env:AI_MODEL = 'codellama' }
+if (-not $env:DAILY_TOKEN_BUDGET -or [string]::IsNullOrWhiteSpace($env:DAILY_TOKEN_BUDGET)) { $env:DAILY_TOKEN_BUDGET = '10.00' }
+if (-not $env:MAX_ITERATIONS -or [string]::IsNullOrWhiteSpace($env:MAX_ITERATIONS)) { $env:MAX_ITERATIONS = '50' }
+if (-not $env:UI_PORT -or [string]::IsNullOrWhiteSpace($env:UI_PORT)) { $env:UI_PORT = '4181' }
 
 Write-Host "[start2.ps1] Working directory: $ScriptDir"
 Write-Host "[start2.ps1] OLLAMA_BASE_URL=$($env:OLLAMA_BASE_URL)"
