@@ -14,6 +14,11 @@ set UI_PORT=4181
 echo [start2] Working directory: %CD%
 echo [start2] OLLAMA_BASE_URL=%OLLAMA_BASE_URL%
 
+rem normalize env vars that contain parentheses to avoid parsing issues in IF blocks
+set PF=%ProgramFiles%
+set PF86=%ProgramFiles(x86)%
+set UP=%USERPROFILE%
+
 rem quick health check for Ollama
 echo [start2] Checking Ollama availability...
 curl --silent --fail "%OLLAMA_BASE_URL%/api/models" >nul 2>&1
@@ -24,15 +29,15 @@ if errorlevel 1 (
   where /q ollama
   if errorlevel 1 (
     rem not on PATH — check common install locations
-    if exist "%ProgramFiles%\Ollama\ollama.exe" (
-      echo [start2] Found Ollama at "%ProgramFiles%\Ollama\ollama.exe" — starting.
-      start "Ollama" cmd /c "%ProgramFiles%\Ollama\ollama.exe" serve
-    ) else if exist "%ProgramFiles(x86)%\Ollama\ollama.exe" (
-      echo [start2] Found Ollama at "%ProgramFiles(x86)%\Ollama\ollama.exe" — starting.
-      start "Ollama" cmd /c "%ProgramFiles(x86)%\Ollama\ollama.exe" serve
-    ) else if exist "%USERPROFILE%\\.ollama\\bin\\ollama.exe" (
+    if exist "%PF%\Ollama\ollama.exe" (
+      echo [start2] Found Ollama at "%PF%\Ollama\ollama.exe" — starting.
+      start "Ollama" cmd /c "%PF%\Ollama\ollama.exe" serve
+    ) else if exist "%PF86%\Ollama\ollama.exe" (
+      echo [start2] Found Ollama at "%PF86%\Ollama\ollama.exe" — starting.
+      start "Ollama" cmd /c "%PF86%\Ollama\ollama.exe" serve
+    ) else if exist "%UP%\\.ollama\\bin\\ollama.exe" (
       echo [start2] Found Ollama at user install — starting.
-      start "Ollama" cmd /c "%USERPROFILE%\\.ollama\\bin\\ollama.exe" serve
+      start "Ollama" cmd /c "%UP%\\.ollama\\bin\\ollama.exe" serve
     ) else (
       echo [start2] Ollama is not installed or not on PATH.
       echo [start2] Please install Ollama from https://ollama.ai and ensure `ollama` is on your PATH.
