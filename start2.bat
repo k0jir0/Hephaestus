@@ -20,7 +20,28 @@ curl --silent --fail "%OLLAMA_BASE_URL%/api/models" >nul 2>&1
 if errorlevel 1 (
   echo [start2] Ollama not reachable.
   echo [start2] Attempting to start Ollama (best-effort)...
-  start "Ollama" cmd /c ollama serve
+  rem check if ollama is on PATH
+  where /q ollama
+  if errorlevel 1 (
+    rem not on PATH — check common install locations
+    if exist "%ProgramFiles%\Ollama\ollama.exe" (
+      echo [start2] Found Ollama at "%ProgramFiles%\Ollama\ollama.exe" — starting.
+      start "Ollama" cmd /c "%ProgramFiles%\Ollama\ollama.exe" serve
+    ) else if exist "%ProgramFiles(x86)%\Ollama\ollama.exe" (
+      echo [start2] Found Ollama at "%ProgramFiles(x86)%\Ollama\ollama.exe" — starting.
+      start "Ollama" cmd /c "%ProgramFiles(x86)%\Ollama\ollama.exe" serve
+    ) else if exist "%USERPROFILE%\\.ollama\\bin\\ollama.exe" (
+      echo [start2] Found Ollama at user install — starting.
+      start "Ollama" cmd /c "%USERPROFILE%\\.ollama\\bin\\ollama.exe" serve
+    ) else (
+      echo [start2] Ollama is not installed or not on PATH.
+      echo [start2] Please install Ollama from https://ollama.ai and ensure `ollama` is on your PATH.
+      echo [start2] Continuing without Ollama; Hephaestus will retry connecting.
+    )
+  ) else (
+    rem ollama on PATH — start service
+    start "Ollama" cmd /c ollama serve
+  )
   timeout /t 3 >nul
   curl --silent --fail "%OLLAMA_BASE_URL%/api/models" >nul 2>&1
   if errorlevel 1 (
