@@ -1,6 +1,8 @@
 @echo off
-rem start3.bat - shim to run start2.ps1 with PowerShell
+REM Legacy compatibility shim. start_all.bat is the canonical Windows entrypoint.
 pushd "%~dp0"
-powershell -ExecutionPolicy Bypass -NoProfile -File "%~dp0start2.ps1"
+echo [deprecated] start3.bat now forwards to start_all.bat.
+call "%~dp0start_all.bat" %*
+set EXIT_CODE=%ERRORLEVEL%
 popd
-exit /b %ERRORLEVEL%
+exit /b %EXIT_CODE%

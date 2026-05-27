@@ -4,10 +4,10 @@ Abstract:
 This document describes the current Hephaestus startup behavior, identifies gaps preventing a single-script startup, and provides a phased, actionable roadmap so the entire stack (local LLM, daemon, UI, and support services) can be launched and validated from one Windows .bat invocation. It also includes safety, observability, and testing recommendations.
 
 1. Current Startup Behavior (observed)
-- Launcher: start3.bat calls start2.ps1. start2.ps1 is the orchestration entrypoint.
-- Ollama handling: start2.ps1 checks Ollama health at OLLAMA_BASE_URL and attempts to run ollama.exe serve if not reachable; it waits ~30s for health.
-- Daemon/UI: Launcher opens new cmd windows to run the daemon and UI, writing logs into logs/.
-- Defaults: start2.ps1 sets default env variables (e.g., AI_BACKEND=ollama, DAILY_TOKEN_BUDGET=10.00, UI_PORT=4181).
+- Launcher: start_all.bat calls start_all.ps1. Legacy launchers such as start2.bat, start2.ps1, start3.bat, and start-script.bat are compatibility shims that forward into the canonical entrypoint.
+- Ollama handling: start_all.ps1 checks Ollama health, attempts to run ollama.exe serve if not reachable, and waits for readiness before continuing.
+- Daemon/UI: start_all.ps1 starts the daemon and UI with managed logs, PID files, smoke checks, and optional viewer windows.
+- Defaults: start_all.ps1 loads .env, honors environment overrides, and sets startup defaults such as AI_BACKEND=ollama and UI_PORT=4181.
 - Observed failure mode: The daemon crashed on init when createBackendClient(...) returned undefined (config mismatch), producing a TypeError crash instead of a readable validation error.
 
 2. Target Single-Script Behavior (requirements)
@@ -31,7 +31,7 @@ This document describes the current Hephaestus startup behavior, identifies gaps
 4. Phased Roadmap (concrete tasks)
 Phase 0 — Stabilize (Immediate, 1–2 days)
 - Add explicit config validation in startup so missing/invalid AI_BACKEND errors are surfaced immediately.
-- Harden start2.ps1: increase Ollama wait + check process existence after Start-Process; surface ollama.err on failure.
+- Retire duplicated start2/start3/start-script launcher logic by forwarding all Windows entrypoints into start_all.
 - Add status output summarizing what was started and where logs are.
 
 Phase 1 — Single-Script Orchestration (3–5 days)
@@ -75,7 +75,7 @@ Phase 5 — Polish & Release
 
 8. Recommended immediate work items (next 48 hours)
 - Add explicit config validation in src/config.ts + early exit when AI_BACKEND invalid.
-- Improve start2.ps1 to log ollama.err on failures, check process table for ollama.exe, and write run/*.pid files.
+- Refine startup methodology so start_all is the only Windows orchestration flow and legacy launchers act only as compatibility shims.
 - Create start_all.ps1 scaffold (idempotent) and start_all.bat shim.
 - Add a small smoke-test harness to run after startup (HTTP checks and a read-only Ollama query).
 
@@ -92,7 +92,8 @@ Phase 5 — Polish & Release
 - Logs: see logs/daemon.out, logs/ui.out, logs/ollama.err
 
 References to project files (for implementation)
-- start2.ps1, start3.bat — current launcher (project root)
+- start_all.ps1, start_all.bat — canonical Windows launcher (project root)
+- start2.ps1, start2.bat, start3.bat, start-script.bat — legacy compatibility shims (project root)
 - src/config.ts — config + env parsing and defaults
 - src/executor-backends.ts, src/executor.ts — AI backend initialization and error point
 - src/plan-contract.ts — structured plan contract + alias mapping

@@ -10,7 +10,7 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 ## In Progress
 
 <!-- Currently working on these tasks -->
-- (empty)
+- [ ] Extend the plan contract and executor prompt so plans can declare executable edit operations, verification commands, and approval requirements in a machine-runnable format <!-- hephaestus-ticket:ticket_a612151dbdd0 -->
 
 ## Completed
 
@@ -38,28 +38,26 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Persist structured execution events to AGENT.md and PROGRESS.log including approvals, blocked actions, applied edits, command outcomes, and rollback notes <!-- hephaestus-ticket:ticket_cc59ef4de623 -->
 - [x] Add end-to-end fixture tests that cover successful edit application, approval denial, blocked command attempts, and failure recovery without stranded task state <!-- hephaestus-ticket:ticket_1a9f3faaa7b1 -->
 - [x] retry ticket_927126d736f1 <!-- hephaestus-ticket:ticket_1ac8aa7b7866 -->
+- [x] \ test ticket from cli\ <!-- hephaestus-ticket:ticket_1f34b1711087 -->
+- [x] Self-audit: analyze repository and create prioritized improvement tickets <!-- hephaestus-ticket:ticket_bce8692f7c69 -->
+- [x] Self-audit (read-only) analyze repo and create improvement tickets - READ ONLY <!-- hephaestus-ticket:ticket_2da0176fc0e6 -->
+- [x] Audit this repository, identify concrete startup, reliability, and safety improvements, and create actionable follow-up work. <!-- hephaestus-ticket:ticket_7b6579a8ef1b -->
+- [x] Add operator approval gating so file mutations and non-safe verification commands pause for approval instead of executing automatically <!-- hephaestus-ticket:ticket_2537693f1939 -->
 
 ## Blocked
 
 <!-- Tasks that need operator attention before they should be retried -->
-- [ ] Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery <!-- hephaestus-ticket:ticket_ecb969cec9d4 -->
-- [ ] Extend the plan contract and executor prompt so plans can declare executable edit operations, verification commands, and approval requirements in a machine-runnable format <!-- hephaestus-ticket:ticket_a612151dbdd0 -->
-- [ ] Add operator approval gating so file mutations and non-safe verification commands pause for approval instead of executing automatically <!-- hephaestus-ticket:ticket_2537693f1939 -->
-- [ ] \ test ticket from cli\ <!-- hephaestus-ticket:ticket_1f34b1711087 -->
-- [ ] Self-audit: analyze repository and create prioritized improvement tickets <!-- hephaestus-ticket:ticket_bce8692f7c69 -->
-- [ ] Self-audit (read-only) analyze repo and create improvement tickets - READ ONLY <!-- hephaestus-ticket:ticket_2da0176fc0e6 -->
-- [ ] retry ticket_bce8692f7c69 <!-- hephaestus-ticket:ticket_9dc3e4b392da -->
-- [ ] Self-audit: Analyze repository and generate prioritized improvement tickets. For each low-risk item (<=1 file, <=20 lines changed), implement the change, run tests, and verify. For higher-risk changes request approval. Commit each change separately and update TASKS.md with ticket references. Continue iteratively until no more low-risk improvements remain. <!-- hephaestus-ticket:ticket_927126d736f1 -->
-- [ ] Audit this repository, identify concrete startup, reliability, and safety improvements, and create actionable follow-up work. <!-- hephaestus-ticket:ticket_7b6579a8ef1b -->
 - [ ] Self-audit [high/startup]: Add a /health endpoint to the UI server and update smoke checks to use it <!-- hephaestus-ticket:ticket_3d876b0f11c5 -->
-- [ ] Self-audit [medium/tooling]: Add a stop_all script that terminates daemon and UI processes from PID files <!-- hephaestus-ticket:ticket_8652a997cf85 -->
-- [ ] Self-audit [medium/general]: Implement a `/health` endpoint for the UI server and update smoke tests to use it. This would allow us to monitor the health of the application more easily and ensure that it is always available. <!-- hephaestus-ticket:ticket_dad5faf01c0e -->
-- [ ] Self-audit [medium/general]: Add a `stop_all` script that terminates the daemon and UI processes from PID files. This would make it easier to shut down the application when needed, and ensure that all processes are properly terminated. <!-- hephaestus-ticket:ticket_cda9c04eebbc -->
+- [ ] Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery <!-- hephaestus-ticket:ticket_ecb969cec9d4 -->
 
 ## Cancelled
 
 <!-- Tasks that were superseded, repeated, or explicitly cancelled -->
-- (empty)
+- [x] retry ticket_bce8692f7c69 <!-- hephaestus-ticket:ticket_9dc3e4b392da -->
+- [x] Self-audit: Analyze repository and generate prioritized improvement tickets. For each low-risk item (<=1 file, <=20 lines changed), implement the change, run tests, and verify. For higher-risk changes request approval. Commit each change separately and update TASKS.md with ticket references. Continue iteratively until no more low-risk improvements remain. <!-- hephaestus-ticket:ticket_927126d736f1 -->
+- [x] Self-audit [medium/tooling]: Add a stop_all script that terminates daemon and UI processes from PID files <!-- hephaestus-ticket:ticket_8652a997cf85 -->
+- [x] Self-audit [medium/general]: Implement a `/health` endpoint for the UI server and update smoke tests to use it. This would allow us to monitor the health of the application more easily and ensure that it is always available. <!-- hephaestus-ticket:ticket_dad5faf01c0e -->
+- [x] Self-audit [medium/general]: Add a `stop_all` script that terminates the daemon and UI processes from PID files. This would make it easier to shut down the application when needed, and ensure that all processes are properly terminated. <!-- hephaestus-ticket:ticket_cda9c04eebbc -->
 
 ---
 

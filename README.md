@@ -33,11 +33,14 @@ npm install
 # Configure environment
 cp .env.example .env
 
-# Validate the environment and repo shape
-npm run preflight
+# Validate configuration before launch
+npm run validate:config
 
 # Create work in the ticket store
 npm run tickets -- create "Inspect the runtime flow"
+
+# Windows full-stack startup
+start_all.bat
 
 # Run one bounded demo pass
 npm run start:once
@@ -49,7 +52,14 @@ npm run ui
 npm run start
 ```
 
-On Windows, you can also use `start.bat`. On Unix-like systems, use `start.sh`.
+Canonical startup paths:
+
+- Windows full stack: `start_all.bat` (or `start_all.ps1`)
+- Windows full stack stop: `stop_all.bat` (or `stop_all.ps1`)
+- Service-level runs: `npm run start`, `npm run start:once`, `npm run ui`
+- Unix-like daemon helper: `start.sh`
+
+Legacy Windows launchers `start2.bat`, `start2.ps1`, `start3.bat`, and `start-script.bat` now exist only as compatibility shims that forward into `start_all`.
 
 ## Default Demo Setup
 
@@ -64,6 +74,8 @@ That means the agent reads and reasons about this repository itself. To point it
 ## Scripts
 
 - `npm run build` compiles the TypeScript source into `dist/`
+- `start_all.bat` / `start_all.ps1` launch the Windows full stack with cleanup, health checks, viewers, and autopilot
+- `stop_all.bat` / `stop_all.ps1` stop the managed Windows stack and clean up PID-tracked processes
 - `npm run preflight` validates config, repo files, and backend reachability
 - `npm run start` builds and starts watcher mode
 - `npm run start:once` builds, processes the current queue once, and exits
