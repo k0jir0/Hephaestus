@@ -50,8 +50,8 @@ describe('OllamaBackendClient', () => {
     const encoder = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
-        controller.enqueue(encoder.encode('{"response":"{\"summary\":\"Hello","done":false}\n'));
-        controller.enqueue(encoder.encode('{"response":" world\",\"intendedFiles\":[],\"commands\":[],\"verification\":[\"Check\"],\"risks\":[]}","done":false}\n'));
+        controller.enqueue(encoder.encode('{"response":"Hello ","done":false}\n'));
+        controller.enqueue(encoder.encode('{"response":"world","done":false}\n'));
         controller.enqueue(encoder.encode('{"done":true}\n'));
         controller.close();
       },
