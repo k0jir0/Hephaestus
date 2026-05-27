@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "validate:config": "tsx src/config-validation.ts",
     "preflight": "tsx src/agent.ts --preflight",
     "ui": "tsx src/ui-server.ts",
     "start": "npm run build && node dist/agent.js",

@@ -1,4 +1,6 @@
+import { appendFile, mkdir } from 'fs/promises';
 import { execFile } from 'child_process';
+import path from 'path';
 import { promisify } from 'util';
 import type { Config } from './config.js';
 import { createComponentLogger } from './logger.js';
@@ -36,6 +38,21 @@ export interface AIBackendClientDependencies {
   config: Config;
   execFileRunner?: BackendExecFileRunner;
   fetchImpl?: BackendFetchLike;
+}
+
+interface OllamaGenerateChunk {
+  response?: string;
+  done?: boolean;
+  error?: string;
+}
+
+function splitJsonLines(buffer: string): { lines: string[]; remainder: string } {
+  const parts = buffer.split(/\r?\n/);
+  const remainder = parts.pop() ?? '';
+  return {
+    lines: parts.filter((line) => line.trim().length > 0),
+    remainder,
+  };
 }
 
 export function createBackendClient(
@@ -265,7 +282,7 @@ class OllamaBackendClient extends BaseBackendClient {
         body: JSON.stringify({
           model,
           prompt: `${systemPrompt}\n\n${prompt}`,
-          stream: false,
+          stream: true,
         }),
       });
 
@@ -273,11 +290,9 @@ class OllamaBackendClient extends BaseBackendClient {
         throw new Error(`Ollama API error: ${response.statusText}`);
       }
 
-      const data = (await response.json()) as { response?: string };
-
       return {
         success: true,
-        content: data.response || 'No response from Ollama',
+        content: (await this.collectStreamedResponse(response, model)) || 'No response from Ollama',
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -286,6 +301,74 @@ class OllamaBackendClient extends BaseBackendClient {
         success: false,
         content: `Ollama execution failed: ${errorMessage}`,
       };
+    }
+  }
+
+  private async collectStreamedResponse(response: Response, model: string): Promise<string> {
+    await this.appendStreamLog(`\n=== ${new Date().toISOString()} model=${model} ===\n`);
+
+    if (!response.body) {
+      const data = (await response.json()) as { response?: string };
+      const fallbackContent = data.response || '';
+      if (fallbackContent.length > 0) {
+        await this.appendStreamLog(`${fallbackContent}\n\n`);
+      }
+      return fallbackContent;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let content = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const { lines, remainder } = splitJsonLines(buffer);
+      buffer = remainder;
+      for (const line of lines) {
+        const chunk = JSON.parse(line) as OllamaGenerateChunk;
+        if (chunk.error) {
+          throw new Error(chunk.error);
+        }
+
+        if (typeof chunk.response === 'string' && chunk.response.length > 0) {
+          content += chunk.response;
+          await this.appendStreamLog(chunk.response);
+        }
+      }
+    }
+
+    buffer += decoder.decode();
+    if (buffer.trim().length > 0) {
+      const chunk = JSON.parse(buffer) as OllamaGenerateChunk;
+      if (chunk.error) {
+        throw new Error(chunk.error);
+      }
+
+      if (typeof chunk.response === 'string' && chunk.response.length > 0) {
+        content += chunk.response;
+        await this.appendStreamLog(chunk.response);
+      }
+    }
+
+    await this.appendStreamLog('\n\n');
+    return content;
+  }
+
+  private async appendStreamLog(content: string): Promise<void> {
+    try {
+      const logPath = path.join(this.config.baseDir, 'logs', 'ollama-stream.out');
+      await mkdir(path.dirname(logPath), { recursive: true });
+      await appendFile(logPath, content, 'utf8');
+    } catch (error) {
+      logger.warn('Could not append Ollama stream log', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

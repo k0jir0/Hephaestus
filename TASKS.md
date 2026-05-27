@@ -50,6 +50,11 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [ ] Self-audit (read-only) analyze repo and create improvement tickets - READ ONLY <!-- hephaestus-ticket:ticket_2da0176fc0e6 -->
 - [ ] retry ticket_bce8692f7c69 <!-- hephaestus-ticket:ticket_9dc3e4b392da -->
 - [ ] Self-audit: Analyze repository and generate prioritized improvement tickets. For each low-risk item (<=1 file, <=20 lines changed), implement the change, run tests, and verify. For higher-risk changes request approval. Commit each change separately and update TASKS.md with ticket references. Continue iteratively until no more low-risk improvements remain. <!-- hephaestus-ticket:ticket_927126d736f1 -->
+- [ ] Audit this repository, identify concrete startup, reliability, and safety improvements, and create actionable follow-up work. <!-- hephaestus-ticket:ticket_7b6579a8ef1b -->
+- [ ] Self-audit [high/startup]: Add a /health endpoint to the UI server and update smoke checks to use it <!-- hephaestus-ticket:ticket_3d876b0f11c5 -->
+- [ ] Self-audit [medium/tooling]: Add a stop_all script that terminates daemon and UI processes from PID files <!-- hephaestus-ticket:ticket_8652a997cf85 -->
+- [ ] Self-audit [medium/general]: Implement a `/health` endpoint for the UI server and update smoke tests to use it. This would allow us to monitor the health of the application more easily and ensure that it is always available. <!-- hephaestus-ticket:ticket_dad5faf01c0e -->
+- [ ] Self-audit [medium/general]: Add a `stop_all` script that terminates the daemon and UI processes from PID files. This would make it easier to shut down the application when needed, and ensure that all processes are properly terminated. <!-- hephaestus-ticket:ticket_cda9c04eebbc -->
 
 ## Cancelled
 

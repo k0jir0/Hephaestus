@@ -1,4 +1,5 @@
 import { TicketStoreRepository } from './task-store.js';
+import { SelfAuditSeeder } from './self-audit.js';
 import { computeOperationalSLOMetrics, formatOperationalSLOMetrics } from './slo-metrics.js';
 import type { TaskStatus } from './types.js';
 
@@ -29,6 +30,7 @@ Usage:
   npm run tickets -- resume <ticket-id>
   npm run tickets -- cancel <ticket-id> [reason]
   npm run tickets -- attempts <ticket-id>
+  npm run tickets -- self-audit [--limit <count>] [--dry-run]
   npm run tickets -- metrics
   npm run tickets -- render-board
   npm run tickets -- sync-board
@@ -61,6 +63,19 @@ function parseOption(args: string[], name: string): string | undefined {
 
 function formatTimestamp(value: Date | undefined): string {
   return value ? value.toISOString() : '-';
+}
+
+function parsePositiveInteger(value: string | undefined, optionName: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${optionName} must be a positive integer.`);
+  }
+
+  return parsed;
 }
 
 async function main(): Promise<void> {
@@ -246,6 +261,27 @@ async function main(): Promise<void> {
           console.log(
             `${attempt.id}\t#${attempt.attemptNumber}\t${attempt.status}\t${attempt.startedAt.toISOString()}\t${endedAt}`
           );
+        }
+        break;
+      }
+
+      case 'self-audit': {
+        const limit = parsePositiveInteger(parseOption(args, '--limit'), '--limit');
+        const dryRun = args.includes('--dry-run');
+        const seeder = new SelfAuditSeeder({ repository });
+        const result = await seeder.seedTickets({ limit, dryRun });
+        console.log(result.summary);
+        console.log(`Findings: ${result.findings.length}`);
+        if (result.skippedBecauseQueueActive) {
+          console.log('Skipped: active tickets already exist.');
+          break;
+        }
+        for (const created of result.created) {
+          const prefix = dryRun ? 'Preview' : 'Created';
+          console.log(`${prefix} ${created.id} ${created.description}`);
+        }
+        for (const skipped of result.skippedDuplicates) {
+          console.log(`Skipped duplicate ${skipped}`);
         }
         break;
       }

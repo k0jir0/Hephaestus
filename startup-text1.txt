@@ -1,0 +1,102 @@
+Startup Functionality & Single-Script Roadmap
+
+Abstract:
+This document describes the current Hephaestus startup behavior, identifies gaps preventing a single-script startup, and provides a phased, actionable roadmap so the entire stack (local LLM, daemon, UI, and support services) can be launched and validated from one Windows .bat invocation. It also includes safety, observability, and testing recommendations.
+
+1. Current Startup Behavior (observed)
+- Launcher: start3.bat calls start2.ps1. start2.ps1 is the orchestration entrypoint.
+- Ollama handling: start2.ps1 checks Ollama health at OLLAMA_BASE_URL and attempts to run ollama.exe serve if not reachable; it waits ~30s for health.
+- Daemon/UI: Launcher opens new cmd windows to run the daemon and UI, writing logs into logs/.
+- Defaults: start2.ps1 sets default env variables (e.g., AI_BACKEND=ollama, DAILY_TOKEN_BUDGET=10.00, UI_PORT=4181).
+- Observed failure mode: The daemon crashed on init when createBackendClient(...) returned undefined (config mismatch), producing a TypeError crash instead of a readable validation error.
+
+2. Target Single-Script Behavior (requirements)
+- Single invocation: start_all.bat (or start_all.ps1) must start the fullstack end-to-end: model server (Ollama), Hephaestus daemon, UI, and auxiliary logging/monitoring with one user call.
+- Reliable detection: Robust health checks and retries for each component, with clear fallbacks and actionable logs.
+- Idempotence: Re-running the script should not spawn duplicate services or corrupt state.
+- Observability: Logs, PIDs, and a human-readable status summary produced during bootstrap.
+- Safety-first: Enforce SafetySystem guards (DAILY_TOKEN_BUDGET, MAX_ITERATIONS), and ensure the agent refuses or blocks risky actions until operator approval.
+- Fail-fast & meaningful: If required components/configs are missing, the script should exit with clear diagnostics rather than leaving the daemon to crash.
+- Minimal privileges: No elevated rights required; prefer user-level installs and local data directories.
+
+3. Architectural Checklist (what the single script must control)
+- Environment resolution: Load .env and system env overrides; normalize/validate AI_BACKEND, OLLAMA_BASE_URL, UI_PORT, DAILY_TOKEN_BUDGET, MAX_ITERATIONS; validate TARGET_PROJECT and writable logs/DB paths.
+- LLM backend: Detect ollama.exe (PATH and common install locations); launch ollama serve if needed and capture stdout/stderr to logs/ollama.*; confirm HTTP health via /api/tags or /api/models with retry/backoff.
+- App services: Build step (npm run build) if needed (or check dist timestamps); launch Hephaestus daemon as a supervised process and capture logs; launch UI server as another supervised process and capture logs.
+- Service supervision: Record PIDs to files (run/*.pid) for graceful shutdown or restart; provide a simple status summary printed on completion.
+- Safety & admission: Export DAILY_TOKEN_BUDGET and MAX_ITERATIONS to process env; start in read-only or dry-run mode if budget=0 or backend unhealthy.
+- Restart / recovery: If any service fails, write diagnostics into logs/boot-failure.log and attempt a configurable number of restarts.
+- Testing & validation: Post-start smoke tests: query UI port, call /api/health endpoints, perform a sample ollama tags request.
+
+4. Phased Roadmap (concrete tasks)
+Phase 0 — Stabilize (Immediate, 1–2 days)
+- Add explicit config validation in startup so missing/invalid AI_BACKEND errors are surfaced immediately.
+- Harden start2.ps1: increase Ollama wait + check process existence after Start-Process; surface ollama.err on failure.
+- Add status output summarizing what was started and where logs are.
+
+Phase 1 — Single-Script Orchestration (3–5 days)
+- Create start_all.bat that invokes a robust PowerShell script start_all.ps1 with behaviors: validate env and required binaries; launch Ollama if missing and wait with exponential backoff; build project or use dist if up to date; launch daemon and UI as supervised processes (record PIDs); run smoke tests; output final status and exit code.
+- Ensure idempotence: detect running PIDs and skip/attach rather than spawn duplicates.
+
+Phase 2 — Safe Autonomous Launch (3–7 days)
+- Integrate SafetySystem gating into startup: if DAILY_TOKEN_BUDGET or MAX_ITERATIONS are low, start daemon in --once or --preflight mode.
+- Add operator override flags: --auto, --dry-run, --once, --debug.
+- Implement an operator prompt on first run requesting consent for autonomous behavior or to set budgets.
+
+Phase 3 — Observability & Recovery (2–5 days)
+- Implement a small watcher service that restarts crashed processes up to a capped number of attempts, rotates logs, and exposes a simple health.json file with component statuses.
+- Add an administrative web endpoint on the UI for status/stop/restart.
+
+Phase 4 — Tests, CI, packaging (2–4 days)
+- Add end-to-end tests that run start_all.bat in a CI Windows runner with mocked/smaller models or the --dry-run mode; verify smoke endpoints and ticket lifecycle using the CLI and start:once.
+- Create a README.start with one-line invocation and troubleshooting steps.
+
+Phase 5 — Polish & Release
+- Document installation steps for Ollama and other OS-specific dependencies; provide a packaged start_all.zip with helper scripts and sample .env.
+
+5. Example single-script (concept)
+- High-level pattern for start_all.bat:
+  @echo off
+  pushd "%~dp0"
+  powershell -ExecutionPolicy Bypass -NoProfile -File "%~dp0\start_all.ps1" %*
+  popd
+
+- start_all.ps1 should: load .env, normalize env vars, ensure logs, validate config, start Ollama if needed and wait, build project if needed, start supervised services, run smoke tests, and write a status summary. Exit non-zero and write logs/boot-failure.log if smoke tests fail.
+
+6. Safety, admission, and policy
+- Keep DAILY_TOKEN_BUDGET and MAX_ITERATIONS enforced in config (src/config.ts); surface them in startup status and refuse --auto if budget ≤ 0.
+- Ensure the executor respects the allowlist of tools: repo.search, file.read, patch.apply, command.run, git.branch, git.commit, github.pr (add alias mapping where useful).
+- Require operator approval for dangerous operations.
+
+7. Observability & debugging checklist
+- Confirm logs exist and are writable: logs/ollama.out, logs/ollama.err, logs/daemon.out, logs/ui.out.
+- Provide PID files: run/ollama.pid, run/daemon.pid, run/ui.pid.
+- Provide logs/boot-failure.log with the first 200 lines of failing component stderr.
+
+8. Recommended immediate work items (next 48 hours)
+- Add explicit config validation in src/config.ts + early exit when AI_BACKEND invalid.
+- Improve start2.ps1 to log ollama.err on failures, check process table for ollama.exe, and write run/*.pid files.
+- Create start_all.ps1 scaffold (idempotent) and start_all.bat shim.
+- Add a small smoke-test harness to run after startup (HTTP checks and a read-only Ollama query).
+
+9. Acceptance criteria
+- Single call start_all.bat results in: Ollama reachable; Hephaestus daemon running without TypeError (AI backend initialized); UI available on configured port; smoke tests pass; logs/ populated and run/*.pid created; exit code 0 and a one-line status summary.
+- Restarting start_all.bat does not spawn duplicate services.
+- Safety flags respected and visible in status summary.
+
+10. Example status summary output
+- Ollama: running (pid 4724) — /api/tags OK
+- Daemon: running (pid 16332) — agent initialized
+- UI: listening on http://127.0.0.1:4181/ (pid 30624)
+- Safety: DAILY_TOKEN_BUDGET=$10.00, MAX_ITERATIONS=50
+- Logs: see logs/daemon.out, logs/ui.out, logs/ollama.err
+
+References to project files (for implementation)
+- start2.ps1, start3.bat — current launcher (project root)
+- src/config.ts — config + env parsing and defaults
+- src/executor-backends.ts, src/executor.ts — AI backend initialization and error point
+- src/plan-contract.ts — structured plan contract + alias mapping
+- TASKS.md, AGENT.md — ticket sources and agent memory
+- logs/ — runtime logs
+
+Next steps: implement the immediate 48-hour items (config validation + start_all.ps1 scaffold) and run local validation if you want me to proceed.

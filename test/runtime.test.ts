@@ -1233,4 +1233,104 @@ describe('HephaestusRuntime', () => {
       { tool: 'patch.apply', dryRun: undefined, approvalId: 'approval_token_demo' },
     ]);
   });
+
+  it('runs startup self-audit seeding when enabled before single-pass execution', async () => {
+    const calls = {
+      seeded: 0,
+      stopped: 0,
+    };
+
+    const runtime = new HephaestusRuntime({
+      config: {
+        aiBackend: 'ollama',
+        aiModel: 'llama3',
+        safety: {
+          dailyTokenBudget: 10,
+          maxIterations: 50,
+          errorThreshold: 5,
+          autoCommitInterval: 0,
+        },
+        targetProject: process.cwd(),
+        checkInterval: 60_000,
+        selfAuditOnStartup: true,
+        selfAuditMaxTickets: 3,
+        baseDir: process.cwd(),
+        tasksFile: 'TASKS.md',
+        ticketStoreFile: '.hephaestus-tickets.db',
+        allowMarkdownTaskFallback: false,
+        taskBoardProjectionEnabled: true,
+        agentMemoryFile: 'AGENT.md',
+        progressLog: 'PROGRESS.log',
+        ollamaBaseUrl: 'http://localhost:11434',
+      },
+      memory: {
+        async initialize() {},
+        async updateStatus() {},
+        async recordTaskCompletion() {},
+        async recordBlocker() {},
+        async addToTaskHistory() {},
+        async addSessionSummary() {},
+      },
+      watcher: {
+        async start() {},
+        async stop() {
+          calls.stopped += 1;
+        },
+        async getPendingTasks() {
+          return [];
+        },
+        async markTaskInProgress() {},
+        async markTaskAwaitingApproval() {},
+        async markTaskCompleted() {},
+        async markTaskBlocked() {},
+      },
+      executor: {
+        async executeTask(): Promise<AIResponse> {
+          throw new Error('executeTask should not be called when there are no pending tasks');
+        },
+        async checkHealth() {
+          return { available: true, message: 'ok' };
+        },
+      },
+      safety: {
+        async shouldContinue() {
+          return { allowed: true };
+        },
+        recordSuccess() {},
+        recordError() {},
+        recordTaskCompletion() {},
+        recordTokenUsage() {},
+        shouldAutoCommit() {
+          return false;
+        },
+        async performAutoCommit() {
+          return false;
+        },
+        getStatusSummary() {
+          return 'ok';
+        },
+        resetDailyCounters() {},
+      },
+      selfAuditSeeder: {
+        async seedTickets() {
+          calls.seeded += 1;
+          return {
+            summary: 'seeded',
+            findings: [],
+            created: [],
+            skippedDuplicates: [],
+            skippedBecauseQueueActive: false,
+            rawContent: '{}',
+          };
+        },
+      },
+      preflightRunner: async () => ({ ok: true, issues: [] }),
+      contextProvider: async () => 'README excerpt',
+    });
+
+    await runtime.run({ runOnce: true });
+
+    assert.equal(calls.seeded, 1);
+    assert.equal(calls.stopped, 1);
+  });
 });

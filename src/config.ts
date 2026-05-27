@@ -34,6 +34,10 @@ export interface Config {
   
   // Timing
   checkInterval: number;
+
+  // Self-audit
+  selfAuditOnStartup?: boolean;
+  selfAuditMaxTickets?: number;
   
   // Paths
   baseDir: string;
@@ -112,6 +116,10 @@ export function loadConfig(): Config {
     
     // Timing
     checkInterval: getEnvNumber('CHECK_INTERVAL', 60) * 1000, // Convert to ms
+
+    // Self-audit
+    selfAuditOnStartup: getEnvBoolean('SELF_AUDIT_ON_STARTUP', false),
+    selfAuditMaxTickets: getEnvNumber('SELF_AUDIT_MAX_TICKETS', 5),
     
     // Paths
     baseDir,
@@ -175,6 +183,26 @@ export function validateConfig(candidate: Config): ConfigValidationIssue[] {
     issues.push({
       code: 'invalid-check-interval',
       message: 'CHECK_INTERVAL must be a positive number of milliseconds.',
+    });
+  }
+
+  if (
+    candidate.selfAuditOnStartup !== undefined &&
+    typeof candidate.selfAuditOnStartup !== 'boolean'
+  ) {
+    issues.push({
+      code: 'invalid-self-audit-on-startup',
+      message: 'SELF_AUDIT_ON_STARTUP must be a boolean value.',
+    });
+  }
+
+  if (
+    candidate.selfAuditMaxTickets !== undefined &&
+    (!Number.isInteger(candidate.selfAuditMaxTickets) || candidate.selfAuditMaxTickets <= 0)
+  ) {
+    issues.push({
+      code: 'invalid-self-audit-max-tickets',
+      message: 'SELF_AUDIT_MAX_TICKETS must be a positive integer.',
     });
   }
 

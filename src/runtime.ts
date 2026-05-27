@@ -24,6 +24,7 @@ import type {
   ToolRuntimeReadinessProbe,
 } from './repositories.js';
 import { SafetySystem } from './safety.js';
+import { SelfAuditSeeder, type SelfAuditSeedResult } from './self-audit.js';
 import { transitionTask } from './task-lifecycle.js';
 import { TicketStoreRepository } from './task-store.js';
 import { EngineeringToolRuntime, type EngineeringToolRequest } from './tool-runtime.js';
@@ -65,6 +66,10 @@ export interface RuntimeToolPort extends ToolRuntimeReadinessProbe {
   getPolicySnapshot?(): ToolPolicySnapshot;
 }
 
+export interface RuntimeSelfAuditSeeder {
+  seedTickets(options?: { limit?: number; dryRun?: boolean; onlyWhenQueueEmpty?: boolean }): Promise<SelfAuditSeedResult>;
+}
+
 interface PlannedToolExecutionOutcome {
   artifacts: string[];
   failureReason?: string;
@@ -84,6 +89,7 @@ export interface RuntimeDependencies {
   admissionController?: AdmissionController;
   preflightRunner?: (executor: RuntimeExecutorPort) => Promise<PreflightResult>;
   contextProvider?: () => Promise<string>;
+  selfAuditSeeder?: RuntimeSelfAuditSeeder;
 }
 
 function createInitialState(): AgentState {
@@ -112,6 +118,7 @@ export class HephaestusRuntime {
   private readonly admissionController: AdmissionController;
   private readonly preflightRunner: (executor: RuntimeExecutorPort) => Promise<PreflightResult>;
   private readonly contextProvider: () => Promise<string>;
+  private readonly selfAuditSeeder: RuntimeSelfAuditSeeder | null;
   private readonly state: AgentState = createInitialState();
   private isShuttingDown = false;
   private statusInterval: NodeJS.Timeout | null = null;
@@ -159,6 +166,13 @@ export class HephaestusRuntime {
       (async (executor) =>
         runStartupPreflight({ config: this.runtimeConfig, healthChecker: executor }));
     this.contextProvider = dependencies.contextProvider ?? (() => this.getProjectContext());
+    this.selfAuditSeeder = dependencies.selfAuditSeeder ??
+      (this.tasks instanceof TicketStoreRepository
+        ? new SelfAuditSeeder({
+            config: this.runtimeConfig,
+            repository: this.tasks,
+          })
+        : null);
   }
 
   async run(options: RuntimeOptions = {}): Promise<void> {
@@ -192,6 +206,8 @@ export class HephaestusRuntime {
       });
       return;
     }
+
+    await this.runStartupSelfAuditIfEnabled();
 
     if (options.runOnce) {
       await this.runSinglePass();
@@ -294,7 +310,38 @@ export class HephaestusRuntime {
     logger.info(`Daily Budget: $${this.runtimeConfig.safety.dailyTokenBudget}`);
     logger.info(`Max Iterations: ${this.runtimeConfig.safety.maxIterations}`);
     logger.info(`Check Interval: ${this.runtimeConfig.checkInterval / 1000}s`);
+    logger.info(`Self-audit on startup: ${this.runtimeConfig.selfAuditOnStartup ? 'enabled' : 'disabled'}`);
     logger.info(`Mode: ${options.runOnce ? 'single-pass' : 'watch'}`);
+  }
+
+  private async runStartupSelfAuditIfEnabled(): Promise<void> {
+    if (!this.runtimeConfig.selfAuditOnStartup) {
+      return;
+    }
+
+    if (!this.selfAuditSeeder) {
+      logger.warn('Startup self-audit is enabled, but no self-audit seeder is available');
+      return;
+    }
+
+    try {
+      const result = await this.selfAuditSeeder.seedTickets({
+        limit: this.runtimeConfig.selfAuditMaxTickets,
+        onlyWhenQueueEmpty: true,
+      });
+      if (result.skippedBecauseQueueActive) {
+        logger.info('Startup self-audit skipped because active tickets already exist');
+        await this.memory.addSessionSummary('Startup self-audit skipped because active tickets already exist');
+        return;
+      }
+
+      logger.info(`Startup self-audit created ${result.created.length} ticket(s) and skipped ${result.skippedDuplicates.length} duplicate(s)`);
+      await this.memory.addSessionSummary(`Startup self-audit created ${result.created.length} ticket(s)`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn('Startup self-audit failed', { error: errorMessage });
+      await this.memory.addSessionSummary(`Startup self-audit failed: ${errorMessage}`);
+    }
   }
 
   private async enterPausedMode(reason: string): Promise<void> {
