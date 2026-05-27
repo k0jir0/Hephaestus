@@ -8,12 +8,17 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Set-Location $ScriptDir
 
 # Environment defaults (override in user/system env if desired)
-$env:OLLAMA_BASE_URL = $env:OLLAMA_BASE_URL -or 'http://127.0.0.1:11434'
-$env:AI_BACKEND = $env:AI_BACKEND -or 'ollama'
-$env:AI_MODEL = $env:AI_MODEL -or 'codellama'
-$env:DAILY_TOKEN_BUDGET = $env:DAILY_TOKEN_BUDGET -or '10.00'
-$env:MAX_ITERATIONS = $env:MAX_ITERATIONS -or '50'
-$env:UI_PORT = $env:UI_PORT -or '4181'
+$vars = @{
+    OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
+    AI_BACKEND = 'ollama'
+    AI_MODEL = 'codellama'
+    DAILY_TOKEN_BUDGET = '10.00'
+    MAX_ITERATIONS = '50'
+    UI_PORT = '4181'
+}
+foreach ($k in $vars.Keys) {
+    if (-not $env:$k -or [string]::IsNullOrWhiteSpace($env:$k)) { $env:$k = $vars[$k] }
+}
 
 Write-Host "[start2.ps1] Working directory: $ScriptDir"
 Write-Host "[start2.ps1] OLLAMA_BASE_URL=$($env:OLLAMA_BASE_URL)"
