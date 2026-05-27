@@ -626,11 +626,11 @@ function buildStyles(): string {
 function buildClientScript(): string {
   return String.raw`
     const state = {
-      token: localStorage.getItem('hephaestusCockpitToken') || '',
-      reviewer: localStorage.getItem('hephaestusCockpitReviewer') || '',
+      token: localStorage.getItem('hephaestusUIToken') || '',
+      reviewer: localStorage.getItem('hephaestusUIReviewer') || '',
       session: null,
       view: window.location.hash.replace('#', '') || 'operations',
-      filters: loadJson('hephaestusCockpitFilters', { query: '', status: 'all' }),
+      filters: loadJson('hephaestusUIFilters', { query: '', status: 'all' }),
       selectedTicketId: null,
       selectedApprovalId: null,
       liveStatus: 'Disconnected',
@@ -798,8 +798,8 @@ function buildClientScript(): string {
       byId('connect-button').addEventListener('click', async function () {
         state.token = (tokenInput.value || '').trim();
         state.reviewer = (reviewerInput.value || '').trim();
-        localStorage.setItem('hephaestusCockpitToken', state.token);
-        localStorage.setItem('hephaestusCockpitReviewer', state.reviewer);
+        localStorage.setItem('hephaestusUIToken', state.token);
+        localStorage.setItem('hephaestusUIReviewer', state.reviewer);
         await connect();
       });
     }
@@ -812,13 +812,13 @@ function buildClientScript(): string {
 
       statusFilter.addEventListener('change', function () {
         state.filters.status = statusFilter.value || 'all';
-        saveJson('hephaestusCockpitFilters', state.filters);
+        saveJson('hephaestusUIFilters', state.filters);
         refreshTickets().catch(handleError);
       });
 
       queryFilter.addEventListener('input', function () {
         state.filters.query = queryFilter.value || '';
-        saveJson('hephaestusCockpitFilters', state.filters);
+        saveJson('hephaestusUIFilters', state.filters);
         refreshTickets().catch(handleError);
       });
 
@@ -1384,7 +1384,7 @@ function buildClientScript(): string {
           const reviewer = (reviewerInput && reviewerInput.value || state.reviewer || '').trim();
           const rationale = (rationaleInput && rationaleInput.value || '').trim();
           state.reviewer = reviewer;
-          localStorage.setItem('hephaestusCockpitReviewer', reviewer);
+          localStorage.setItem('hephaestusUIReviewer', reviewer);
 
           if ((command === 'approve' || command === 'reject') && !reviewer) {
             showToast('Reviewer identity is required for approval decisions.', 'error');
@@ -1443,7 +1443,7 @@ function buildClientScript(): string {
   `;
 }
 
-export function renderCockpitHtml(title = 'Hephaestus Control Plane'): string {
+export function renderUIHtml(title = 'Hephaestus Control Plane'): string {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -1456,10 +1456,10 @@ export function renderCockpitHtml(title = 'Hephaestus Control Plane'): string {
     <div class="shell">
       <section class="hero">
         <article class="hero-panel hero-copy">
-          <p class="eyebrow">Operator Control Plane</p>
+          <p class="eyebrow">Operator UI</p>
           <h1>Hephaestus Control Plane</h1>
           <p>
-            A policy-aware operator console for queue state, approval review, attempt artifacts, and reliability telemetry.
+            A policy-aware operator UI for queue state, approval review, attempt artifacts, and reliability telemetry.
             The browser renders state, but the runtime and ticket store remain the only source of workflow truth.
           </p>
         </article>

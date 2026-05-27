@@ -9,7 +9,7 @@ This repository is configured to run Hephaestus on itself by default. That makes
 - Queue-driven automation through durable ticket objects
 - Canonical ticket objects backed by a local SQLite task store
 - Operator ticket management through `npm run tickets`
-- Browser-based operator cockpit through `npm run cockpit`
+- Browser-based operator UI through `npm run ui`
 - Startup preflight and policy-first task admission before queue mutation
 - Structured planning contracts with intended files, commands, verification, and risks
 - Typed engineering tool runtime for bounded reads, search, patch validation/application, and allowlisted commands
@@ -42,8 +42,8 @@ npm run tickets -- create "Inspect the runtime flow"
 # Run one bounded demo pass
 npm run start:once
 
-# Or launch the operator cockpit
-npm run cockpit
+# Or launch the operator UI
+npm run ui
 
 # Or run in watcher mode
 npm run start
@@ -67,7 +67,7 @@ That means the agent reads and reasons about this repository itself. To point it
 - `npm run preflight` validates config, repo files, and backend reachability
 - `npm run start` builds and starts watcher mode
 - `npm run start:once` builds, processes the current queue once, and exits
-- `npm run cockpit` starts the local cockpit server with REST, SSE, and the operator UI
+- `npm run ui` starts the local UI server with REST, SSE, and the operator UI
 - `npm run dev` runs the agent directly from source with `tsx`
 - `npm run dev:once` runs a single-pass source-mode demo
 - `npm run tickets -- <command>` creates, lists, retries, and inspects canonical tickets
@@ -115,20 +115,20 @@ npm run tickets -- attempts ticket_abc123
 npm run tickets -- render-board
 ```
 
-## Cockpit Access
+## UI Access
 
-The cockpit server is local-first and token-gated. By default it binds to `127.0.0.1:4180`.
+The UI server is local-first and token-gated. By default it binds to `127.0.0.1:4180`.
 
-If `COCKPIT_TOKENS` is unset, Hephaestus starts the cockpit with a local development admin token and logs that token on startup. To define explicit roles, set:
+If `UI_TOKENS` is unset, Hephaestus starts the UI with a local development admin token and logs that token on startup. To define explicit roles, set:
 
 ```env
-COCKPIT_TOKENS=viewer:viewer-token,operator:operator-token,approver:approver-token,admin:admin-token
-COCKPIT_PORT=4180
-COCKPIT_HOST=127.0.0.1
-COCKPIT_SSE_INTERVAL_MS=2000
+UI_TOKENS=viewer:viewer-token,operator:operator-token,approver:approver-token,admin:admin-token
+UI_PORT=4180
+UI_HOST=127.0.0.1
+UI_SSE_INTERVAL_MS=2000
 ```
 
-Supported cockpit roles are `viewer`, `operator`, `approver`, and `admin`.
+Supported UI roles are `viewer`, `operator`, `approver`, and `admin`.
 
 ## Runtime Requirements
 

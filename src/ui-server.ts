@@ -13,17 +13,17 @@ import type {
   TaskTicket,
   ToolCall,
 } from './types.js';
-import { renderCockpitHtml } from './cockpit-ui.js';
+import { renderUIHtml } from './ui.js';
 
-export type CockpitRole = 'viewer' | 'operator' | 'approver' | 'admin';
+export type UIRole = 'viewer' | 'operator' | 'approver' | 'admin';
 
-export interface CockpitAuthToken {
-  role: CockpitRole;
+export interface UIAuthToken {
+  role: UIRole;
   token: string;
   label: string;
 }
 
-export interface CockpitServerOptions {
+export interface UIServerOptions {
   host?: string;
   port?: number;
   repository?: TicketStoreRepository;
@@ -31,10 +31,10 @@ export interface CockpitServerOptions {
   storeFile?: string;
   baselineFile?: string;
   sseIntervalMs?: number;
-  authTokens?: CockpitAuthToken[];
+  authTokens?: UIAuthToken[];
 }
 
-interface CockpitPermissionSet {
+interface UIPermissionSet {
   query: boolean;
   create: boolean;
   retry: boolean;
@@ -91,7 +91,7 @@ interface SseClient {
   response: ServerResponse;
 }
 
-const roleRank: Record<CockpitRole, number> = {
+const roleRank: Record<UIRole, number> = {
   viewer: 0,
   operator: 1,
   approver: 2,
@@ -103,24 +103,24 @@ const defaultHost = '127.0.0.1';
 const defaultPort = 4180;
 const defaultSseIntervalMs = 2_000;
 
-export class CockpitServer {
+export class UIServer {
   private readonly host: string;
   private readonly port: number;
   private readonly repository: TicketStoreRepository;
   private readonly ownsRepository: boolean;
   private readonly baselineFile: string;
   private readonly sseIntervalMs: number;
-  private readonly authTokens: CockpitAuthToken[];
+  private readonly authTokens: UIAuthToken[];
   private readonly defaultTokenInUse: boolean;
-  private readonly serverName = 'hephaestus-control-plane/v1';
+  private readonly serverName = 'hephaestus-ui/v1';
   private server: Server | null = null;
   private ssePollTimer: NodeJS.Timeout | null = null;
   private sseClients = new Set<SseClient>();
   private revisionStamp = '';
 
-  constructor(options: CockpitServerOptions = {}) {
-    this.host = options.host ?? getEnv('COCKPIT_HOST', defaultHost);
-    this.port = options.port ?? getEnvNumber('COCKPIT_PORT', defaultPort);
+  constructor(options: UIServerOptions = {}) {
+    this.host = options.host ?? getEnv('UI_HOST', defaultHost);
+    this.port = options.port ?? getEnvNumber('UI_PORT', defaultPort);
     this.repository = options.repository ?? new TicketStoreRepository({
       tasksFile: options.tasksFile ?? config.tasksFile,
       storeFile: options.storeFile ?? config.ticketStoreFile,
@@ -129,8 +129,8 @@ export class CockpitServer {
     });
     this.ownsRepository = !options.repository;
     this.baselineFile = options.baselineFile ?? path.join(config.baseDir, 'docs', 'reliability-baselines.md');
-    this.sseIntervalMs = options.sseIntervalMs ?? getEnvNumber('COCKPIT_SSE_INTERVAL_MS', defaultSseIntervalMs);
-    const parsedTokens = options.authTokens ?? parseCockpitTokens(getEnv('COCKPIT_TOKENS'));
+    this.sseIntervalMs = options.sseIntervalMs ?? getEnvNumber('UI_SSE_INTERVAL_MS', defaultSseIntervalMs);
+    const parsedTokens = options.authTokens ?? parseUITokens(getEnv('UI_TOKENS'));
     this.authTokens = parsedTokens;
     this.defaultTokenInUse = options.authTokens === undefined && parsedTokens.length === 1 && parsedTokens[0]?.token === defaultAdminToken;
   }
@@ -153,10 +153,10 @@ export class CockpitServer {
     this.startSsePolling();
 
     const url = this.getBaseUrl();
-    logger.info(`Cockpit listening on ${url}`);
+    logger.info(`UI listening on ${url}`);
     if (this.defaultTokenInUse) {
-      logger.warn(`Cockpit is using the default local admin token: ${defaultAdminToken}`);
-      logger.warn('Set COCKPIT_TOKENS to replace the local development token before wider use.');
+      logger.warn(`UI is using the default local admin token: ${defaultAdminToken}`);
+      logger.warn('Set UI_TOKENS to replace the local development token before wider use.');
     }
 
     return { url };
@@ -216,7 +216,7 @@ export class CockpitServer {
       const url = new URL(request.url ?? '/', this.getBaseUrl());
 
       if (request.method === 'GET' && url.pathname === '/') {
-        this.respondHtml(response, renderCockpitHtml());
+        this.respondHtml(response, renderUIHtml());
         return;
       }
 
@@ -292,7 +292,7 @@ export class CockpitServer {
       const message = error instanceof Error ? error.message : String(error);
       const statusCode = error instanceof HttpError ? error.statusCode : 500;
       if (statusCode >= 500) {
-        logger.error('Cockpit request failed', { error: message });
+        logger.error('UI request failed', { error: message });
       }
       this.respondJson(response, statusCode, { error: message });
     }
@@ -431,7 +431,7 @@ export class CockpitServer {
     return [tickets.length, latestTicketUpdate, events.length, latestEvent].join(':');
   }
 
-  private async buildSessionResponse(role: CockpitRole): Promise<Record<string, unknown>> {
+  private async buildSessionResponse(role: UIRole): Promise<Record<string, unknown>> {
     return {
       role,
       permissions: Object.entries(getPermissionSet(role))
@@ -571,7 +571,7 @@ export class CockpitServer {
     };
   }
 
-  private requireRole(request: IncomingMessage, url: URL, minimumRole: CockpitRole): CockpitRole {
+  private requireRole(request: IncomingMessage, url: URL, minimumRole: UIRole): UIRole {
     const token = readAuthToken(request, url);
     if (!token) {
       throw new HttpError(401, 'Missing access token.');
@@ -661,7 +661,7 @@ function getEnvNumber(key: string, defaultValue: number): number {
   return Number.isFinite(parsed) ? parsed : defaultValue;
 }
 
-function parseCockpitTokens(raw: string): CockpitAuthToken[] {
+function parseUITokens(raw: string): UIAuthToken[] {
   const entries = raw
     .split(/[;,\n]/)
     .map((value) => value.trim())
@@ -678,26 +678,26 @@ function parseCockpitTokens(raw: string): CockpitAuthToken[] {
   return entries.map((entry, index) => {
     const [roleCandidate, tokenCandidate, ...labelParts] = entry.split(':').map((value) => value.trim());
     if (!roleCandidate || !tokenCandidate) {
-      throw new Error(`Invalid COCKPIT_TOKENS entry at position ${index + 1}. Expected role:token[:label].`);
+      throw new Error(`Invalid UI_TOKENS entry at position ${index + 1}. Expected role:token[:label].`);
     }
 
-    if (!isCockpitRole(roleCandidate)) {
-      throw new Error(`Invalid cockpit role in COCKPIT_TOKENS: ${roleCandidate}`);
+    if (!isUIRole(roleCandidate)) {
+      throw new Error(`Invalid UI role in UI_TOKENS: ${roleCandidate}`);
     }
 
     return {
       role: roleCandidate,
       token: tokenCandidate,
       label: labelParts.join(':') || `${roleCandidate} token`,
-    } satisfies CockpitAuthToken;
+    } satisfies UIAuthToken;
   });
 }
 
-function isCockpitRole(value: string): value is CockpitRole {
+function isUIRole(value: string): value is UIRole {
   return value === 'viewer' || value === 'operator' || value === 'approver' || value === 'admin';
 }
 
-function getPermissionSet(role: CockpitRole): CockpitPermissionSet {
+function getPermissionSet(role: UIRole): UIPermissionSet {
   return {
     query: roleRank[role] >= roleRank.viewer,
     create: roleRank[role] >= roleRank.operator,
@@ -868,11 +868,11 @@ async function fileExists(filePath: string): Promise<boolean> {
 }
 
 async function main(): Promise<void> {
-  const server = new CockpitServer();
+  const server = new UIServer();
   await server.start();
 
   const shutdown = async (signal: string): Promise<void> => {
-    logger.info(`Cockpit shutdown requested: ${signal}`);
+    logger.info(`UI shutdown requested: ${signal}`);
     await server.stop();
     process.exit(0);
   };
@@ -888,7 +888,7 @@ async function main(): Promise<void> {
 const currentFilePath = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === currentFilePath) {
   main().catch(async (error) => {
-    logger.error('Cockpit server failed', { error: String(error) });
+    logger.error('UI server failed', { error: String(error) });
     process.exit(1);
   });
 }

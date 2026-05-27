@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, it } from 'node:test';
-import { CockpitServer } from '../src/cockpit-server.js';
+import { UIServer } from '../src/ui-server.js';
 import { TicketStoreRepository } from '../src/task-store.js';
 
 const tempDirs: string[] = [];
@@ -14,7 +14,7 @@ async function createFixture(): Promise<{
   ticketStoreFile: string;
   baselineFile: string;
 }> {
-  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-cockpit-'));
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-ui-'));
   tempDirs.push(rootDir);
 
   const tasksFile = path.join(rootDir, 'TASKS.md');
@@ -120,8 +120,8 @@ afterEach(async () => {
   }
 });
 
-describe('CockpitServer', () => {
-  it('serves the cockpit shell and query endpoints with role-aware access control', async () => {
+  describe('UIServer', () => {
+    it('serves the UI shell and query endpoints with role-aware access control', async () => {
     const fixture = await createFixture();
     const repository = new TicketStoreRepository({
       tasksFile: fixture.tasksFile,
@@ -130,7 +130,7 @@ describe('CockpitServer', () => {
       projectionEnabled: false,
     });
     const seeded = await seedRepository(repository);
-    const server = new CockpitServer({
+      const server = new UIServer({
       host: '127.0.0.1',
       port: 0,
       repository,
@@ -194,7 +194,7 @@ describe('CockpitServer', () => {
       projectionEnabled: false,
     });
     const seeded = await seedRepository(repository);
-    const server = new CockpitServer({
+    const server = new UIServer({
       host: '127.0.0.1',
       port: 0,
       repository,

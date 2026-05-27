@@ -1,8 +1,8 @@
-Hephaestus UI Cockpit Paper and Implementation Roadmap
+Hephaestus UI Paper and Implementation Roadmap
 
 Authorial position
 
-Hephaestus can support a frontend UI, but the correct frontend is an operator cockpit rather than a frontend-first product shell. The system already has the backend characteristics that justify an operator interface: durable task state, explicit task lifecycle, governed tool execution, approval holds, telemetry, and published reliability baselines. Those properties mean the UI can be built as a control plane over an existing runtime instead of as a speculative veneer over an immature core.
+Hephaestus can support a frontend UI, but the correct frontend is an operator UI rather than a frontend-first product shell. The system already has the backend characteristics that justify an operator interface: durable task state, explicit task lifecycle, governed tool execution, approval holds, telemetry, and published reliability baselines. Those properties mean the UI can be built as a control plane over an existing runtime instead of as a speculative veneer over an immature core.
 
 The important architectural truth is that the frontend must not become a second runtime. It should not own lifecycle semantics, policy decisions, patch risk classification, or workflow truth. Those belong in the backend runtime and store. The browser should render state, provide review surfaces, and invoke explicit backend commands. If the frontend starts deciding state transitions or reconstructing truth from projections, it will damage the architecture rather than improve it.
 
@@ -12,13 +12,13 @@ Core truths
 2. A Hephaestus UI is desirable only as an operator control plane, not as a cosmetic product layer.
 3. The canonical truth must remain in the backend ticket, attempt, event, artifact, and policy model.
 4. The UI must never infer or implement policy logic that the runtime should own.
-5. The first real justification for a cockpit is human-in-the-loop approval, triage, observability, and intervention.
+5. The first real justification for a UI is human-in-the-loop approval, triage, observability, and intervention.
 6. A chat-first interface would be architecturally premature because it would obscure workflow semantics and encourage state leakage into the client.
-7. The next missing backend capability is the approval-resume loop; that should exist before the cockpit tries to make approvals look complete.
+7. The next missing backend capability is the approval-resume loop; that should exist before the UI tries to make approvals look complete.
 
-Why the cockpit should exist
+Why the UI should exist
 
-The CLI and runtime are now strong enough to support an operator-facing interface. The existing system can represent tasks, attempts, approvals, failures, artifacts, and reliability metrics, but those capabilities are operationally awkward if a human must inspect them repeatedly through logs and commands. A cockpit is justified when it reduces operator friction in four areas:
+The CLI and runtime are now strong enough to support an operator-facing interface. The existing system can represent tasks, attempts, approvals, failures, artifacts, and reliability metrics, but those capabilities are operationally awkward if a human must inspect them repeatedly through logs and commands. A UI is justified when it reduces operator friction in four areas:
 
 1. understanding what the system is doing,
 2. reviewing and approving risky mutations,
@@ -27,7 +27,7 @@ The CLI and runtime are now strong enough to support an operator-facing interfac
 
 That is a serious systems goal. It is not a UI-for-its-own-sake goal.
 
-Why the cockpit should not become the system
+Why the UI should not become the system
 
 The biggest design risk is building a frontend that quietly becomes a shadow orchestrator. That failure mode usually appears in the following ways:
 
@@ -37,13 +37,13 @@ The biggest design risk is building a frontend that quietly becomes a shadow orc
 4. derived files or dashboards are treated as truth rather than the store,
 5. conversational UX hides the actual execution and approval semantics.
 
-If that happens, the UI will create architectural confusion, safety gaps, and inconsistent behavior across interfaces. The cockpit should therefore be treated as a thin but high-value operator surface over a disciplined backend.
+If that happens, the UI will create architectural confusion, safety gaps, and inconsistent behavior across interfaces. The UI should therefore be treated as a thin but high-value operator surface over a disciplined backend.
 
-Cockpit mission
+UI mission
 
 The UI should serve as the primary operator console for visibility, review, approval, and intervention. Its mission is to make the governed runtime legible and actionable without moving domain logic into the client.
 
-The cockpit should answer five questions quickly:
+The UI should answer five questions quickly:
 
 1. What is happening now?
 2. What is stuck or degraded?
@@ -51,9 +51,9 @@ The cockpit should answer five questions quickly:
 4. Why did a task fail or block?
 5. Is overall system behavior improving or regressing against baseline?
 
-System architecture for the cockpit
+System architecture for the UI
 
-The cockpit should be built as a three-layer system.
+The UI should be built as a three-layer system.
 
 Layer 1: Core engine
 
@@ -88,15 +88,15 @@ It should expose command endpoints for:
 5. reject patch,
 6. resume approval-held task.
 
-For live updates, server-sent events should be used first. The cockpit mostly needs one-way streaming of runtime changes and metrics updates. WebSockets would add complexity before the use case demands it.
+For live updates, server-sent events should be used first. The UI mostly needs one-way streaming of runtime changes and metrics updates. WebSockets would add complexity before the use case demands it.
 
-Layer 3: Browser cockpit
+Layer 3: Browser UI
 
 The browser client should provide dense operator workflows: boards, timelines, queues, diffs, artifact inspection, and reliability views. It should never implement business logic for transitions or safety decisions.
 
-Functional design of the cockpit
+Functional design of the UI
 
-The first usable cockpit should contain four primary surfaces.
+The first usable UI should contain four primary surfaces.
 
 1. Operations board
 
@@ -181,9 +181,9 @@ The best interaction model is a combination of board, detail pane, timeline, and
 4. Reliability views expose trends rather than static totals.
 5. Filters should be persistent across pages so operators can stay inside a relevant slice.
 
-The cockpit should not begin with a free-form assistant as the primary interface. Natural-language entry can be added later if it remains a thin convenience layer over explicit commands and views.
+The UI should not begin with a free-form assistant as the primary interface. Natural-language entry can be added later if it remains a thin convenience layer over explicit commands and views.
 
-Required backend work before the cockpit is honest
+Required backend work before the UI is honest
 
 The current architecture still has one important missing capability: an approval-resume loop for awaiting-approval tasks. High-risk patches can already be held correctly, but a complete workflow requires:
 
@@ -193,7 +193,7 @@ The current architecture still has one important missing capability: an approval
 4. audit events for the resume path,
 5. rejection handling that closes the loop cleanly.
 
-Without that, the cockpit can display the queue but cannot complete the lifecycle elegantly.
+Without that, the UI can display the queue but cannot complete the lifecycle elegantly.
 
 Implementation roadmap
 
@@ -211,7 +211,7 @@ Deliverables:
 
 Why first:
 
-The cockpit should not present buttons for workflows that the backend cannot carry to completion.
+The UI should not present buttons for workflows that the backend cannot carry to completion.
 
 Phase 1: Introduce a control API
 
@@ -229,7 +229,7 @@ Why second:
 
 The browser must not bind directly to internal runtime modules. The control API creates a stable integration surface and keeps domain logic out of the client.
 
-Phase 2: Build a read-only cockpit shell
+Phase 2: Build a read-only UI shell
 
 Goal: deliver observability first, before control actions.
 
@@ -245,7 +245,7 @@ Why third:
 
 Read-only visibility is the safest way to validate information architecture and operational usefulness before adding approval actions.
 
-Phase 3: Add the approval cockpit
+Phase 3: Add the approval UI
 
 Goal: make human-in-the-loop governance usable and auditable.
 
@@ -264,7 +264,7 @@ Approval is the highest-value interactive workflow, but it depends on both backe
 
 Phase 4: Add live operations and incident analysis
 
-Goal: make the cockpit suitable for ongoing operations rather than occasional inspection.
+Goal: make the UI suitable for ongoing operations rather than occasional inspection.
 
 Deliverables:
 
@@ -280,7 +280,7 @@ Once the primary surfaces are usable, real-time awareness and trend analysis pro
 
 Phase 5: Harden and scale
 
-Goal: make the cockpit durable under production-style use.
+Goal: make the UI durable under production-style use.
 
 Deliverables:
 
@@ -322,6 +322,6 @@ The system should avoid premature complexity such as collaborative editing proto
 
 Final recommendation
 
-Hephaestus should have a frontend UI, but only as a cockpit for operators. The correct design is a control plane over the governed runtime, not a frontend that attempts to become the runtime. The most important near-term work is not visual design; it is completing the approval-resume lifecycle and exposing a disciplined control API. Once those exist, a cockpit becomes not only possible but strategically justified.
+Hephaestus should have a frontend UI, but only as an operator UI. The correct design is a control plane over the governed runtime, not a frontend that attempts to become the runtime. The most important near-term work is not visual design; it is completing the approval-resume lifecycle and exposing a disciplined control API. Once those exist, a UI becomes not only possible but strategically justified.
 
 In short: build the UI, but build it as a rigorous operator console, in the correct order, and only on top of backend semantics that already exist or are deliberately completed first.
