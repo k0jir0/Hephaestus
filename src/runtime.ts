@@ -149,7 +149,7 @@ export class HephaestusRuntime {
       dependencies.toolRuntime ??
       new EngineeringToolRuntime({
         workspaceRoot: this.runtimeConfig.targetProject,
-        dryRun: true,
+        dryRun: this.runtimeConfig.toolRuntimeDryRun ?? false,
       });
     this.admissionController =
       dependencies.admissionController ??
@@ -311,6 +311,7 @@ export class HephaestusRuntime {
     logger.info(`Max Iterations: ${this.runtimeConfig.safety.maxIterations}`);
     logger.info(`Check Interval: ${this.runtimeConfig.checkInterval / 1000}s`);
     logger.info(`Self-audit on startup: ${this.runtimeConfig.selfAuditOnStartup ? 'enabled' : 'disabled'}`);
+    logger.info(`Tool runtime apply mode: ${this.runtimeConfig.toolRuntimeDryRun ? 'dry-run' : 'apply'}`);
     logger.info(`Mode: ${options.runOnce ? 'single-pass' : 'watch'}`);
   }
 

@@ -1,6 +1,7 @@
 import { TicketStoreRepository } from './task-store.js';
 import { SelfAuditSeeder } from './self-audit.js';
 import { computeOperationalSLOMetrics, formatOperationalSLOMetrics } from './slo-metrics.js';
+import { runTicketAutopilot } from './ticket-autopilot.js';
 import type { TaskStatus } from './types.js';
 
 const validStatuses: TaskStatus[] = [
@@ -25,6 +26,7 @@ Usage:
   npm run tickets -- list [--status <status>]
   npm run tickets -- show <ticket-id>
   npm run tickets -- retry <ticket-id>
+  npm run tickets -- autopilot [--include-cancelled] [--no-self-audit] [--self-audit-limit <count>] [--dry-run]
   npm run tickets -- approve <ticket-id> <reviewer> [reason]
   npm run tickets -- reject <ticket-id> <reviewer> [reason]
   npm run tickets -- resume <ticket-id>
@@ -192,6 +194,68 @@ async function main(): Promise<void> {
 
         const ticket = await repository.retryTicket(ticketId);
         console.log(`Retried ${ticket.id}; new status: ${ticket.status}`);
+        break;
+      }
+
+      case 'autopilot': {
+        const includeCancelled = args.includes('--include-cancelled');
+        const seedSelfAuditWhenIdle = !args.includes('--no-self-audit');
+        const dryRun = args.includes('--dry-run');
+        const selfAuditLimit = parsePositiveInteger(
+          parseOption(args, '--self-audit-limit'),
+          '--self-audit-limit'
+        );
+        const result = await runTicketAutopilot(
+          {
+            repository,
+            selfAuditSeeder: new SelfAuditSeeder({ repository }),
+          },
+          {
+            includeCancelled,
+            dryRun,
+            seedSelfAuditWhenIdle,
+            selfAuditLimit,
+          }
+        );
+
+        console.log(`Existing runnable tickets: ${result.runnableTicketCount}`);
+        console.log(`Awaiting approval tickets: ${result.awaitingApprovalCount}`);
+
+        for (const ticket of result.resumed) {
+          console.log(`${dryRun ? 'Would resume' : 'Resumed'} ${ticket.id} ${ticket.description}`);
+        }
+
+        for (const ticket of result.requeued) {
+          console.log(`${dryRun ? 'Would requeue' : 'Requeued'} ${ticket.id} ${ticket.description}`);
+        }
+
+        if (result.selfAudit) {
+          console.log(result.selfAudit.summary);
+          console.log(`Findings: ${result.selfAudit.findings.length}`);
+
+          for (const created of result.selfAudit.created) {
+            console.log(`${dryRun ? 'Preview' : 'Created'} ${created.id} ${created.description}`);
+          }
+
+          for (const skipped of result.selfAudit.skippedDuplicates) {
+            console.log(`Skipped duplicate ${skipped}`);
+          }
+        }
+
+        if (result.queueReady) {
+          console.log(
+            dryRun
+              ? 'Autopilot would leave runnable work in the queue. If the daemon is already running, it would begin processing automatically.'
+              : 'Autopilot primed the queue. If the daemon is already running, it will begin processing automatically.'
+          );
+        } else if (result.awaitingApprovalCount > 0) {
+          console.log('Autopilot found tickets waiting on operator approval. Resume or approve them before expecting automatic execution.');
+        } else if (seedSelfAuditWhenIdle) {
+          console.log('Autopilot found no runnable work to queue.');
+        } else {
+          console.log('Autopilot finished without creating runnable work.');
+        }
+
         break;
       }
 

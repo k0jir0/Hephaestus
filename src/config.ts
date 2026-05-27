@@ -38,6 +38,7 @@ export interface Config {
   // Self-audit
   selfAuditOnStartup?: boolean;
   selfAuditMaxTickets?: number;
+  toolRuntimeDryRun?: boolean;
   
   // Paths
   baseDir: string;
@@ -120,6 +121,7 @@ export function loadConfig(): Config {
     // Self-audit
     selfAuditOnStartup: getEnvBoolean('SELF_AUDIT_ON_STARTUP', false),
     selfAuditMaxTickets: getEnvNumber('SELF_AUDIT_MAX_TICKETS', 5),
+    toolRuntimeDryRun: getEnvBoolean('TOOL_RUNTIME_DRY_RUN', false),
     
     // Paths
     baseDir,
@@ -203,6 +205,16 @@ export function validateConfig(candidate: Config): ConfigValidationIssue[] {
     issues.push({
       code: 'invalid-self-audit-max-tickets',
       message: 'SELF_AUDIT_MAX_TICKETS must be a positive integer.',
+    });
+  }
+
+  if (
+    candidate.toolRuntimeDryRun !== undefined &&
+    typeof candidate.toolRuntimeDryRun !== 'boolean'
+  ) {
+    issues.push({
+      code: 'invalid-tool-runtime-dry-run',
+      message: 'TOOL_RUNTIME_DRY_RUN must be a boolean value.',
     });
   }
 

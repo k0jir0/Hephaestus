@@ -17,6 +17,7 @@
     "cli": "tsx src/cli.ts",
     "dev:once": "tsx src/agent.ts --once",
     "tickets": "tsx src/tickets.ts",
+    "autopilot": "tsx src/tickets.ts autopilot",
     "fault-harness": "tsx src/reliability-harness.ts --mode fault",
     "soak": "tsx src/reliability-harness.ts --mode soak",
     "publish:reliability": "tsx src/reliability-harness.ts --mode publish",

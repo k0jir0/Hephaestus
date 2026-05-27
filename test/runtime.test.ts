@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 import { HephaestusRuntime } from '../src/runtime.js';
 import type { PendingTaskSideEffect } from '../src/repositories.js';
@@ -1232,6 +1235,143 @@ describe('HephaestusRuntime', () => {
       { tool: 'patch.apply', dryRun: true, approvalId: undefined },
       { tool: 'patch.apply', dryRun: undefined, approvalId: 'approval_token_demo' },
     ]);
+  });
+
+  it('applies safe patches through the default runtime tool layer when dry-run mode is disabled', async () => {
+    const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-runtime-'));
+
+    try {
+      await fs.writeFile(path.join(workspaceRoot, 'README.md'), 'old heading\n', 'utf-8');
+      const task = makeTask('Apply a real patch');
+      const calls = {
+        completed: 0,
+        blocked: 0,
+      };
+
+      const runtime = new HephaestusRuntime({
+        config: {
+          aiBackend: 'ollama',
+          aiModel: 'llama3',
+          safety: {
+            dailyTokenBudget: 10,
+            maxIterations: 50,
+            errorThreshold: 5,
+            autoCommitInterval: 0,
+          },
+          targetProject: workspaceRoot,
+          checkInterval: 60_000,
+          selfAuditOnStartup: false,
+          selfAuditMaxTickets: 5,
+          toolRuntimeDryRun: false,
+          baseDir: workspaceRoot,
+          tasksFile: path.join(workspaceRoot, 'TASKS.md'),
+          ticketStoreFile: path.join(workspaceRoot, '.hephaestus-tickets.db'),
+          allowMarkdownTaskFallback: false,
+          taskBoardProjectionEnabled: false,
+          agentMemoryFile: path.join(workspaceRoot, 'AGENT.md'),
+          progressLog: path.join(workspaceRoot, 'PROGRESS.log'),
+          ollamaBaseUrl: 'http://localhost:11434',
+        },
+        memory: {
+          async initialize() {},
+          async updateStatus() {},
+          async recordTaskCompletion() {},
+          async recordBlocker() {},
+          async addToTaskHistory() {},
+          async addSessionSummary() {},
+        },
+        tasks: {
+          async start() {},
+          async stop() {},
+          async getPendingTasks() {
+            return [task];
+          },
+          async markTaskInProgress() {},
+          async markTaskAwaitingApproval() {
+            assert.fail('safe patch should not require approval');
+          },
+          async markTaskCompleted() {
+            calls.completed += 1;
+          },
+          async markTaskBlocked() {
+            calls.blocked += 1;
+          },
+          async appendTaskAttemptArtifacts() {},
+        },
+        executor: {
+          async executeTask() {
+            return {
+              success: true,
+              content: 'Apply a real patch.',
+              plan: {
+                summary: 'Apply a real patch.',
+                intendedFiles: [
+                  {
+                    path: 'README.md',
+                    purpose: 'Update documentation safely',
+                    changeType: 'update',
+                  },
+                ],
+                commands: [],
+                verification: ['Review the applied patch'],
+                risks: [],
+              },
+              toolCalls: [
+                {
+                  name: 'patch.apply',
+                  arguments: {
+                    patch: [
+                      'diff --git a/README.md b/README.md',
+                      '--- a/README.md',
+                      '+++ b/README.md',
+                      '@@ -1 +1 @@',
+                      '-old heading',
+                      '+new heading',
+                      '',
+                    ].join('\n'),
+                  },
+                },
+              ],
+            } satisfies AIResponse;
+          },
+          async checkHealth() {
+            return { available: true, message: 'ok' };
+          },
+        },
+        safety: {
+          async shouldContinue() {
+            return { allowed: true };
+          },
+          recordSuccess() {},
+          recordError() {},
+          recordTaskCompletion() {},
+          recordTokenUsage() {},
+          shouldAutoCommit() {
+            return false;
+          },
+          async performAutoCommit() {
+            return false;
+          },
+          getStatusSummary() {
+            return 'ok';
+          },
+          resetDailyCounters() {},
+        },
+        preflightRunner: async () => ({ ok: true, issues: [] }),
+        contextProvider: async () => 'README excerpt',
+      });
+
+      await runtime.run({ runOnce: true });
+
+      assert.equal(calls.completed, 1);
+      assert.equal(calls.blocked, 0);
+      assert.equal(
+        (await fs.readFile(path.join(workspaceRoot, 'README.md'), 'utf-8')).replace(/\r\n/g, '\n'),
+        'new heading\n'
+      );
+    } finally {
+      await fs.rm(workspaceRoot, { recursive: true, force: true });
+    }
   });
 
   it('runs startup self-audit seeding when enabled before single-pass execution', async () => {

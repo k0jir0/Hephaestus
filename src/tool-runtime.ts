@@ -92,18 +92,47 @@ const defaultProtectedPathPrefixes = [
 
 const defaultCommandAllowlist: CommandAllowlistEntry[] = [
   { command: 'npm', args: ['test'] },
-  { command: 'npm.cmd', args: ['test'] },
   { command: 'npm', args: ['run', 'test'] },
-  { command: 'npm.cmd', args: ['run', 'test'] },
   { command: 'npm', args: ['run', 'lint'] },
-  { command: 'npm.cmd', args: ['run', 'lint'] },
-    // Allow ticket CLI commands so the agent can create/list tickets when instructed
-    { command: 'npm', args: ['run', 'tickets'] },
-    { command: 'npm.cmd', args: ['run', 'tickets'] },
+  { command: 'npm', args: ['run', 'build'] },
+  { command: 'npm', args: ['run', 'validate:config'] },
+  { command: 'npm', args: ['run', 'preflight'] },
+  { command: 'npm', args: ['run', 'start:once'] },
+  { command: 'npm', args: ['run', 'tickets'] },
   { command: 'node', args: ['scripts/run-tests.mjs'] },
   { command: 'node_modules/.bin/tsc', args: ['--noEmit'] },
   { command: 'node_modules\\.bin\\tsc.cmd', args: ['--noEmit'] },
 ];
+
+function normalizeCommandForPolicy(command: string): string {
+  const lowerCaseBasename = path.win32.basename(command).toLowerCase();
+  if (lowerCaseBasename === 'npm' || lowerCaseBasename === 'npm.cmd') {
+    return 'npm';
+  }
+
+  if (lowerCaseBasename === 'npx' || lowerCaseBasename === 'npx.cmd') {
+    return 'npx';
+  }
+
+  return command.replace(/\\/g, '/').toLowerCase();
+}
+
+function resolveCommandForPlatform(command: string): string {
+  if (process.platform !== 'win32') {
+    return command;
+  }
+
+  const lowerCaseBasename = path.win32.basename(command).toLowerCase();
+  if (lowerCaseBasename === 'npm') {
+    return 'npm.cmd';
+  }
+
+  if (lowerCaseBasename === 'npx') {
+    return 'npx.cmd';
+  }
+
+  return command;
+}
 
 class ToolPolicyError extends Error {
   readonly reasonCode: string;
@@ -402,7 +431,7 @@ export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
       ? this.resolveWorkspacePath(request.cwd)
       : this.workspaceRoot;
     const timeoutMs = Math.min(request.timeoutMs ?? this.commandTimeoutMs, this.commandTimeoutMs);
-    const result = await this.runProcess(request.command, args, { cwd, timeoutMs });
+    const result = await this.runProcess(resolveCommandForPlatform(request.command), args, { cwd, timeoutMs });
 
     return {
       status: result.exitCode === 0 ? 'success' : 'failure',
@@ -518,8 +547,9 @@ export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
   }
 
   private isAllowedCommand(command: string, args: string[]): boolean {
+    const normalizedCommand = normalizeCommandForPolicy(command);
     return this.commandAllowlist.some((entry) =>
-      entry.command === command &&
+      normalizeCommandForPolicy(entry.command) === normalizedCommand &&
       entry.args.length === args.length &&
       entry.args.every((expectedArg, index) => expectedArg === args[index])
     );

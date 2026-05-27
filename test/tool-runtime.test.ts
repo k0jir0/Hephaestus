@@ -13,6 +13,21 @@ async function createWorkspace(): Promise<string> {
   await fs.mkdir(path.join(rootDir, 'src'), { recursive: true });
   await fs.writeFile(path.join(rootDir, 'README.md'), 'old heading\n', 'utf-8');
   await fs.writeFile(path.join(rootDir, 'src', 'demo.ts'), 'export const answer = 42;\n', 'utf-8');
+  await fs.writeFile(
+    path.join(rootDir, 'package.json'),
+    JSON.stringify(
+      {
+        name: 'hephaestus-tool-runtime-fixture',
+        private: true,
+        scripts: {
+          build: 'node -e "console.log(\'build ok\')"',
+        },
+      },
+      null,
+      2
+    ),
+    'utf-8'
+  );
   await fs.writeFile(path.join(rootDir, '.env'), 'SECRET=value\n', 'utf-8');
   return rootDir;
 }
@@ -177,6 +192,24 @@ describe('EngineeringToolRuntime', () => {
     });
     assert.equal(allowedResult.status, 'success');
     assert.match(allowedResult.output ?? '', /ok/);
+  });
+
+  it('allows safe npm build verification commands on Windows without requiring npm.cmd in the plan', async () => {
+    if (process.platform !== 'win32') {
+      return;
+    }
+
+    const workspaceRoot = await createWorkspace();
+    const runtime = new EngineeringToolRuntime({ workspaceRoot });
+
+    const result = await runtime.execute({
+      tool: 'command.run',
+      command: 'npm',
+      args: ['run', 'build'],
+    });
+
+    assert.equal(result.status, 'success');
+    assert.match(result.output ?? '', /build ok/);
   });
 
   it('fails closed for delivery tools until approval-backed adapters exist', async () => {
