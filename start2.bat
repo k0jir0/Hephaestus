@@ -22,7 +22,7 @@ if %errorlevel%==0 (
 ) else (
   echo [start2] Ollama not reachable.
   echo [start2] Attempting to start Ollama (best-effort)...
-  start "Ollama" cmd /c "ollama serve"
+  start "Ollama" cmd /c ollama serve
   timeout /t 3 >nul
   curl --silent --fail "%OLLAMA_BASE_URL%/api/models" >nul 2>&1
   if %errorlevel%==0 (
