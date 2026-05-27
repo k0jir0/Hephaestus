@@ -1,0 +1,376 @@
+Recursive Self-Improvement in Hephaestus
+
+Abstract:
+This paper explains what recursive self-improvement should mean for Hephaestus, identifies which parts of that design already exist in the repository, and defines a practical roadmap for turning the current system into a trustworthy always-on self-improving engineering agent. The key claim is that self-improvement is not merely an LLM producing plans about its own code. It is a controlled loop in which the running system targets its own repository, proposes bounded changes, applies and verifies those changes, promotes the improved version, and then continues operating as that improved version. Hephaestus already contains much of the skeleton for this loop, but it does not yet satisfy the stronger claim that it can continuously and reliably improve itself while unattended.
+
+1. Problem Statement
+
+The central question is whether Hephaestus can run itself on itself to improve itself.
+
+That question has two versions:
+
+- Weak version: Can the agent inspect its own codebase, create tickets against that codebase, propose edits, run bounded commands, and write changes into the repository?
+- Strong version: Can the agent do that repeatedly, safely, observably, and durably enough that the system actually becomes a better successor of itself over time?
+
+The weak version is already partly true in Hephaestus. The strong version is not yet fully true.
+
+2. What Recursive Self-Improvement Actually Means
+
+Recursive self-improvement is often described too loosely. In practice, it should mean the following loop:
+
+1. The active worker at version N identifies a defect, limitation, or missing capability in version N.
+2. The worker creates a concrete task against its own repository.
+3. The worker plans a bounded change using a restricted tool surface.
+4. The worker applies the change and runs required verification.
+5. The system records evidence of what changed and whether verification passed.
+6. A supervisor, launcher, or promotion boundary starts version N+1 from the changed code.
+7. The next work cycle runs on version N+1, not on the stale in-memory process from version N.
+
+This is the crucial distinction:
+
+- Editing your own source tree is self-targeting.
+- Running the improved code as the next active worker is self-improvement.
+
+Without the promotion boundary, the system is only preparing its successor. It is not yet operating as that successor.
+
+3. What Hephaestus Already Has
+
+Hephaestus already contains the essential early components of a self-hosting architecture.
+
+3.1 Self-targeting by default
+
+The configuration defaults the target project to the repository itself. This means that when Hephaestus searches, reads, patches, and verifies files, it is already pointed at its own codebase unless explicitly redirected.
+
+This matters because it removes the fake boundary between operator code and target code. The agent is already aimed at itself.
+
+3.2 A bounded engineering runtime
+
+Hephaestus does not allow the model to execute arbitrary behavior directly. Instead it routes work through a governed tool layer with bounded capabilities such as:
+
+- repo.search
+- file.read
+- patch.apply
+- command.run
+
+This is the right direction. Recursive self-improvement without a bounded runtime is just unsafe arbitrary code execution. The tool runtime creates a policy boundary between the model's intent and the actual mutation surface.
+
+3.3 Durable ticket state
+
+The SQLite ticket store provides durable task lifecycle state. This is important because the system is not relying on transient chat context to remember what it was trying to fix. Ticket status, attempts, tool calls, approvals, and artifacts survive process restarts.
+
+That durability is a precondition for any long-running self-improving agent.
+
+3.4 Startup and autopilot behavior
+
+The Windows launcher and startup flow now do more than simply boot services. They validate configuration, start the daemon and UI, open observability windows, run smoke checks, and prime the queue through autopilot. That creates the operational shell of an always-on system.
+
+3.5 Mutation capability
+
+Hephaestus can already reach the point where it proposes and applies bounded patches. This means the system is not merely a planner or ticket summarizer. It has a real mutation path.
+
+4. What Is Not Yet True
+
+The slogan under evaluation is stronger than the current implementation.
+
+The strong slogan is:
+
+"Hephaestus is an always-on AI agent that continuously works on tasks from a TODO list, implements features, runs tests, and maintains code quality while you sleep."
+
+That statement is only partially true right now.
+
+4.1 Completion does not always mean mutation
+
+A core gap is semantic. A ticket can currently be marked completed after successful planning plus bounded execution even when the intended code mutation was not actually applied. In other words, the system can sometimes over-credit itself.
+
+For a self-improving agent, this is unacceptable. If a ticket was meant to change code, then completion must imply one of the following:
+
+- a patch was actually applied, or
+- the ticket was explicitly reclassified as inspection-only, or
+- the ticket was explicitly blocked or rejected with evidence.
+
+Any looser rule causes the metrics and board to drift away from reality.
+
+4.2 The planner can still choose invalid or disallowed actions
+
+The current live evidence already showed blocked tickets caused by planner choices such as disallowed commands. This means the system can still fall into avoidable stalls even when the runtime itself is behaving correctly.
+
+This is not a minor issue. In a self-improving loop, planner and runtime must agree on the valid action surface. Otherwise the agent spends its time proposing work it is not allowed to do.
+
+4.3 No true promotion boundary yet
+
+The biggest architectural gap is that the daemon does not yet automatically hand off execution to the improved version of itself after self-edits land.
+
+This means the system can update files on disk without becoming the updated worker in the next moment. The improved code exists, but the currently running process may still be the pre-improvement version.
+
+That is the dividing line between:
+
+- a system that edits its own source, and
+- a system that recursively improves its own active runtime.
+
+4.4 Observability is present but not yet first-class for mutation review
+
+Artifacts, patch deltas, and tool-call evidence are persisted, and the UI exposes a significant amount of detail. But operator review still needs a cleaner terminal-first and workflow-first surface for answering simple questions:
+
+- What changed?
+- Why was this marked completed?
+- Which verification actually ran?
+- Which tickets changed the code versus only inspected the code?
+
+If those questions are not trivial to answer, unattended trust will remain limited.
+
+4.5 The live system still re-blocks
+
+The most honest reading is not theoretical. The live queue has already shown drift back into blocked states. That means the architecture is promising, but the current unattended loop is not yet robust enough to justify a strong autonomy claim without qualification.
+
+5. The Intended High Point of the Design
+
+The high point of the solution is not just "the model edits its own files."
+
+The high point is this:
+
+Hephaestus should become a supervised self-replacing worker with durable memory, bounded tools, verification gates, and explicit promotion of improved versions.
+
+The intended architecture looks like this:
+
+1. Self-audit or operator input creates a ticket.
+2. The planner produces a bounded plan against the repository.
+3. The runtime executes only governed tool calls.
+4. Mutation-intended work must yield a real patch and real verification evidence.
+5. The result is written to durable storage and exposed in the control plane.
+6. A supervisor decides whether the newly changed code is promotable.
+7. The next worker process starts from the promoted codebase.
+8. New tickets are then handled by the improved worker.
+
+That is a real recursive loop because version N is responsible for making version N+1 possible, and version N+1 actually becomes the agent that continues the work.
+
+6. Design Principles for a Trustworthy Self-Improvement Loop
+
+The following principles should be treated as non-negotiable.
+
+6.1 Mutation-intent must be explicit
+
+Every plan should declare whether it is:
+
+- inspect-only
+- mutation-intended
+- verification-only
+- recovery or repair
+
+This single classification allows the runtime to enforce different completion rules.
+
+6.2 Completion must be evidence-based
+
+If a task intended to change code, completion must require:
+
+- at least one applied patch or approved mutation record
+- a non-empty list of changed files
+- successful verification where verification was required
+
+No patch, no completion.
+
+6.3 Verification must be attached to the task record
+
+Verification should not merely exist in logs. It should be attached to the ticket attempt as structured evidence including:
+
+- command executed
+- exit code
+- summarized output
+- files or scope validated
+
+6.4 Promotion must be explicit
+
+A changed repository does not automatically equal a changed running worker. The system needs a promotion step that can be audited and repeated. Promotion could mean:
+
+- rebuild and restart the daemon
+- launch a new supervised worker from the updated tree
+- switch a versioned working directory or branch pointer
+
+6.5 Safe autonomy requires planner-runtime alignment
+
+The planner must be strongly constrained to valid tool names, valid command shapes, and valid purposes. The runtime should reject anything outside policy, but the planner should also be taught not to aim there in the first place.
+
+6.6 Review surfaces must be cheap to use
+
+Trust grows when an operator can inspect changes quickly. The system should provide a simple way to view:
+
+- diff
+- verification evidence
+- policy decisions
+- blocker reason codes
+- approval decisions
+
+7. Roadmap of Solutions
+
+The roadmap below is ordered by dependency, not by glamour.
+
+Phase 0 - Truth in Semantics
+
+Goal:
+Make the system's reported status match reality.
+
+Tasks:
+- Tighten completion rules so mutation-intended tickets cannot finish without an actual applied patch or approved mutation replay.
+- Distinguish inspect-only tasks from mutation-intended tasks in the stored plan and UI.
+- Record changed file paths directly in task completion artifacts.
+- Mark verification status explicitly as passed, failed, skipped, or not-required.
+
+Why this phase matters:
+If the board lies, everything built on the board is corrupted. This is the shortest path to restoring trust in the loop.
+
+Acceptance criteria:
+- A ticket that intended code changes cannot appear in Completed unless at least one code mutation was applied.
+- The UI and CLI can clearly show whether a completed ticket changed code.
+
+Phase 1 - Planner and Runtime Alignment
+
+Goal:
+Stop avoidable blocked states caused by invalid plans.
+
+Tasks:
+- Further constrain the structured plan prompt so the model selects only valid tools and allowlisted verification commands.
+- Add normalization or aliasing where safe and helpful.
+- Add focused tests for known invalid planner outputs such as disallowed commands and malformed tool calls.
+- Persist a clear machine-readable blocker reason when the planner selects an invalid action.
+
+Why this phase matters:
+An unattended worker cannot keep tripping over tool contracts it should already understand.
+
+Acceptance criteria:
+- Known bad commands are no longer proposed in normal operation.
+- Planner/runtime mismatch tickets drop materially.
+
+Phase 2 - First-Class Mutation Review
+
+Goal:
+Make every self-edit inspectable.
+
+Tasks:
+- Add a terminal command such as tickets diff <ticket-id> to print the stored patch or patch delta.
+- Add a terminal command such as tickets artifacts <ticket-id> to print verification and policy evidence.
+- Improve the UI ticket detail view so changed files and verification outcome are obvious without digging.
+- Tag attempts as inspect, mutate, verify, approve, or replay.
+
+Why this phase matters:
+A self-improving system must be legible, especially when it changes itself.
+
+Acceptance criteria:
+- An operator can answer "what changed and why?" from one command or one control-plane view.
+
+Phase 3 - Promotion and Self-Replacement
+
+Goal:
+Turn source-tree mutation into active runtime improvement.
+
+Tasks:
+- Introduce a supervisor step after promotable self-edits.
+- Rebuild and restart the daemon when a verified self-edit lands.
+- Ensure the next task is processed by the new code rather than the stale process.
+- Persist version metadata per attempt so the system knows which worker version processed which ticket.
+
+Why this phase matters:
+This is the phase that turns self-editing into recursive self-improvement.
+
+Acceptance criteria:
+- After a verified self-edit, a new worker instance is started from the updated code.
+- Subsequent task attempts record the new version identifier.
+
+Phase 4 - Safer Autonomy and Rollback
+
+Goal:
+Allow unattended operation without silent degradation.
+
+Tasks:
+- Add promotion gates based on required verification.
+- Add automatic rollback or quarantine when a promoted version fails startup or health checks.
+- Separate staging and active worktrees if needed so the running system is never half-updated.
+- Track safety budgets and error thresholds per worker version.
+
+Why this phase matters:
+Without rollback, every self-edit is a gamble. With rollback, self-improvement becomes operationally sane.
+
+Acceptance criteria:
+- Failed promotions revert cleanly.
+- Unhealthy versions do not continue processing tickets unattended.
+
+Phase 5 - Closed-Loop Self-Audit
+
+Goal:
+Let the system identify, prioritize, and repair its own weaknesses continuously.
+
+Tasks:
+- Expand self-audit heuristics and model-driven issue discovery.
+- Classify self-audit findings into documentation, reliability, safety, product, and developer-experience categories.
+- Use queue policy to balance new self-audit work against operator-submitted work.
+- Add reliability metrics for recurring blocker classes, promotion success rate, and time-to-recovery.
+
+Why this phase matters:
+This is where the loop becomes compounding rather than reactive.
+
+Acceptance criteria:
+- Self-audit produces useful tickets without poisoning the queue.
+- The system can show measurable reduction in recurring failure classes over time.
+
+8. Recommended Immediate Work
+
+The next two implementation steps carry the highest leverage.
+
+8.1 Tighten completion semantics
+
+This closes the truth gap between "completed" and "actually changed code." It improves the control plane, metrics, and operator trust immediately.
+
+8.2 Expose diffs and artifacts in the CLI
+
+The UI already stores and exposes substantial evidence, but a terminal-first operator workflow is still missing. A lightweight diff and artifact command would make self-edits inspectable without requiring browser navigation.
+
+These two changes do not finish the full vision, but they would move Hephaestus from "promising architecture" to "credible self-editing system."
+
+9. Risks and Failure Modes
+
+The main risks are not mystical. They are engineering risks.
+
+9.1 Metric corruption
+
+If tickets are marked complete without real mutations, the system will report progress it did not earn.
+
+9.2 Planner drift
+
+If the planner keeps selecting invalid tools or commands, unattended execution will degrade into repeated blocking.
+
+9.3 Self-corruption
+
+If self-edits are promoted without strong verification and rollback, the agent can damage its own operating surface.
+
+9.4 Observability debt
+
+If operators cannot quickly inspect a change, the practical trust ceiling remains low no matter how advanced the internal machinery is.
+
+9.5 Stale worker problem
+
+If the repository changes but the running process does not, the system gives the appearance of self-improvement without the reality of self-replacement.
+
+10. Criteria for the Strong Claim to Become True
+
+The strong slogan becomes materially true when all of the following are true at once:
+
+- The agent continuously pulls work from a durable queue.
+- It can inspect and mutate its own repository through governed tools.
+- Mutation-intended work cannot complete without actual changes.
+- Required verification is attached as durable evidence.
+- Verified self-edits are promoted into the next active worker version.
+- Failed promotions roll back safely.
+- Operators can inspect diffs, evidence, and blockers quickly.
+- The live system can stay unattended for long periods without recurring planner-policy deadlocks.
+
+Until then, the honest claim is narrower:
+
+Hephaestus is an emerging self-hosting engineering agent with real self-targeting and bounded self-editing capability, but it is not yet a fully trustworthy recursive self-improvement system.
+
+11. Conclusion
+
+The intended implementation is visible and coherent. Hephaestus already has self-targeting configuration, governed tools, durable tickets, startup orchestration, self-audit seeding, and bounded mutation support. That is enough to say the repository contains the skeleton of recursive self-improvement.
+
+But the decisive missing step is promotion with strict truth-preserving semantics. A system does not recursively improve just because it edits its own code. It recursively improves when it can produce, verify, promote, and continue as a better successor of itself.
+
+That is the path forward.
+
+The architecture can absolutely become true to the stronger slogan. The current implementation simply needs to cross the boundary from self-editing to supervised self-replacement.

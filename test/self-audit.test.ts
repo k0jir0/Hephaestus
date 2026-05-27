@@ -94,7 +94,7 @@ describe('SelfAuditSeeder', () => {
     );
   });
 
-  it('falls back to heuristic findings when model output is not actionable', async () => {
+  it('returns an empty result when heuristics also find no actionable work', async () => {
     const seeder = new SelfAuditSeeder({
       config: {
         aiBackend: 'ollama',
@@ -143,9 +143,9 @@ describe('SelfAuditSeeder', () => {
 
     const result = await seeder.seedTickets({ dryRun: true, limit: 2 });
 
-    assert.equal(result.findings.length, 2);
-    assert.match(result.created[0]?.description ?? '', /^Self-audit \[high\/startup\]: Add a \/health endpoint/i);
-    assert.match(result.created[1]?.description ?? '', /^Self-audit \[medium\/tooling\]: Add a stop_all script/i);
+    assert.equal(result.findings.length, 0);
+    assert.equal(result.created.length, 0);
+    assert.equal(result.summary, 'Self-audit found no actionable findings.');
   });
 
   it('skips startup seeding when active tickets already exist', async () => {

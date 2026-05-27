@@ -108,6 +108,10 @@ export async function runFaultInjectionHarness(): Promise<FaultHarnessReport> {
         return false;
       }
     }, 1_000);
+    await waitFor(() => {
+      const status = projectionRepository.getProjectionHealthStatus();
+      return status.healthy && !status.retryScheduled;
+    }, 1_000);
 
     scenarios.push({
       name: 'projection-lock-contention',

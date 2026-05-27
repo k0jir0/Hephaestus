@@ -226,6 +226,11 @@ export class UIServer {
         return;
       }
 
+      if (request.method === 'GET' && url.pathname === '/health') {
+        this.respondJson(response, 200, await this.buildHealthResponse());
+        return;
+      }
+
       if (request.method === 'GET' && url.pathname === '/api/session') {
         const role = this.requireRole(request, url, 'viewer');
         this.respondJson(response, 200, await this.buildSessionResponse(role));
@@ -441,6 +446,19 @@ export class UIServer {
       server: this.serverName,
       projectionEnabled: config.taskBoardProjectionEnabled,
       baselineAvailable: await fileExists(this.baselineFile),
+    };
+  }
+
+  private async buildHealthResponse(): Promise<Record<string, unknown>> {
+    const tickets = await this.repository.listTickets('all');
+
+    return {
+      status: 'ok',
+      server: this.serverName,
+      revision: this.revisionStamp,
+      projectionEnabled: config.taskBoardProjectionEnabled,
+      counts: buildTicketCounts(tickets),
+      timestamp: new Date().toISOString(),
     };
   }
 

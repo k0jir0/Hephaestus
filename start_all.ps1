@@ -2,7 +2,8 @@ param(
     [int]$OllamaWaitSeconds = 120,
     [int]$OllamaPort = 11434,
     [string]$UI_PORT = "4181",
-    [string]$AI_BACKEND = "ollama"
+    [string]$AI_BACKEND = "ollama",
+    [switch]$SkipCleanupExisting
 )
 
 Set-StrictMode -Version Latest
@@ -35,6 +36,20 @@ function Get-EnvFlag([string]$Name, [bool]$DefaultValue) {
         'disabled' { return $false }
         default { return $DefaultValue }
     }
+}
+
+function Get-EnvPositiveInt([string]$Name) {
+    $rawValue = [Environment]::GetEnvironmentVariable($Name)
+    if ([string]::IsNullOrWhiteSpace($rawValue)) {
+        return $null
+    }
+
+    $parsedValue = 0
+    if ([int]::TryParse($rawValue.Trim(), [ref]$parsedValue) -and $parsedValue -gt 0) {
+        return $parsedValue
+    }
+
+    return $null
 }
 
 # Load .env if present (basic)
@@ -84,6 +99,24 @@ $maxIterationsLiteral = Convert-ToPsSingleQuotedLiteral $env:MAX_ITERATIONS
 $ollamaStreamLog = Join-Path $root 'logs/ollama-stream.out'
 $watchOllamaScript = Join-Path $root 'watch-ollama-stream.ps1'
 $showOllamaStreamWindow = Get-EnvFlag 'SHOW_OLLAMA_STREAM_WINDOW' ($AI_BACKEND -eq 'ollama')
+$tasksBoardFile = Join-Path $root 'TASKS.md'
+$watchTasksBoardScript = Join-Path $root 'watch-tasks-board.ps1'
+$showTasksBoardWindow = Get-EnvFlag 'SHOW_TASKS_BOARD_WINDOW' (Get-EnvFlag 'TASK_BOARD_PROJECTION_ENABLED' $true)
+$autopilotOnStartup = Get-EnvFlag 'AUTOPILOT_ON_STARTUP' $true
+$autopilotIncludeCancelled = Get-EnvFlag 'AUTOPILOT_INCLUDE_CANCELLED' $false
+$autopilotNoSelfAudit = Get-EnvFlag 'AUTOPILOT_NO_SELF_AUDIT' $false
+$autopilotSelfAuditLimit = Get-EnvPositiveInt 'AUTOPILOT_SELF_AUDIT_LIMIT'
+$waitForQueueActivityOnStartup = Get-EnvFlag 'WAIT_FOR_QUEUE_ACTIVITY_ON_STARTUP' $true
+$queueActivityWaitSeconds = Get-EnvPositiveInt 'QUEUE_ACTIVITY_WAIT_SECONDS'
+if ($null -eq $queueActivityWaitSeconds) {
+    $queueActivityWaitSeconds = 20
+}
+$stopAllScript = Join-Path $root 'stop_all.ps1'
+
+if ((-not $SkipCleanupExisting) -and (Test-Path $stopAllScript)) {
+    Write-Host 'Stopping any existing managed Hephaestus processes before launch...'
+    & $stopAllScript -Quiet
+}
 
 function Start-OllamaStreamViewer() {
     if (-not $showOllamaStreamWindow) {
@@ -109,9 +142,74 @@ function Start-OllamaStreamViewer() {
     Set-Content -Path $viewerPidFile -Value $viewerProc.Id
 }
 
+function Start-TasksBoardViewer() {
+    if (-not $showTasksBoardWindow) {
+        return
+    }
+
+    $viewerPidFile = Join-Path $root 'run/tasks-board-viewer.pid'
+    if (Test-Path $viewerPidFile) {
+        $existingPid = Get-Content $viewerPidFile -ErrorAction SilentlyContinue
+        if ($existingPid) {
+            try {
+                Get-Process -Id ([int]$existingPid) -ErrorAction Stop | Out-Null
+                return
+            } catch {
+                Remove-Item $viewerPidFile -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    $viewerCommand = "title Hephaestus TASKS.md && powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$watchTasksBoardScript`" -Path `"$tasksBoardFile`""
+    $viewerProc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $viewerCommand -WorkingDirectory $root -PassThru
+    Set-Content -Path $viewerPidFile -Value $viewerProc.Id
+}
+
+function Wait-ForQueueActivity([long]$InitialLogLength, [int]$TimeoutSeconds) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $observedOffset = [Math]::Max($InitialLogLength, 0)
+
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 500
+
+        if (-not (Test-Path $daemonLog)) {
+            continue
+        }
+
+        $logItem = Get-Item $daemonLog -ErrorAction SilentlyContinue
+        if ($null -eq $logItem -or $logItem.Length -le $observedOffset) {
+            continue
+        }
+
+        $content = Get-Content $daemonLog -Raw -ErrorAction SilentlyContinue
+        if ([string]::IsNullOrEmpty($content)) {
+            continue
+        }
+
+        $recentContent = if ($observedOffset -ge $content.Length) {
+            ''
+        } else {
+            $content.Substring([int]$observedOffset)
+        }
+
+        $observedOffset = $logItem.Length
+
+        if ($recentContent -match 'Found \d+ new task\(s\) in the ticket store' -or
+            $recentContent -match 'Processing task:' -or
+            $recentContent -match 'Task planned successfully:' -or
+            $recentContent -match 'Awaiting approval:') {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 if ($AI_BACKEND -eq 'ollama') {
     Start-OllamaStreamViewer
 }
+
+Start-TasksBoardViewer
 
 # Check Ollama health
 $ollamaUrl = "http://127.0.0.1:$OllamaPort/api/tags"
@@ -184,7 +282,7 @@ Start-Sleep -Seconds 3
 # Smoke tests
 function Smoke-Tests(){
     $results = @{}
-    try{ Invoke-WebRequest -Uri "http://127.0.0.1:$UI_PORT/" -UseBasicParsing -TimeoutSec 3 | Out-Null; $results['ui'] = $true }catch{ $results['ui'] = $false }
+    try{ Invoke-WebRequest -Uri "http://127.0.0.1:$UI_PORT/health" -UseBasicParsing -TimeoutSec 3 | Out-Null; $results['ui'] = $true }catch{ $results['ui'] = $false }
     try{ $results['ollama'] = Test-Ollama }catch{ $results['ollama'] = $false }
     return $results
 }
@@ -200,6 +298,50 @@ Write-Host " - Safety: DAILY_TOKEN_BUDGET=$($env:DAILY_TOKEN_BUDGET), MAX_ITERAT
 if(-not $sm['ollama'] -or -not $sm['ui']){
     Write-Host "One or more smoke tests failed. See logs/ for details." -ForegroundColor Yellow
     exit 3
+}
+
+if ($autopilotOnStartup) {
+    $queueActivityLogLength = 0
+    if (Test-Path $daemonLog) {
+        $queueActivityLogLength = (Get-Item $daemonLog).Length
+    }
+
+    $autopilotArgs = @('run', 'autopilot')
+    $autopilotOptionArgs = @()
+
+    if ($autopilotIncludeCancelled) {
+        $autopilotOptionArgs += '--include-cancelled'
+    }
+
+    if ($autopilotNoSelfAudit) {
+        $autopilotOptionArgs += '--no-self-audit'
+    }
+
+    if ($null -ne $autopilotSelfAuditLimit) {
+        $autopilotOptionArgs += '--self-audit-limit'
+        $autopilotOptionArgs += $autopilotSelfAuditLimit.ToString()
+    }
+
+    if ($autopilotOptionArgs.Count -gt 0) {
+        $autopilotArgs += '--'
+        $autopilotArgs += $autopilotOptionArgs
+    }
+
+    Write-Host 'Priming the queue with autopilot so startup produces runnable work...'
+    & $npmCommand @autopilotArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'WARNING: Startup autopilot failed. The daemon is still running, but the queue may stay idle.' -ForegroundColor Yellow
+        Write-Log 'boot-failure.log' "Startup autopilot failed with exit code $LASTEXITCODE"
+    } elseif ($waitForQueueActivityOnStartup) {
+        if (Wait-ForQueueActivity -InitialLogLength $queueActivityLogLength -TimeoutSeconds $queueActivityWaitSeconds) {
+            Write-Host "Observed queue activity in logs/daemon.out. Startup handed queued work to the daemon."
+        } else {
+            Write-Host "WARNING: Autopilot ran, but no new queue activity was observed within $queueActivityWaitSeconds seconds. Check logs/daemon.out for planner or safety blockers." -ForegroundColor Yellow
+            Write-Log 'boot-failure.log' "No queue activity observed within $queueActivityWaitSeconds seconds after startup autopilot"
+        }
+    }
+} else {
+    Write-Host 'Startup autopilot is disabled. Set AUTOPILOT_ON_STARTUP=1 to queue work automatically.'
 }
 
 Pop-Location

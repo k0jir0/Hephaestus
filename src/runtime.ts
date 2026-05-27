@@ -756,6 +756,31 @@ export class HephaestusRuntime {
     }
 
     switch (toolCall.name) {
+      case 'repo.search': {
+        const query = typeof toolCall.arguments.query === 'string'
+          ? toolCall.arguments.query
+          : null;
+        if (!query) {
+          return {
+            artifacts: [`[${correlationId}] denied repo.search: tool call is missing a query string.`],
+            failureReason: 'Tool call repo.search must provide a query string.',
+          };
+        }
+
+        const result = await this.toolRuntime.execute({
+          tool: 'repo.search',
+          query,
+          maxResults: typeof toolCall.arguments.maxResults === 'number' ? toolCall.arguments.maxResults : undefined,
+        });
+        const artifacts = [this.formatToolArtifact(correlationId, 'repo.search', query, result)];
+        return result.status === 'failure' || result.status === 'denied'
+          ? {
+              artifacts,
+              failureReason: `${result.summary}${result.error ? `: ${result.error}` : ''}`,
+            }
+          : { artifacts };
+      }
+
       case 'patch.apply': {
         const patch = typeof toolCall.arguments.patch === 'string' ? toolCall.arguments.patch : null;
         const approvalId = typeof toolCall.arguments.approvalId === 'string'

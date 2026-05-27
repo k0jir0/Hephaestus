@@ -70,6 +70,18 @@ describe('parseTaskPlan', () => {
     assert.deepEqual(plan.verification, ['Run npm test']);
   });
 
+  it('accepts alternate verification field names and nested structured step objects', () => {
+    const plan = parseTaskPlan(`{
+      "summary": "Accept nested verification output.",
+      "intendedFiles": [],
+      "commands": [],
+      "checks": [{ "check": { "text": "Run npm run build" } }],
+      "risks": []
+    }`);
+
+    assert.deepEqual(plan.verification, ['Run npm run build']);
+  });
+
   it('accepts alternate field names for file purpose, command purpose, and expected outcome', () => {
     const plan = parseTaskPlan(`{
       "summary": "Accept nearby model field names.",
@@ -87,6 +99,51 @@ describe('parseTaskPlan', () => {
     assert.equal(plan.commands[0]?.purpose, 'validate runtime flow');
     assert.equal(plan.commands[0]?.expectedOutcome, 'All tests pass');
     assert.deepEqual(plan.verification, ['Review the generated task plan']);
+  });
+
+  it('normalizes common change type aliases', () => {
+    const plan = parseTaskPlan(`{
+      "summary": "Normalize model change types.",
+      "intendedFiles": [
+        { "path": "src/runtime.ts", "changeType": "modify", "goal": "tighten runtime orchestration" },
+        { "path": "src/runtime.ts", "changeType": "read", "goal": "inspect the current behavior" }
+      ],
+      "commands": [],
+      "verification": ["Review the normalized change types"],
+      "risks": []
+    }`);
+
+    assert.equal(plan.intendedFiles[0]?.changeType, 'update');
+    assert.equal(plan.intendedFiles[1]?.changeType, 'inspect');
+  });
+
+  it('falls back to deterministic file and command purposes when the model omits them', () => {
+    const plan = parseTaskPlan(`{
+      "summary": "Tolerate omitted descriptive fields.",
+      "intendedFiles": [
+        { "path": "src/runtime.ts", "changeType": "update" }
+      ],
+      "commands": [
+        { "command": "npm run build" }
+      ],
+      "verification": ["Review the generated plan"],
+      "risks": []
+    }`);
+
+    assert.equal(plan.intendedFiles[0]?.purpose, 'update src/runtime.ts');
+    assert.equal(plan.commands[0]?.purpose, 'Run npm run build');
+  });
+
+  it('serializes structured verification objects when they contain no named text field', () => {
+    const plan = parseTaskPlan(`{
+      "summary": "Keep odd verification objects from blocking execution.",
+      "intendedFiles": [],
+      "commands": [],
+      "verification": [{ "kind": "manual-review", "target": "TASKS.md" }],
+      "risks": []
+    }`);
+
+    assert.equal(plan.verification[0], 'manual-review');
   });
 
   it('parses optional typed tool calls alongside the validated plan', () => {
@@ -124,6 +181,31 @@ describe('parseTaskPlan', () => {
     assert.equal(typeof parsed.toolCalls[0]?.arguments.patch, 'string');
   });
 
+  it('normalizes tool names and arguments aliases', () => {
+    const parsed = parseStructuredExecutionResponse(`{
+      "summary": "Read a focused file slice.",
+      "intendedFiles": [
+        { "path": "src/runtime.ts", "changeType": "inspect", "purpose": "gather runtime context" }
+      ],
+      "commands": [],
+      "tools": [
+        {
+          "name": "readFile",
+          "args": {
+            "path": "src/runtime.ts",
+            "startLine": 1,
+            "endLine": 20
+          }
+        }
+      ],
+      "verification": ["Review the selected runtime slice"],
+      "risks": []
+    }`);
+
+    assert.equal(parsed.toolCalls[0]?.name, 'file.read');
+    assert.equal(parsed.toolCalls[0]?.arguments.path, 'src/runtime.ts');
+  });
+
   it('rejects a payload without verification steps', () => {
     assert.throws(
       () =>
@@ -156,5 +238,7 @@ describe('buildStructuredPlanPrompt', () => {
     assert.match(prompt, /"toolCalls"/);
     assert.match(prompt, /README excerpt/);
     assert.match(prompt, /Project path: \./);
+    assert.match(prompt, /Valid toolCalls.name values are exactly/);
+    assert.match(prompt, /Use command.run only for safe verification commands/);
   });
 });

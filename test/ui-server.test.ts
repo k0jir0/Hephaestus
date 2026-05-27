@@ -149,6 +149,15 @@ afterEach(async () => {
       assert.equal(html.status, 200);
       assert.match(await html.text(), /Hephaestus Control Plane/);
 
+      const health = await fetch(`${url}/health`);
+      assert.equal(health.status, 200);
+      const healthPayload = await health.json() as {
+        status: string;
+        counts: Record<string, number>;
+      };
+      assert.equal(healthPayload.status, 'ok');
+      assert.equal(healthPayload.counts.awaiting_approval, 1);
+
       const session = await fetchJson(`${url}/api/session`, 'viewer-token') as { role: string; permissions: string[] };
       assert.equal(session.role, 'viewer');
       assert.ok(session.permissions.includes('query'));

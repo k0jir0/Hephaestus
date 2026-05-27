@@ -285,6 +285,11 @@ describe('TicketStoreRepository', () => {
       }
     }, 1_000);
 
+    await waitFor(() => {
+      const status = repository.getProjectionHealthStatus();
+      return status.healthy && !status.retryScheduled;
+    }, 1_000);
+
     const healthyStatus = repository.getProjectionHealthStatus();
     assert.equal(healthyStatus.healthy, true);
     assert.equal(healthyStatus.retryScheduled, false);

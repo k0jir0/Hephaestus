@@ -9,6 +9,21 @@ import type {
 } from './types.js';
 
 const changeTypes: PlannedFileChangeType[] = ['create', 'update', 'delete', 'inspect'];
+const changeTypeAliases: Record<string, PlannedFileChangeType> = {
+  create: 'create',
+  add: 'create',
+  new: 'create',
+  update: 'update',
+  modify: 'update',
+  edit: 'update',
+  change: 'update',
+  delete: 'delete',
+  remove: 'delete',
+  inspect: 'inspect',
+  read: 'inspect',
+  review: 'inspect',
+  analyze: 'inspect',
+};
 const engineeringToolNames: EngineeringToolName[] = [
   'repo.search',
   'file.read',
@@ -39,6 +54,34 @@ const toolNameAliases: Record<string, EngineeringToolName> = {
   'github.pr': 'github.pr',
   'create_pr': 'github.pr',
 };
+
+const textObjectKeys = [
+  'step',
+  'text',
+  'value',
+  'description',
+  'note',
+  'risk',
+  'purpose',
+  'action',
+  'check',
+  'expectedOutcome',
+  'expected',
+  'result',
+  'summary',
+  'title',
+  'content',
+  'message',
+  'instruction',
+];
+
+function normalizeLookupKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+const normalizedToolNameAliases = new Map<string, EngineeringToolName>(
+  Object.entries(toolNameAliases).map(([key, value]) => [normalizeLookupKey(key), value])
+);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -80,23 +123,106 @@ function getOptionalStringFromKeys(
   return requireStringFromKeys(value, keys, field);
 }
 
+function getArrayFromKeys(
+  value: Record<string, unknown>,
+  keys: string[],
+  defaultValue: unknown
+): unknown {
+  for (const key of keys) {
+    if (value[key] !== undefined) {
+      return value[key];
+    }
+  }
+
+  return defaultValue;
+}
+
+function extractStructuredText(value: unknown, depth = 0): string | null {
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim();
+    return trimmedValue.length === 0 ? null : trimmedValue;
+  }
+
+  if (Array.isArray(value)) {
+    if (depth >= 2) {
+      return null;
+    }
+
+    for (const entry of value) {
+      const candidate = extractStructuredText(entry, depth + 1);
+      if (candidate) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  if (!isRecord(value) || depth >= 2) {
+    return null;
+  }
+
+  for (const key of textObjectKeys) {
+    const candidate = extractStructuredText(value[key], depth + 1);
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  for (const candidateValue of Object.values(value)) {
+    const candidate = extractStructuredText(candidateValue, depth + 1);
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function stringifyStructuredFallback(value: unknown): string | null {
+  if ((isRecord(value) && Object.keys(value).length > 0) || (Array.isArray(value) && value.length > 0)) {
+    return JSON.stringify(value);
+  }
+
+  return null;
+}
+
 function extractTextArrayItem(value: unknown, field: string, index: number): string | null {
   if (typeof value === 'string') {
     const trimmedValue = value.trim();
     return trimmedValue.length === 0 ? null : trimmedValue;
   }
 
-  if (isRecord(value)) {
-    for (const key of ['step', 'text', 'value', 'description', 'note', 'risk', 'purpose', 'action']) {
-      const candidate = value[key];
-      if (typeof candidate === 'string') {
-        const trimmedCandidate = candidate.trim();
-        return trimmedCandidate.length === 0 ? null : trimmedCandidate;
-      }
-    }
+  const extractedText = extractStructuredText(value);
+  if (extractedText !== null) {
+    return extractedText;
+  }
+
+  const serializedFallback = stringifyStructuredFallback(value);
+  if (serializedFallback !== null) {
+    return serializedFallback;
   }
 
   throw new Error(`Field "${field}[${index}]" must be a non-empty string.`);
+}
+
+function getDefaultFilePurpose(changeType: PlannedFileChangeType, filePath: string): string {
+  return `${changeType} ${filePath}`;
+}
+
+function getDefaultCommandPurpose(command: string): string {
+  return `Run ${command}`;
+}
+
+function normalizeChangeType(value: string, field: string): PlannedFileChangeType {
+  const normalizedChangeType = changeTypeAliases[normalizeLookupKey(value)] ?? changeTypeAliases[value.trim().toLowerCase()];
+  if (!normalizedChangeType) {
+    throw new Error(
+      `${field} must be one of: ${changeTypes.join(', ')}`
+    );
+  }
+
+  return normalizedChangeType;
 }
 
 function requireStringArray(value: unknown, field: string, allowEmpty: boolean): string[] {
@@ -121,21 +247,28 @@ function parsePlannedFileChange(value: unknown, index: number): PlannedFileChang
     throw new Error(`intendedFiles[${index}] must be an object.`);
   }
 
-  const changeType = requireString(value.changeType, `intendedFiles[${index}].changeType`);
-  if (!changeTypes.includes(changeType as PlannedFileChangeType)) {
-    throw new Error(
-      `intendedFiles[${index}].changeType must be one of: ${changeTypes.join(', ')}`
+  const pathValue = requireString(value.path, `intendedFiles[${index}].path`);
+
+  const changeType = normalizeChangeType(
+    requireStringFromKeys(value, ['changeType', 'type', 'action'], `intendedFiles[${index}].changeType`),
+    `intendedFiles[${index}].changeType`
+  );
+
+  let purpose = getDefaultFilePurpose(changeType, pathValue);
+  try {
+    purpose = requireStringFromKeys(
+      value,
+      ['purpose', 'description', 'reason', 'why', 'note', 'summary', 'goal', 'intent', 'details', 'action'],
+      `intendedFiles[${index}].purpose`
     );
+  } catch {
+    // Fall back to a deterministic purpose instead of blocking on descriptive-only planner omissions.
   }
 
   return {
-    path: requireString(value.path, `intendedFiles[${index}].path`),
-    changeType: changeType as PlannedFileChangeType,
-    purpose: requireStringFromKeys(
-      value,
-      ['purpose', 'description', 'reason', 'why', 'note'],
-      `intendedFiles[${index}].purpose`
-    ),
+    path: pathValue,
+    changeType,
+    purpose,
   };
 }
 
@@ -144,16 +277,24 @@ function parsePlannedCommand(value: unknown, index: number): PlannedCommand {
     throw new Error(`commands[${index}] must be an object.`);
   }
 
-  return {
-    command: requireString(value.command, `commands[${index}].command`),
-    purpose: requireStringFromKeys(
+  const command = requireString(value.command, `commands[${index}].command`);
+  let purpose = getDefaultCommandPurpose(command);
+  try {
+    purpose = requireStringFromKeys(
       value,
-      ['purpose', 'description', 'reason', 'why', 'note'],
+      ['purpose', 'description', 'reason', 'why', 'note', 'summary', 'goal', 'intent', 'details'],
       `commands[${index}].purpose`
-    ),
+    );
+  } catch {
+    // Defaulting keeps otherwise valid verification commands executable.
+  }
+
+  return {
+    command,
+    purpose,
     expectedOutcome: getOptionalStringFromKeys(
       value,
-      ['expectedOutcome', 'outcome', 'successCriteria', 'success'],
+      ['expectedOutcome', 'outcome', 'successCriteria', 'success', 'expected', 'result'],
       `commands[${index}].expectedOutcome`
     ),
   };
@@ -165,8 +306,8 @@ function parseToolCall(value: unknown, index: number): ToolCall {
   }
 
   const nameRaw = requireStringFromKeys(value, ['name', 'tool'], `toolCalls[${index}].name`);
-  const nameKey = nameRaw.trim().toLowerCase();
-  const mapped = toolNameAliases[nameKey] ?? toolNameAliases[nameRaw] ?? undefined;
+  const nameKey = normalizeLookupKey(nameRaw);
+  const mapped = normalizedToolNameAliases.get(nameKey) ?? toolNameAliases[nameRaw] ?? undefined;
   const finalName = mapped ?? (engineeringToolNames.includes(nameRaw as EngineeringToolName) ? (nameRaw as EngineeringToolName) : undefined);
   if (!finalName) {
     throw new Error(
@@ -174,7 +315,7 @@ function parseToolCall(value: unknown, index: number): ToolCall {
     );
   }
 
-  const argumentsValue = value.arguments;
+  const argumentsValue = getArrayFromKeys(value, ['arguments', 'args', 'input'], undefined);
   if (!isRecord(argumentsValue)) {
     throw new Error(`toolCalls[${index}].arguments must be an object.`);
   }
@@ -235,7 +376,11 @@ export function buildStructuredPlanPrompt(task: Task, context: string | undefine
     '- If no files need changes, return an empty intendedFiles array.',
     '- If no commands are needed, return an empty commands array.',
     '- toolCalls may be empty when execution should remain plan-only.',
+    '- Valid toolCalls.name values are exactly: repo.search, file.read, patch.apply, command.run, git.branch, git.commit, github.pr.',
     '- Only include toolCalls that are justified by the intendedFiles or commands in the same plan.',
+    '- If intendedFiles contains any create, update, or delete entries, include matching governed toolCalls for those mutations instead of relying on plan-only file lists.',
+    '- Use command.run only for safe verification commands that already exist in package.json: npm test, npm run test, npm run build, npm run validate:config, npm run preflight, npm run start:once, npm run tickets, npm run lint.',
+    '- Do not use npm update, npm run start, npm run start:daemon, stop scripts, taskkill, or other process-management commands as verification commands.',
     '- verification must always contain at least one step.',
     '- risks may be empty when there are no meaningful risks.',
   ].join('\n');
@@ -265,28 +410,36 @@ export function parseStructuredExecutionResponse(rawContent: string): {
     throw new Error('Plan response must be a JSON object.');
   }
 
-  const intendedFilesRaw = parsed.intendedFiles;
+  const intendedFilesRaw = getArrayFromKeys(parsed, ['intendedFiles', 'files'], undefined);
   if (!Array.isArray(intendedFilesRaw)) {
     throw new Error('Field "intendedFiles" must be an array.');
   }
 
-  const commandsRaw = parsed.commands;
+  const commandsRaw = getArrayFromKeys(parsed, ['commands', 'verificationCommands'], undefined);
   if (!Array.isArray(commandsRaw)) {
     throw new Error('Field "commands" must be an array.');
   }
 
-  const toolCallsRaw = parsed.toolCalls;
+  const toolCallsRaw = getArrayFromKeys(parsed, ['toolCalls', 'tools'], undefined);
   if (toolCallsRaw !== undefined && !Array.isArray(toolCallsRaw)) {
     throw new Error('Field "toolCalls" must be an array when present.');
   }
+
+  const verificationRaw = getArrayFromKeys(
+    parsed,
+    ['verification', 'verificationSteps', 'verifications', 'checks', 'validation', 'validations'],
+    undefined
+  );
+
+  const risksRaw = getArrayFromKeys(parsed, ['risks', 'riskNotes', 'considerations'], []);
 
   return {
     plan: {
       summary: requireString(parsed.summary, 'summary'),
       intendedFiles: intendedFilesRaw.map((value, index) => parsePlannedFileChange(value, index)),
       commands: commandsRaw.map((value, index) => parsePlannedCommand(value, index)),
-      verification: requireStringArray(parsed.verification, 'verification', false),
-      risks: requireStringArray(parsed.risks, 'risks', true),
+      verification: requireStringArray(verificationRaw, 'verification', false),
+      risks: requireStringArray(risksRaw, 'risks', true),
     },
     toolCalls: (toolCallsRaw ?? []).map((value, index) => parseToolCall(value, index)),
   };

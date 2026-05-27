@@ -475,7 +475,14 @@ export class SelfAuditSeeder {
     }
 
     if (findings.length === 0) {
-      throw new Error('Self-audit did not yield any actionable findings.');
+      return {
+        summary: 'Self-audit found no actionable findings.',
+        findings: [],
+        created: [],
+        skippedDuplicates: [],
+        skippedBecauseQueueActive: false,
+        rawContent: response.content,
+      };
     }
 
     const knownDescriptions = new Set(existingTickets.map((ticket) => normalizeTicketIdentity(ticket.description)));

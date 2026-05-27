@@ -721,6 +721,124 @@ describe('HephaestusRuntime', () => {
     assert.match(calls.artifacts[2] || '', /command\.run npm test -> success/);
   });
 
+  it('executes governed repo.search tool calls through the bounded tool runtime', async () => {
+    const task = makeTask('Search the repository');
+    const calls = {
+      tools: [] as Array<{ tool: string; subject: string }>,
+      artifacts: [] as string[],
+      completed: 0,
+      blocked: 0,
+    };
+
+    const runtime = new HephaestusRuntime({
+      memory: {
+        async initialize() {},
+        async updateStatus() {},
+        async recordTaskCompletion() {},
+        async recordBlocker() {},
+        async addToTaskHistory() {},
+        async addSessionSummary() {},
+      },
+      tasks: {
+        async start() {},
+        async stop() {},
+        async getPendingTasks() {
+          return [task];
+        },
+        async markTaskInProgress() {},
+        async markTaskCompleted() {
+          calls.completed += 1;
+        },
+        async markTaskBlocked() {
+          calls.blocked += 1;
+        },
+        async appendTaskAttemptArtifacts(_ticketId, artifacts) {
+          calls.artifacts.push(...artifacts);
+        },
+      },
+      toolRuntime: {
+        async checkReadiness() {
+          return { available: true, message: 'ok' };
+        },
+        async execute(request) {
+          calls.tools.push({
+            tool: request.tool,
+            subject: request.tool === 'repo.search' ? request.query : '',
+          });
+          return {
+            status: 'success',
+            summary: `${request.tool} completed`,
+            mutatedPaths: [],
+          };
+        },
+      },
+      executor: {
+        async executeTask() {
+          return {
+            success: true,
+            content: 'Search the repository.',
+            plan: {
+              summary: 'Search the repository.',
+              intendedFiles: [
+                {
+                  path: 'src/runtime.ts',
+                  purpose: 'Inspect the runtime entrypoint',
+                  changeType: 'inspect',
+                },
+              ],
+              commands: [],
+              verification: ['Review the matched search results'],
+              risks: [],
+            },
+            toolCalls: [
+              {
+                name: 'repo.search',
+                arguments: {
+                  query: 'updateStatus',
+                  maxResults: 5,
+                },
+              },
+            ],
+          } satisfies AIResponse;
+        },
+        async checkHealth() {
+          return { available: true, message: 'ok' };
+        },
+      },
+      safety: {
+        async shouldContinue() {
+          return { allowed: true };
+        },
+        recordSuccess() {},
+        recordError() {},
+        recordTaskCompletion() {},
+        recordTokenUsage() {},
+        shouldAutoCommit() {
+          return false;
+        },
+        async performAutoCommit() {
+          return false;
+        },
+        getStatusSummary() {
+          return 'ok';
+        },
+        resetDailyCounters() {},
+      },
+      preflightRunner: async () => ({ ok: true, issues: [] }),
+      contextProvider: async () => 'README excerpt',
+    });
+
+    await runtime.run({ runOnce: true });
+
+    assert.deepEqual(calls.tools, [
+      { tool: 'file.read', subject: '' },
+      { tool: 'repo.search', subject: 'updateStatus' },
+    ]);
+    assert.equal(calls.completed, 1);
+    assert.equal(calls.blocked, 0);
+    assert.match(calls.artifacts[1] || '', /repo\.search updateStatus -> success/);
+  });
+
   it('executes low-risk patch tool calls through dry-run and apply with persisted policy artifacts', async () => {
     const task = makeTask('Apply a safe patch');
     const calls = {
