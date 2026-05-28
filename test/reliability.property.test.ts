@@ -15,7 +15,9 @@ const taskStatuses: TaskStatus[] = [
   'merged',
   'blocked',
   'failed',
+  'stale',
   'cancelled',
+  'superseded',
 ];
 
 function createRng(seed: number): () => number {
@@ -35,8 +37,10 @@ function statusToSection(status: TaskStatus): 'Queue' | 'In Progress' | 'Complet
       return 'Completed';
     case 'blocked':
     case 'failed':
+    case 'stale':
       return 'Blocked';
     case 'cancelled':
+    case 'superseded':
       return 'Cancelled';
     default:
       return 'In Progress';

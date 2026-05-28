@@ -1,17 +1,19 @@
 import type { Task, TaskStatus } from './types.js';
 
 const allowedTransitions: Record<TaskStatus, readonly TaskStatus[]> = {
-  pending: ['in_progress', 'blocked', 'cancelled'],
-  in_progress: ['planned', 'awaiting_approval', 'applying', 'verifying', 'completed', 'blocked', 'cancelled'],
-  planned: ['awaiting_approval', 'applying', 'verifying', 'completed', 'blocked', 'cancelled'],
-  awaiting_approval: ['pending', 'applying', 'verifying', 'completed', 'blocked', 'cancelled'],
-  applying: ['verifying', 'completed', 'blocked', 'cancelled'],
-  verifying: ['completed', 'blocked', 'cancelled'],
+  pending: ['in_progress', 'blocked', 'cancelled', 'superseded'],
+  in_progress: ['planned', 'awaiting_approval', 'applying', 'verifying', 'completed', 'blocked', 'stale', 'cancelled', 'superseded'],
+  planned: ['awaiting_approval', 'applying', 'verifying', 'completed', 'blocked', 'stale', 'cancelled', 'superseded'],
+  awaiting_approval: ['pending', 'applying', 'verifying', 'completed', 'blocked', 'cancelled', 'superseded'],
+  applying: ['verifying', 'completed', 'blocked', 'stale', 'cancelled', 'superseded'],
+  verifying: ['completed', 'blocked', 'stale', 'cancelled', 'superseded'],
   completed: ['merged'],
   merged: [],
-  blocked: ['pending', 'cancelled'],
-  failed: ['pending', 'cancelled'],
-  cancelled: ['pending'],
+  blocked: ['pending', 'cancelled', 'superseded'],
+  failed: ['pending', 'cancelled', 'superseded'],
+  stale: ['pending', 'blocked', 'cancelled', 'superseded'],
+  cancelled: ['pending', 'superseded'],
+  superseded: [],
 };
 
 export function canTransitionTaskStatus(current: TaskStatus, next: TaskStatus): boolean {
@@ -37,7 +39,7 @@ export function transitionTask(task: Task, nextStatus: TaskStatus, at = new Date
     updatedAt: at,
     startedAt: nextStatus === 'in_progress' ? task.startedAt ?? at : task.startedAt,
     completedAt: nextStatus === 'completed' ? at : task.completedAt,
-    blockedAt: nextStatus === 'blocked' ? at : task.blockedAt,
-    cancelledAt: nextStatus === 'cancelled' ? at : task.cancelledAt,
+    blockedAt: nextStatus === 'blocked' || nextStatus === 'stale' ? at : task.blockedAt,
+    cancelledAt: nextStatus === 'cancelled' || nextStatus === 'superseded' ? at : task.cancelledAt,
   };
 }

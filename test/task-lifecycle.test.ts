@@ -16,11 +16,17 @@ describe('task lifecycle invariants', () => {
   it('applies valid transitions and timestamps the resulting task', () => {
     const started = transitionTask(makeTask('pending'), 'in_progress');
     const completed = transitionTask(started, 'completed');
+    const stale = transitionTask(makeTask('in_progress'), 'stale');
+    const superseded = transitionTask(makeTask('blocked'), 'superseded');
 
     assert.equal(started.status, 'in_progress');
     assert.ok(started.startedAt instanceof Date);
     assert.equal(completed.status, 'completed');
     assert.ok(completed.completedAt instanceof Date);
+    assert.equal(stale.status, 'stale');
+    assert.ok(stale.blockedAt instanceof Date);
+    assert.equal(superseded.status, 'superseded');
+    assert.ok(superseded.cancelledAt instanceof Date);
   });
 
   it('rejects invalid transitions', () => {

@@ -11,7 +11,16 @@ export interface OperationalSLOMetrics {
   blockedRetrySuccessRatio: number;
   executionFailureTaxonomyStability: number;
   failureTaxonomyCounts: Record<string, number>;
+  backendReliability: Record<string, BackendReliabilityMetrics>;
   lastBoardSyncAt?: Date;
+}
+
+export interface BackendReliabilityMetrics {
+  totalAttempts: number;
+  completedAttempts: number;
+  blockedAttempts: number;
+  awaitingApprovalAttempts: number;
+  successRatio: number;
 }
 
 function average(values: number[]): number {
@@ -67,6 +76,7 @@ export function computeOperationalSLOMetrics(input: {
   let blockedRetryPopulation = 0;
   let blockedRetrySuccesses = 0;
   const failureTaxonomyCounts = new Map<string, number>();
+  const backendReliability = new Map<string, Omit<BackendReliabilityMetrics, 'successRatio'>>();
 
   for (const attempts of input.attemptsByTicket.values()) {
     const blockedAttemptIndex = attempts.findIndex((attempt) => attempt.status === 'blocked');
@@ -78,6 +88,25 @@ export function computeOperationalSLOMetrics(input: {
     }
 
     for (const attempt of attempts) {
+      const backend = getAttemptBackend(attempt);
+      if (backend) {
+        const current = backendReliability.get(backend) ?? {
+          totalAttempts: 0,
+          completedAttempts: 0,
+          blockedAttempts: 0,
+          awaitingApprovalAttempts: 0,
+        };
+        current.totalAttempts += 1;
+        if (attempt.status === 'completed') {
+          current.completedAttempts += 1;
+        } else if (attempt.status === 'blocked' || attempt.status === 'failed') {
+          current.blockedAttempts += 1;
+        } else if (attempt.status === 'awaiting_approval') {
+          current.awaitingApprovalAttempts += 1;
+        }
+        backendReliability.set(backend, current);
+      }
+
       if (!attempt.error) {
         continue;
       }
@@ -107,6 +136,19 @@ export function computeOperationalSLOMetrics(input: {
     blockedRetrySuccessRatio: blockedRetryPopulation === 0 ? 1 : blockedRetrySuccesses / blockedRetryPopulation,
     executionFailureTaxonomyStability: totalFailures === 0 ? 1 : dominantFailureCount / totalFailures,
     failureTaxonomyCounts: Object.fromEntries([...failureTaxonomyCounts.entries()].sort()),
+    backendReliability: Object.fromEntries(
+      [...backendReliability.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([backend, metrics]) => [
+          backend,
+          {
+            ...metrics,
+            successRatio: metrics.totalAttempts === 0
+              ? 1
+              : metrics.completedAttempts / metrics.totalAttempts,
+          },
+        ])
+    ),
     lastBoardSyncAt,
   };
 }
@@ -114,6 +156,7 @@ export function computeOperationalSLOMetrics(input: {
 export function formatOperationalSLOMetrics(metrics: OperationalSLOMetrics): string {
   const formatRatio = (value: number) => value.toFixed(2);
   const taxonomyEntries = Object.entries(metrics.failureTaxonomyCounts);
+  const backendEntries = Object.entries(metrics.backendReliability);
 
   return [
     `Total tickets: ${metrics.totalTickets}`,
@@ -129,5 +172,19 @@ export function formatOperationalSLOMetrics(metrics: OperationalSLOMetrics): str
     taxonomyEntries.length === 0
       ? 'Failure taxonomies: none observed'
       : `Failure taxonomies: ${taxonomyEntries.map(([key, value]) => `${key}=${value}`).join(', ')}`,
+    backendEntries.length === 0
+      ? 'Backend reliability: none observed'
+      : `Backend reliability: ${backendEntries.map(([backend, value]) => `${backend}=${value.completedAttempts}/${value.totalAttempts} success (${formatRatio(value.successRatio)})`).join(', ')}`,
   ].join('\n');
+}
+
+function getAttemptBackend(attempt: TaskAttempt): string | null {
+  for (const artifact of attempt.artifacts) {
+    const match = artifact.match(/\]\s+backend\.([A-Za-z0-9_-]+)/);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
 }

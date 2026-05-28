@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Hephaestus is intentionally small: it demonstrates an inspectable automation loop without claiming opaque end-to-end autonomy. The architecture is designed to keep workflow state visible in markdown while moving safety and validation earlier in the lifecycle. The runtime now separates canonical ticket state from the human-readable markdown projection so queue transitions are not coupled to whole-file rewrites.
+Hephaestus is intentionally small: it is a local-first AI engineering control plane for durable, policy-bounded software work. The architecture is designed to keep workflow state visible while moving safety, validation, and approval earlier in the lifecycle. The runtime now separates canonical ticket state from the human-readable markdown projection so queue transitions are not coupled to whole-file rewrites.
 
 ## Current Runtime Shape
 
@@ -12,8 +12,9 @@ The runtime currently follows this sequence:
 2. Run startup preflight against config, repository shape, and backend health.
 3. Discover pending tickets from the canonical ticket store.
 4. Admit or reject each task before any durable queue mutation.
-5. Gather repository context and request a typed task plan from the configured AI backend.
-6. Validate the plan contract before persisting task outcomes into the ticket store and session notes into markdown.
+5. Gather repository context, including focused file-ranking hints for the active ticket.
+6. Request a typed task plan from the configured AI backend.
+7. Validate the plan contract before executing bounded tool calls and persisting task outcomes into the ticket store.
 
 That keeps the operator-facing surface area simple:
 
@@ -83,19 +84,17 @@ Phase 5 is now implemented.
 
 ## Next Phases
 
-### Code-Edit Runtime
-
-Keep the typed planning contract, but wire the constrained tool runtime into ticket attempts so approved plans can apply validated file edits and verification commands inside explicit safety boundaries.
-
 ### Typed Tool Runtime
 
-The first typed tool runtime is implemented but not yet wired into autonomous task execution.
+The first typed tool runtime is implemented and wired into governed task execution.
 
 - `repo.search` performs bounded text search without traversing ignored directories.
 - `file.read` reads workspace-bounded files and denies protected paths.
 - `patch.apply` validates and applies unified patches through `git apply`, with dry-run support.
 - `command.run` executes exact allowlisted commands with timeouts and output limits.
+- Risky patch application moves tickets into awaiting approval rather than hiding the decision inside model behavior.
 - Branch, commit, and PR tools are defined but fail closed until approval-backed adapters exist.
+- Local patch-bundle export is the supported delivery path for developer review.
 
 ### Richer Repository Policies
 

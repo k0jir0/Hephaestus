@@ -715,10 +715,11 @@ describe('HephaestusRuntime', () => {
       { tool: 'file.read', subject: 'README.md' },
       { tool: 'command.run', subject: 'npm' },
     ]);
-    assert.equal(calls.artifacts.length, 3);
+    assert.equal(calls.artifacts.length, 4);
     assert.match(calls.artifacts[0] || '', /file\.read README\.md -> success/);
     assert.match(calls.artifacts[1] || '', /deferred-mutation update src\/runtime\.ts/);
     assert.match(calls.artifacts[2] || '', /command\.run npm test -> success/);
+    assert.match(calls.artifacts[3] || '', /backend\.ollama model=/);
   });
 
   it('executes governed repo.search tool calls through the bounded tool runtime', async () => {

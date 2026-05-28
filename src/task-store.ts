@@ -31,6 +31,14 @@ import type {
 import { TaskWatcher } from './watcher.js';
 
 const logger = createComponentLogger('TaskStore');
+const staleRecoverableStatuses = new Set<TaskStatus>([
+  'in_progress',
+  'planned',
+  'applying',
+  'verifying',
+]);
+const staleRecoveryReason =
+  'Recovered stale active ticket after a previous daemon exited before finishing the attempt.';
 
 type DatabaseSync = import('node:sqlite').DatabaseSync;
 
@@ -54,6 +62,12 @@ export interface ProjectionHealthStatus {
   retryScheduled: boolean;
   nextRetryDelayMs?: number;
   consecutiveFailures: number;
+}
+
+export interface ProjectionDriftStatus {
+  checked: boolean;
+  drifted: boolean;
+  reason?: string;
 }
 
 interface TicketRow {
@@ -244,7 +258,22 @@ export class TicketStoreRepository
     assertValidTaskTransition(ticket.status, 'in_progress', `ticket ${ticket.id}`);
 
     const now = new Date().toISOString();
-    const attemptNumber = ticket.attempt_count + 1;
+    const recoveredAttemptIds = this.closeOpenAttemptsForTicket(
+      ticket.id,
+      now,
+      'stale',
+      'Recovered orphaned active attempt before starting a new attempt.'
+    );
+    if (ticket.current_attempt_id || recoveredAttemptIds.length > 0) {
+      this.recordEvent({
+        ticketId: ticket.id,
+        type: 'stale-recovered',
+        createdAt: new Date(now),
+        details: 'Cleared stale active attempt metadata before claiming the ticket.',
+      });
+    }
+
+    const attemptNumber = this.getNextAttemptNumber(ticket.id);
     const attemptId = this.generateAttemptId();
     this.insertAttempt({
       id: attemptId,
@@ -379,7 +408,8 @@ export class TicketStoreRepository
              error = null,
              plan_json = ?,
              tool_calls_json = coalesce(?, tool_calls_json),
-             approval_json = coalesce(?, approval_json)
+             approval_json = coalesce(?, approval_json),
+             current_attempt_id = null
          where id = ?`
       )
       .run(
@@ -442,7 +472,8 @@ export class TicketStoreRepository
              error = ?,
              plan_json = ?,
              tool_calls_json = coalesce(?, tool_calls_json),
-             approval_json = coalesce(?, approval_json)
+             approval_json = coalesce(?, approval_json),
+             current_attempt_id = null
          where id = ?`
       )
       .run(
@@ -577,7 +608,10 @@ export class TicketStoreRepository
     }));
   }
 
-  async retryTicket(ticketId: string): Promise<TaskTicket> {
+  async retryTicket(
+    ticketId: string,
+    options: { amendedDescription?: string } = {}
+  ): Promise<TaskTicket> {
     await this.ensureInitialized();
 
     if (this.usingFallback) {
@@ -591,32 +625,66 @@ export class TicketStoreRepository
       throw new Error(`Ticket not found: ${ticketId}`);
     }
 
-    if (ticket.status !== 'blocked' && ticket.status !== 'failed' && ticket.status !== 'cancelled') {
-      throw new Error(`Only blocked, failed, or cancelled tickets can be retried. Current status: ${ticket.status}`);
+    if (
+      ticket.status !== 'blocked' &&
+      ticket.status !== 'failed' &&
+      ticket.status !== 'stale' &&
+      ticket.status !== 'cancelled'
+    ) {
+      throw new Error(`Only blocked, failed, stale, or cancelled tickets can be retried. Current status: ${ticket.status}`);
     }
 
     assertValidTaskTransition(ticket.status, 'pending', `ticket ${ticket.id}`);
 
     const now = new Date().toISOString();
+    const amendedDescription = options.amendedDescription === undefined
+      ? undefined
+      : normalizeTaskDescription(options.amendedDescription);
+    if (options.amendedDescription !== undefined && !amendedDescription) {
+      throw new Error('Amended retry description must be a non-empty string.');
+    }
+
     this.getDatabase()
       .prepare(
         `update tickets
          set status = 'pending',
+             description = coalesce(?, description),
+             description_key = coalesce(?, description_key),
              updated_at = ?,
              blocked_at = null,
              cancelled_at = null,
              error = null,
              current_attempt_id = null,
+             plan_json = null,
+             tool_calls_json = null,
+             approval_json = null,
              source_order = ?
          where id = ?`
       )
-      .run(now, this.getNextSourceOrder(), ticketId);
+      .run(
+        amendedDescription ?? null,
+        amendedDescription ? createDescriptionKey(amendedDescription) : null,
+        now,
+        this.getNextSourceOrder(),
+        ticketId
+      );
+
+    if (amendedDescription && amendedDescription !== ticket.description) {
+      this.recordEvent({
+        ticketId,
+        type: 'amended',
+        createdAt: new Date(now),
+        details: `Retry amended from "${ticket.description}" to "${amendedDescription}".`,
+      });
+    }
 
     this.recordEvent({
       ticketId,
       type: 'requeued',
       createdAt: new Date(now),
-      details: 'Retry requested through the operator interface.',
+      details: amendedDescription
+        ? 'Retry requested with an amended task description.'
+        : 'Retry requested through the operator interface.',
     });
 
     await this.writeProjectionSafely();
@@ -678,6 +746,60 @@ export class TicketStoreRepository
     const updatedTicket = await this.getTicket(ticketId);
     if (!updatedTicket) {
       throw new Error(`Cancelled ticket ${ticketId} could not be loaded.`);
+    }
+
+    return updatedTicket;
+  }
+
+  async supersedeTicket(ticketId: string, reason = 'Superseded by newer work.'): Promise<TaskTicket> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      throw new Error(
+        'Ticket supersession is unavailable in markdown fallback mode. Edit TASKS.md manually or enable SQLite.'
+      );
+    }
+
+    const ticket = await this.getTicket(ticketId);
+    if (!ticket) {
+      throw new Error(`Ticket not found: ${ticketId}`);
+    }
+
+    const now = new Date().toISOString();
+    const row = this.findTicketForTask(ticket);
+    if (row) {
+      assertValidTaskTransition(row.status, 'superseded', `ticket ${row.id}`);
+      this.finishCurrentAttempt(row, {
+        status: 'cancelled',
+        endedAt: now,
+        error: reason,
+      });
+    }
+
+    this.getDatabase()
+      .prepare(
+        `update tickets
+         set status = 'superseded',
+             updated_at = ?,
+             cancelled_at = ?,
+             error = ?,
+             current_attempt_id = null
+         where id = ?`
+      )
+      .run(now, now, reason, ticketId);
+
+    this.recordEvent({
+      ticketId,
+      type: 'superseded',
+      createdAt: new Date(now),
+      details: reason,
+    });
+
+    await this.writeProjectionSafely();
+
+    const updatedTicket = await this.getTicket(ticketId);
+    if (!updatedTicket) {
+      throw new Error(`Superseded ticket ${ticketId} could not be loaded.`);
     }
 
     return updatedTicket;
@@ -960,6 +1082,15 @@ export class TicketStoreRepository
       });
     }
 
+    const projectionDrift = await this.getProjectionDriftStatus();
+    if (projectionDrift.drifted) {
+      issues.push({
+        code: 'task-board-projection-drift',
+        message: `${projectionDrift.reason} Run sync-board to rewrite it from the canonical store.`,
+        blocking: false,
+      });
+    }
+
     return issues;
   }
 
@@ -1186,6 +1317,41 @@ export class TicketStoreRepository
     };
   }
 
+  async getProjectionDriftStatus(): Promise<ProjectionDriftStatus> {
+    await this.ensureInitialized();
+
+    if (!this.projectionEnabled || this.usingFallback) {
+      return {
+        checked: false,
+        drifted: false,
+        reason: 'Projection is disabled or markdown fallback is active.',
+      };
+    }
+
+    try {
+      const projectedContent = await fs.readFile(this.tasksFile, 'utf-8');
+      const canonicalContent = renderTaskBoard(this.listAllTasks());
+      const drifted =
+        normalizeProjectionForComparison(projectedContent) !==
+        normalizeProjectionForComparison(canonicalContent);
+
+      return {
+        checked: true,
+        drifted,
+        reason: drifted ? 'TASKS.md differs from the canonical ticket store projection.' : undefined,
+      };
+    } catch (error) {
+      const errorCode = (error as NodeJS.ErrnoException).code;
+      return {
+        checked: true,
+        drifted: true,
+        reason: errorCode === 'ENOENT'
+          ? 'TASKS.md projection is missing.'
+          : `TASKS.md projection could not be read: ${String(error)}`,
+      };
+    }
+  }
+
   private async ensureInitialized(): Promise<void> {
     if (!this.initialization) {
       this.initialization = this.initialize();
@@ -1297,6 +1463,13 @@ export class TicketStoreRepository
       this.applySchemaMigrations();
 
       await this.bootstrapLegacyTaskBoardIfStoreEmpty();
+      const recoveredStaleTickets = this.recoverStaleActiveTickets();
+      if (recoveredStaleTickets > 0) {
+        logger.warn('Recovered stale active tickets during store initialization', {
+          recoveredStaleTickets,
+          storeFile: this.storeFile,
+        });
+      }
       await this.writeProjectionSafely(true);
     } catch (error) {
       if (this.db) {
@@ -1397,6 +1570,75 @@ export class TicketStoreRepository
       'persist approval state and pending tool calls for resume workflows',
       new Date().toISOString()
     );
+  }
+
+  private recoverStaleActiveTickets(): number {
+    const db = this.getDatabase();
+    const rows = db
+      .prepare(
+        `select *
+         from tickets
+         where status in ('in_progress', 'planned', 'applying', 'verifying')
+            or current_attempt_id is not null
+         order by updated_at asc`
+      )
+      .all() as unknown as TicketRow[];
+    const now = new Date().toISOString();
+    let recoveredTicketCount = 0;
+
+    for (const row of rows) {
+      const recoveredAttemptIds = this.closeOpenAttemptsForTicket(
+        row.id,
+        now,
+        'stale',
+        staleRecoveryReason
+      );
+
+      if (staleRecoverableStatuses.has(row.status)) {
+        db.prepare(
+          `update tickets
+           set status = 'stale',
+               updated_at = ?,
+               blocked_at = coalesce(blocked_at, ?),
+               error = coalesce(error, ?),
+               current_attempt_id = null
+           where id = ?`
+        ).run(now, now, staleRecoveryReason, row.id);
+        recoveredTicketCount += 1;
+
+        this.recordEvent({
+          ticketId: row.id,
+          type: 'stale-recovered',
+          createdAt: new Date(now),
+          details: staleRecoveryReason,
+        });
+      } else if (row.current_attempt_id || recoveredAttemptIds.length > 0) {
+        db.prepare(
+          `update tickets
+           set updated_at = ?,
+               current_attempt_id = null
+           where id = ?`
+        ).run(now, row.id);
+
+        this.recordEvent({
+          ticketId: row.id,
+          type: 'stale-recovered',
+          createdAt: new Date(now),
+          details: 'Cleared orphaned active attempt metadata without changing terminal ticket status.',
+        });
+      }
+
+      for (const attemptId of recoveredAttemptIds) {
+        this.recordEvent({
+          ticketId: row.id,
+          type: 'attempt-finished',
+          createdAt: new Date(now),
+          details: attemptId,
+        });
+      }
+    }
+
+    return recoveredTicketCount;
   }
 
   private async dispatchPendingTasks(): Promise<void> {
@@ -1527,7 +1769,7 @@ export class TicketStoreRepository
       approvalJson?: string | null;
     }
   ): void {
-    const attemptId = ticket.current_attempt_id ?? this.getLatestAttemptId(ticket.id);
+    const attemptId = ticket.current_attempt_id ?? this.getLatestOpenAttemptId(ticket.id);
     if (!attemptId) {
       return;
     }
@@ -1556,6 +1798,37 @@ export class TicketStoreRepository
       );
   }
 
+  private closeOpenAttemptsForTicket(
+    ticketId: string,
+    endedAt: string,
+    status: TaskAttemptStatus,
+    error: string
+  ): string[] {
+    const rows = this.getDatabase()
+      .prepare(
+        `select id
+         from ticket_attempts
+         where ticket_id = ?
+           and ended_at is null
+         order by attempt_number asc`
+      )
+      .all(ticketId) as unknown as Array<{ id: string }>;
+
+    for (const row of rows) {
+      this.getDatabase()
+        .prepare(
+          `update ticket_attempts
+           set status = ?,
+               ended_at = ?,
+               error = coalesce(error, ?)
+           where id = ?`
+        )
+        .run(status, endedAt, error, row.id);
+    }
+
+    return rows.map((row) => row.id);
+  }
+
   private getLatestAttemptId(ticketId: string): string | null {
     const row = this.getDatabase()
       .prepare(
@@ -1568,6 +1841,33 @@ export class TicketStoreRepository
       .get(ticketId) as { id: string } | undefined;
 
     return row?.id ?? null;
+  }
+
+  private getLatestOpenAttemptId(ticketId: string): string | null {
+    const row = this.getDatabase()
+      .prepare(
+        `select id
+         from ticket_attempts
+         where ticket_id = ?
+           and ended_at is null
+         order by attempt_number desc
+         limit 1`
+      )
+      .get(ticketId) as { id: string } | undefined;
+
+    return row?.id ?? null;
+  }
+
+  private getNextAttemptNumber(ticketId: string): number {
+    const row = this.getDatabase()
+      .prepare(
+        `select coalesce(max(attempt_number), 0) + 1 as next_attempt_number
+         from ticket_attempts
+         where ticket_id = ?`
+      )
+      .get(ticketId) as { next_attempt_number: number };
+
+    return row.next_attempt_number;
   }
 
   private findTicketForTask(task: Task): TicketRow | null {
@@ -1813,6 +2113,10 @@ export class TicketStoreRepository
 
 function createDescriptionKey(description: string): string {
   return normalizeTaskDescription(description).toLowerCase();
+}
+
+function normalizeProjectionForComparison(content: string): string {
+  return content.replace(/\r\n/g, '\n').trim();
 }
 
 function serializeToolCalls(toolCalls: ToolCall[] | undefined): string | null {

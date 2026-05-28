@@ -1,5 +1,7 @@
 import fs from 'fs/promises';
+import path from 'node:path';
 import { config as defaultConfig, type Config } from './config.js';
+import { formatRankedContextCandidates, rankContextCandidates } from './context-ranking.js';
 import {
   AdmissionController,
   createBackendAdmissionGate,
@@ -9,6 +11,7 @@ import {
   type AdmissionDecision,
 } from './admission.js';
 import { AIExecutor } from './executor.js';
+import { formatFailureClassificationArtifact } from './failure-classification.js';
 import { logger } from './logger.js';
 import { AgentMemory } from './memory.js';
 import { formatTaskPlanSummary } from './plan-contract.js';
@@ -26,6 +29,7 @@ import type {
 import { SafetySystem } from './safety.js';
 import { SelfAuditSeeder, type SelfAuditSeedResult } from './self-audit.js';
 import { transitionTask } from './task-lifecycle.js';
+import { classifyTaskEnvelope, formatTaskEnvelopeDecision } from './task-envelope.js';
 import { TicketStoreRepository } from './task-store.js';
 import { EngineeringToolRuntime, type EngineeringToolRequest } from './tool-runtime.js';
 import type {
@@ -88,7 +92,7 @@ export interface RuntimeDependencies {
   toolRuntime?: RuntimeToolPort;
   admissionController?: AdmissionController;
   preflightRunner?: (executor: RuntimeExecutorPort) => Promise<PreflightResult>;
-  contextProvider?: () => Promise<string>;
+  contextProvider?: (task?: Task) => Promise<string>;
   selfAuditSeeder?: RuntimeSelfAuditSeeder;
 }
 
@@ -117,7 +121,7 @@ export class HephaestusRuntime {
   private readonly toolRuntime: RuntimeToolPort;
   private readonly admissionController: AdmissionController;
   private readonly preflightRunner: (executor: RuntimeExecutorPort) => Promise<PreflightResult>;
-  private readonly contextProvider: () => Promise<string>;
+  private readonly contextProvider: (task?: Task) => Promise<string>;
   private readonly selfAuditSeeder: RuntimeSelfAuditSeeder | null;
   private readonly state: AgentState = createInitialState();
   private isShuttingDown = false;
@@ -165,7 +169,7 @@ export class HephaestusRuntime {
       dependencies.preflightRunner ??
       (async (executor) =>
         runStartupPreflight({ config: this.runtimeConfig, healthChecker: executor }));
-    this.contextProvider = dependencies.contextProvider ?? (() => this.getProjectContext());
+    this.contextProvider = dependencies.contextProvider ?? ((task) => this.getProjectContext(task));
     this.selfAuditSeeder = dependencies.selfAuditSeeder ??
       (this.tasks instanceof TicketStoreRepository
         ? new SelfAuditSeeder({
@@ -458,7 +462,18 @@ export class HephaestusRuntime {
       await this.tasks.markTaskInProgress(task);
       taskMarkedInProgress = true;
 
-      const context = await this.contextProvider();
+      const envelope = classifyTaskEnvelope(task.description);
+      if (!envelope.supported) {
+        const reason = formatTaskEnvelopeDecision(envelope);
+        task.error = reason;
+        await this.appendTaskArtifacts(task.id, [
+          `[${admission.correlationId}] task.envelope deferred ${envelope.taskClass}: ${envelope.reason}`,
+        ]);
+        await this.handleBlockedTask(task, reason, taskMarkedInProgress);
+        return 'failed';
+      }
+
+      const context = await this.contextProvider(task);
       const resumedToolCalls = this.getResumableApprovedToolCalls(task);
       const result = resumedToolCalls
         ? {
@@ -490,6 +505,7 @@ export class HephaestusRuntime {
             skipPlanPrelude: resumedToolCalls !== null,
           }
         );
+        toolExecution.artifacts.push(this.formatBackendArtifact(admission.correlationId));
         await this.appendTaskArtifacts(task.id, toolExecution.artifacts);
 
         if (toolExecution.awaitingApprovalReason) {
@@ -957,6 +973,11 @@ export class HephaestusRuntime {
     return `[${correlationId}] ${tool} ${subject} -> ${result.status}${reasonCodeSuffix}: ${result.summary}`;
   }
 
+  private formatBackendArtifact(correlationId: string): string {
+    const model = this.runtimeConfig.aiModel || 'default';
+    return `[${correlationId}] backend.${this.runtimeConfig.aiBackend} model=${model}`;
+  }
+
   private formatPolicySnapshotArtifact(
     correlationId: string,
     snapshot: ToolPolicySnapshot
@@ -1132,6 +1153,12 @@ export class HephaestusRuntime {
     this.state.lastActivity = new Date();
 
     const correlationId = `blocked_${task.id}_${Date.now()}`;
+    if (taskMarkedInProgress) {
+      await this.appendTaskArtifacts(task.id, [
+        formatFailureClassificationArtifact(correlationId, reason),
+      ]);
+    }
+
     await this.runDurableMemorySideEffects(task, [
       {
         type: 'memory.record-blocker',
@@ -1174,7 +1201,7 @@ export class HephaestusRuntime {
     }
   }
 
-  private async getProjectContext(): Promise<string> {
+  private async getProjectContext(task?: Task): Promise<string> {
     try {
       const contextParts: string[] = [];
 
@@ -1202,6 +1229,21 @@ export class HephaestusRuntime {
       }
 
       try {
+        const fileIndex = await this.collectProjectFileIndex(this.runtimeConfig.targetProject);
+        if (fileIndex.length > 0) {
+          const focusedCandidates = rankContextCandidates(task?.description ?? '', fileIndex);
+          if (focusedCandidates.length > 0) {
+            contextParts.push(
+              `Focused context candidates:\n${formatRankedContextCandidates(focusedCandidates)}`
+            );
+          }
+          contextParts.push(`Project file index (selected):\n${fileIndex.join('\n')}`);
+        }
+      } catch {
+        // Ignore file index failures; it is context, not an admission gate.
+      }
+
+      try {
         const { exec } = await import('child_process');
         const { promisify } = await import('util');
         const execAsync = promisify(exec);
@@ -1221,6 +1263,56 @@ export class HephaestusRuntime {
         error: String(error),
       });
       return '';
+    }
+  }
+
+  private async collectProjectFileIndex(projectRoot: string): Promise<string[]> {
+    const roots = ['src', 'test', 'tests', 'docs'];
+    const selectedFiles: string[] = [];
+
+    for (const root of roots) {
+      if (selectedFiles.length >= 120) {
+        break;
+      }
+
+      await this.collectFiles(path.join(projectRoot, root), projectRoot, selectedFiles, 3);
+    }
+
+    return selectedFiles.slice(0, 120);
+  }
+
+  private async collectFiles(
+    directory: string,
+    projectRoot: string,
+    selectedFiles: string[],
+    depthRemaining: number
+  ): Promise<void> {
+    if (depthRemaining < 0 || selectedFiles.length >= 120) {
+      return;
+    }
+
+    let entries: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
+    try {
+      entries = await fs.readdir(directory, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+      if (selectedFiles.length >= 120) {
+        return;
+      }
+
+      if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'dist') {
+        continue;
+      }
+
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        await this.collectFiles(fullPath, projectRoot, selectedFiles, depthRemaining - 1);
+      } else if (entry.isFile()) {
+        selectedFiles.push(path.relative(projectRoot, fullPath).replace(/\\/g, '/'));
+      }
     }
   }
 }

@@ -50,7 +50,9 @@ const statusToSection: Record<TaskStatus, TaskSection> = {
   merged: 'Completed',
   blocked: 'Blocked',
   failed: 'Blocked',
+  stale: 'Blocked',
   cancelled: 'Cancelled',
+  superseded: 'Cancelled',
 };
 
 const emptySectionItem = '- (empty)';
@@ -159,7 +161,7 @@ export function renderTaskBoard(tasks: ReadonlyArray<Pick<TaskTicket, 'id' | 'de
 }
 
 function formatTaskLine(task: Pick<TaskTicket, 'id' | 'description' | 'status'>): string {
-  const checkbox = ['completed', 'merged', 'cancelled'].includes(task.status) ? '- [x]' : '- [ ]';
+  const checkbox = ['completed', 'merged', 'cancelled', 'superseded'].includes(task.status) ? '- [x]' : '- [ ]';
   return `${checkbox} ${task.description}${formatTaskBoardTicketComment(task.id)}`;
 }
 

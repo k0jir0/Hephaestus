@@ -171,13 +171,20 @@ afterEach(async () => {
 
       const detail = await fetchJson(`${url}/api/tickets/${seeded.awaitingApprovalId}`, 'viewer-token') as {
         ticket: { id: string; status: string };
-        derived: { currentPatch?: string; policySnapshots: unknown[]; patchDeltas: unknown[] };
+        derived: {
+          currentPatch?: string;
+          policySnapshots: unknown[];
+          patchDeltas: unknown[];
+          recoveryRecommendation: { family: string; recommendation: string };
+        };
       };
       assert.equal(detail.ticket.id, seeded.awaitingApprovalId);
       assert.equal(detail.ticket.status, 'awaiting_approval');
       assert.match(detail.derived.currentPatch ?? '', /diff --git/);
       assert.equal(detail.derived.policySnapshots.length, 1);
       assert.equal(detail.derived.patchDeltas.length, 1);
+      assert.equal(detail.derived.recoveryRecommendation.family, 'approval');
+      assert.match(detail.derived.recoveryRecommendation.recommendation, /human review/);
 
       const forbiddenApproval = await fetch(`${url}/api/tickets/${seeded.awaitingApprovalId}/approve`, {
         method: 'POST',
@@ -237,6 +244,7 @@ afterEach(async () => {
       });
       await fetchJson(`${url}/api/tickets/${seeded.blockedId}/retry`, 'operator-token', {
         method: 'POST',
+        body: JSON.stringify({ amendedDescription: 'Retry a blocked runtime with a narrower verification step' }),
       });
 
       const ticketAfterResume = await fetchJson(`${url}/api/tickets/${seeded.awaitingApprovalId}`, 'viewer-token') as {
@@ -244,6 +252,12 @@ afterEach(async () => {
       };
       assert.equal(ticketAfterResume.ticket.status, 'pending');
       assert.equal(ticketAfterResume.ticket.approval?.status, 'approved');
+
+      const retriedTicket = await fetchJson(`${url}/api/tickets/${seeded.blockedId}`, 'viewer-token') as {
+        ticket: { status: string; description: string };
+      };
+      assert.equal(retriedTicket.ticket.status, 'pending');
+      assert.equal(retriedTicket.ticket.description, 'Retry a blocked runtime with a narrower verification step');
 
       const chunkAfterCommands = await readSseChunk(reader);
       assert.match(chunkAfterCommands, /event: refresh/);

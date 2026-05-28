@@ -1,7 +1,7 @@
 {
   "name": "hephaestus",
   "version": "1.0.0",
-  "description": "Self-targeting AI automation demo agent",
+  "description": "Local-first AI engineering control plane for durable, policy-bounded software work",
   "main": "dist/agent.js",
   "type": "module",
   "scripts": {
@@ -27,11 +27,11 @@
   "keywords": [
     "ai",
     "automation",
-    "agent",
-    "autonomous",
+    "control-plane",
+    "workflow",
     "developer",
-    "copilot",
-    "demo",
+    "governance",
+    "tickets",
     "self-hosting"
   ],
   "author": "",

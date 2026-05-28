@@ -171,31 +171,97 @@ describe('TicketStoreRepository', () => {
     assert.equal(blockedTicket.status, 'blocked');
     await assert.rejects(fs.access(tasksFile), /ENOENT/);
 
-    const retriedTicket = await repository.retryTicket(blockedTicket.id);
+    const retriedTicket = await repository.retryTicket(blockedTicket.id, {
+      amendedDescription: 'Retry demo with narrower scope',
+    });
     assert.equal(retriedTicket.status, 'pending');
+    assert.equal(retriedTicket.description, 'Retry demo with narrower scope');
+    assert.equal(retriedTicket.plan, undefined);
+    assert.equal(retriedTicket.toolCalls, undefined);
+    assert.equal(retriedTicket.approval, undefined);
 
     const cancelledTicket = await repository.cancelTicket(pendingTicket.id, 'No longer needed');
     assert.equal(cancelledTicket.status, 'cancelled');
+
+    const supersededTicket = await repository.supersedeTicket(retriedTicket.id, 'Covered by a newer ticket');
+    assert.equal(supersededTicket.status, 'superseded');
 
     const allTickets = await repository.listTickets();
     assert.equal(allTickets.length, 2);
     assert.equal(
       allTickets.filter((ticket) => ticket.status === 'pending').length,
-      1
+      0
     );
     assert.equal(
       allTickets.filter((ticket) => ticket.status === 'cancelled').length,
       1
     );
+    assert.equal(
+      allTickets.filter((ticket) => ticket.status === 'superseded').length,
+      1
+    );
 
     const board = await repository.renderTaskBoardProjection();
     assert.match(board, /Build demo/);
-    assert.match(board, /Retry demo/);
+    assert.match(board, /Retry demo with narrower scope/);
 
     const events = await repository.listEvents(blockedTicket.id);
+    assert.ok(events.some((event) => event.type === 'amended'));
     assert.ok(events.some((event) => event.type === 'requeued'));
+    assert.ok(events.some((event) => event.type === 'superseded'));
 
     await repository.stop();
+  });
+
+  it('recovers stale active tickets on startup and retries them with a fresh attempt number', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const tasksFile = path.join(rootDir, 'TASKS.md');
+    const ticketStoreFile = path.join(rootDir, '.hephaestus-tickets.db');
+    const firstRepository = new TicketStoreRepository({
+      tasksFile,
+      storeFile: ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await firstRepository.createTicket('Recover a daemon crash');
+    await firstRepository.markTaskInProgress(ticket);
+    await firstRepository.stop();
+
+    const secondRepository = new TicketStoreRepository({
+      tasksFile,
+      storeFile: ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const recovered = await secondRepository.getTicket(ticket.id);
+    const recoveredAttempts = await secondRepository.listAttempts(ticket.id);
+    const recoveryEvents = await secondRepository.listEvents(ticket.id);
+
+    assert.equal(recovered?.status, 'stale');
+    assert.equal(recovered?.currentAttemptId, undefined);
+    assert.match(recovered?.error ?? '', /Recovered stale active ticket/);
+    assert.equal(recoveredAttempts.length, 1);
+    assert.equal(recoveredAttempts[0]?.status, 'stale');
+    assert.ok(recoveredAttempts[0]?.endedAt instanceof Date);
+    assert.ok(recoveryEvents.some((event) => event.type === 'stale-recovered'));
+
+    const retried = await secondRepository.retryTicket(ticket.id);
+    await secondRepository.markTaskInProgress(retried);
+    const retryAttempts = await secondRepository.listAttempts(ticket.id);
+
+    assert.equal(retried.status, 'pending');
+    assert.equal(retryAttempts.length, 2);
+    assert.deepEqual(
+      retryAttempts.map((attempt) => attempt.attemptNumber),
+      [1, 2]
+    );
+    assert.equal(retryAttempts[1]?.status, 'in_progress');
+
+    await secondRepository.stop();
   });
 
   it('rediscovers a pending ticket after the redispatch interval when admission leaves it queued', async () => {
@@ -294,6 +360,34 @@ describe('TicketStoreRepository', () => {
     assert.equal(healthyStatus.healthy, true);
     assert.equal(healthyStatus.retryScheduled, false);
     assert.ok(writes >= 2);
+
+    await repository.stop();
+  });
+
+  it('detects TASKS.md projection drift and repairs it from the canonical store', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const tasksFile = path.join(rootDir, 'TASKS.md');
+    const repository = new TicketStoreRepository({
+      tasksFile,
+      storeFile: path.join(rootDir, '.hephaestus-tickets.db'),
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: true,
+    });
+
+    await repository.createTicket('Detect projection drift');
+    await fs.writeFile(tasksFile, '# stale manual projection\n', 'utf-8');
+
+    const drifted = await repository.getProjectionDriftStatus();
+    const readiness = await repository.getRepositoryReadiness();
+    assert.equal(drifted.checked, true);
+    assert.equal(drifted.drifted, true);
+    assert.ok(readiness.some((issue) => issue.code === 'task-board-projection-drift'));
+
+    await repository.syncProjection();
+    const repaired = await repository.getProjectionDriftStatus();
+    assert.equal(repaired.drifted, false);
 
     await repository.stop();
   });

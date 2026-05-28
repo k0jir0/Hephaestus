@@ -45,7 +45,7 @@ describe('Operational SLO metrics', () => {
           startedAt: new Date('2026-05-27T00:00:02.000Z'),
           endedAt: new Date('2026-05-27T00:00:05.000Z'),
           result: 'done',
-          artifacts: [],
+          artifacts: ['[admission_1] backend.ollama model=codellama'],
         },
       ]],
       ['ticket_2', [
@@ -57,7 +57,7 @@ describe('Operational SLO metrics', () => {
           startedAt: new Date('2026-05-27T00:01:01.000Z'),
           endedAt: new Date('2026-05-27T00:01:05.000Z'),
           error: 'Backend timeout: transient failure',
-          artifacts: [],
+          artifacts: ['[admission_2] backend.ollama model=codellama'],
         },
         {
           id: 'attempt_2b',
@@ -67,7 +67,7 @@ describe('Operational SLO metrics', () => {
           startedAt: new Date('2026-05-27T00:01:09.000Z'),
           endedAt: new Date('2026-05-27T00:01:12.000Z'),
           result: 'done',
-          artifacts: [],
+          artifacts: ['[admission_3] backend.openai model=gpt-demo'],
         },
       ]],
       ['ticket_3', [
@@ -79,7 +79,7 @@ describe('Operational SLO metrics', () => {
           startedAt: new Date('2026-05-27T00:02:01.000Z'),
           endedAt: new Date('2026-05-27T00:02:04.000Z'),
           error: 'Patch requires approval before apply: patch touches 2 files',
-          artifacts: [],
+          artifacts: ['[admission_4] backend.ollama model=codellama'],
         },
       ]],
     ]);
@@ -102,7 +102,11 @@ describe('Operational SLO metrics', () => {
     assert.equal(metrics.awaitingApprovalTickets, 1);
     assert.equal(metrics.blockedRetrySuccessRatio, 1);
     assert.equal(metrics.executionFailureTaxonomyStability, 0.5);
+    assert.equal(metrics.backendReliability.ollama?.totalAttempts, 3);
+    assert.equal(metrics.backendReliability.ollama?.completedAttempts, 1);
+    assert.equal(metrics.backendReliability.openai?.successRatio, 1);
     assert.match(summary, /Average admission-to-start latency/);
     assert.match(summary, /backend timeout=1/);
+    assert.match(summary, /Backend reliability: ollama=1\/3 success/);
   });
 });

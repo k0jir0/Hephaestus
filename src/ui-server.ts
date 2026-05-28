@@ -3,7 +3,9 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
+import { exportPatchBundle } from './delivery.js';
 import { logger } from './logger.js';
+import { deriveRecoveryRecommendation } from './recovery-recommendation.js';
 import { computeOperationalSLOMetrics, type OperationalSLOMetrics } from './slo-metrics.js';
 import { TicketStoreRepository } from './task-store.js';
 import type {
@@ -39,6 +41,8 @@ interface UIPermissionSet {
   create: boolean;
   retry: boolean;
   cancel: boolean;
+  supersede: boolean;
+  exportBundle: boolean;
   approve: boolean;
   reject: boolean;
   resume: boolean;
@@ -284,7 +288,7 @@ export class UIServer {
         return;
       }
 
-      const ticketCommandMatch = url.pathname.match(/^\/api\/tickets\/([^/]+)\/(retry|cancel|approve|reject|resume)$/);
+      const ticketCommandMatch = url.pathname.match(/^\/api\/tickets\/([^/]+)\/(retry|cancel|supersede|export-bundle|approve|reject|resume)$/);
       if (request.method === 'POST' && ticketCommandMatch) {
         const ticketId = decodeURIComponent(ticketCommandMatch[1] ?? '');
         const command = ticketCommandMatch[2] ?? '';
@@ -312,7 +316,10 @@ export class UIServer {
   ): Promise<void> {
     if (command === 'retry') {
       this.requireRole(request, url, 'operator');
-      await this.repository.retryTicket(ticketId);
+      const payload = await this.readJsonBody(request, 8 * 1024);
+      await this.repository.retryTicket(ticketId, {
+        amendedDescription: optionalString(payload.amendedDescription),
+      });
       await this.broadcastRefresh('ticket-retried');
       this.respondJson(response, 200, await this.buildTicketDetailResponse(ticketId));
       return;
@@ -324,6 +331,29 @@ export class UIServer {
       await this.repository.cancelTicket(ticketId, optionalString(payload.reason) ?? 'Cancelled by operator.');
       await this.broadcastRefresh('ticket-cancelled');
       this.respondJson(response, 200, await this.buildTicketDetailResponse(ticketId));
+      return;
+    }
+
+    if (command === 'supersede') {
+      this.requireRole(request, url, 'operator');
+      const payload = await this.readJsonBody(request, 8 * 1024);
+      await this.repository.supersedeTicket(ticketId, optionalString(payload.reason) ?? 'Superseded by newer work.');
+      await this.broadcastRefresh('ticket-superseded');
+      this.respondJson(response, 200, await this.buildTicketDetailResponse(ticketId));
+      return;
+    }
+
+    if (command === 'export-bundle') {
+      this.requireRole(request, url, 'operator');
+      const payload = await this.readJsonBody(request, 8 * 1024);
+      const bundle = await exportPatchBundle(this.repository, ticketId, {
+        outputRoot: optionalString(payload.outputRoot),
+      });
+      await this.broadcastRefresh('ticket-bundle-exported');
+      this.respondJson(response, 200, {
+        delivery: bundle,
+        detail: await this.buildTicketDetailResponse(ticketId),
+      });
       return;
     }
 
@@ -538,6 +568,7 @@ export class UIServer {
     const artifacts = flattenArtifacts(attempts);
     const policySnapshots = extractPolicySnapshots(attempts);
     const patchDeltas = extractPatchDeltas(attempts);
+    const recoveryRecommendation = deriveRecoveryRecommendation(ticket, attempts);
 
     return {
       ticket,
@@ -548,6 +579,7 @@ export class UIServer {
         artifacts,
         policySnapshots,
         patchDeltas,
+        recoveryRecommendation,
         currentPatch: extractPatchFromToolCalls(ticket.toolCalls),
       },
     };
@@ -721,6 +753,8 @@ function getPermissionSet(role: UIRole): UIPermissionSet {
     create: roleRank[role] >= roleRank.operator,
     retry: roleRank[role] >= roleRank.operator,
     cancel: roleRank[role] >= roleRank.operator,
+    supersede: roleRank[role] >= roleRank.operator,
+    exportBundle: roleRank[role] >= roleRank.operator,
     approve: roleRank[role] >= roleRank.approver,
     reject: roleRank[role] >= roleRank.approver,
     resume: roleRank[role] >= roleRank.approver,

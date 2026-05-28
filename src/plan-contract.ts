@@ -7,6 +7,7 @@ import type {
   ToolCall,
   EngineeringToolName,
 } from './types.js';
+import { supportedTaskEnvelopeSummary } from './task-envelope.js';
 
 const changeTypes: PlannedFileChangeType[] = ['create', 'update', 'delete', 'inspect'];
 const changeTypeAliases: Record<string, PlannedFileChangeType> = {
@@ -24,14 +25,11 @@ const changeTypeAliases: Record<string, PlannedFileChangeType> = {
   review: 'inspect',
   analyze: 'inspect',
 };
-const engineeringToolNames: EngineeringToolName[] = [
+const executableToolNames: EngineeringToolName[] = [
   'repo.search',
   'file.read',
   'patch.apply',
   'command.run',
-  'git.branch',
-  'git.commit',
-  'github.pr',
 ];
 
 const toolNameAliases: Record<string, EngineeringToolName> = {
@@ -47,12 +45,6 @@ const toolNameAliases: Record<string, EngineeringToolName> = {
   'command.run': 'command.run',
   'run_command': 'command.run',
   'run': 'command.run',
-  'git.branch': 'git.branch',
-  'branch': 'git.branch',
-  'git.commit': 'git.commit',
-  'commit': 'git.commit',
-  'github.pr': 'github.pr',
-  'create_pr': 'github.pr',
 };
 
 const textObjectKeys = [
@@ -308,10 +300,10 @@ function parseToolCall(value: unknown, index: number): ToolCall {
   const nameRaw = requireStringFromKeys(value, ['name', 'tool'], `toolCalls[${index}].name`);
   const nameKey = normalizeLookupKey(nameRaw);
   const mapped = normalizedToolNameAliases.get(nameKey) ?? toolNameAliases[nameRaw] ?? undefined;
-  const finalName = mapped ?? (engineeringToolNames.includes(nameRaw as EngineeringToolName) ? (nameRaw as EngineeringToolName) : undefined);
+  const finalName = mapped ?? (executableToolNames.includes(nameRaw as EngineeringToolName) ? (nameRaw as EngineeringToolName) : undefined);
   if (!finalName) {
     throw new Error(
-      `toolCalls[${index}].name must be one of: ${engineeringToolNames.join(', ')}`
+      `toolCalls[${index}].name must be one of: ${executableToolNames.join(', ')}`
     );
   }
 
@@ -370,13 +362,15 @@ export function buildStructuredPlanPrompt(task: Task, context: string | undefine
     '}',
     '',
     'Rules:',
+    `- ${supportedTaskEnvelopeSummary()}`,
     '- Return JSON only. Do not wrap it in markdown unless the client forces it.',
     '- Use relative file paths when possible.',
     '- Keep commands limited to the smallest useful set.',
     '- If no files need changes, return an empty intendedFiles array.',
     '- If no commands are needed, return an empty commands array.',
     '- toolCalls may be empty when execution should remain plan-only.',
-    '- Valid toolCalls.name values are exactly: repo.search, file.read, patch.apply, command.run, git.branch, git.commit, github.pr.',
+    `- Valid toolCalls.name values are exactly: ${executableToolNames.join(', ')}.`,
+    '- Do not emit delivery or source-control actions such as git.branch, git.commit, or github.pr; this runtime keeps delivery outside the local execution envelope.',
     '- Only include toolCalls that are justified by the intendedFiles or commands in the same plan.',
     '- If intendedFiles contains any create, update, or delete entries, include matching governed toolCalls for those mutations instead of relying on plan-only file lists.',
     '- Use command.run only for safe verification commands that already exist in package.json: npm test, npm run test, npm run build, npm run validate:config, npm run preflight, npm run start:once, npm run tickets, npm run lint.',

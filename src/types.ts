@@ -15,7 +15,9 @@ export type TaskStatus =
   | 'merged'
   | 'blocked'
   | 'failed'
-  | 'cancelled';
+  | 'stale'
+  | 'cancelled'
+  | 'superseded';
 
 export type TaskAttemptStatus =
   | 'in_progress'
@@ -23,6 +25,7 @@ export type TaskAttemptStatus =
   | 'completed'
   | 'blocked'
   | 'failed'
+  | 'stale'
   | 'cancelled';
 
 export type AgentStatus = 'idle' | 'working' | 'error' | 'shutdown' | 'blocked' | 'paused';
@@ -62,7 +65,10 @@ export interface TaskEvent {
     | 'claimed'
     | 'completed'
     | 'blocked'
+    | 'stale-recovered'
     | 'cancelled'
+    | 'superseded'
+    | 'amended'
     | 'requeued'
     | 'attempt-started'
     | 'attempt-finished'

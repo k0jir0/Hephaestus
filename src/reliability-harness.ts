@@ -144,11 +144,25 @@ export async function runFaultInjectionHarness(): Promise<FaultHarnessReport> {
     try {
       const reopenedTicket = await reopenedRepository.getTicket(ticket.id);
       const attempts = await reopenedRepository.listAttempts(ticket.id);
+      const recoveredAsStale =
+        reopenedTicket?.status === 'stale' &&
+        attempts.some((attempt) => attempt.status === 'stale' && attempt.endedAt instanceof Date);
+      const retriedTicket = recoveredAsStale
+        ? await reopenedRepository.retryTicket(ticket.id)
+        : null;
+      if (retriedTicket) {
+        await reopenedRepository.markTaskInProgress(retriedTicket);
+      }
+      const attemptsAfterRetry = await reopenedRepository.listAttempts(ticket.id);
+      const retriedWithFreshAttempt =
+        retriedTicket?.status === 'pending' &&
+        attemptsAfterRetry.some((attempt) => attempt.attemptNumber === 2 && attempt.status === 'in_progress');
+
       scenarios.push({
         name: 'mid-transition-restart',
-        passed: reopenedTicket?.status === 'in_progress' && attempts.some((attempt) => attempt.status === 'in_progress'),
-        details: reopenedTicket?.status === 'in_progress'
-          ? 'Ticket and in-progress attempt survived repository restart.'
+        passed: recoveredAsStale && retriedWithFreshAttempt,
+        details: recoveredAsStale && retriedWithFreshAttempt
+          ? 'Stale active ticket was recovered truthfully and retried with a fresh active attempt.'
           : `Unexpected restarted ticket state: ${reopenedTicket?.status ?? 'missing ticket'}`,
       });
     } finally {

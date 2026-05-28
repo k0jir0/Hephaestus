@@ -30,6 +30,7 @@ const activeStatuses = new Set<TaskStatus>([
   'verifying',
   'blocked',
   'failed',
+  'stale',
 ]);
 const actionableVerbs = [
   'add',

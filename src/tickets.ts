@@ -2,6 +2,7 @@ import { TicketStoreRepository } from './task-store.js';
 import { SelfAuditSeeder } from './self-audit.js';
 import { computeOperationalSLOMetrics, formatOperationalSLOMetrics } from './slo-metrics.js';
 import { runTicketAutopilot } from './ticket-autopilot.js';
+import { exportPatchBundle } from './delivery.js';
 import type { TaskStatus } from './types.js';
 
 const validStatuses: TaskStatus[] = [
@@ -15,7 +16,9 @@ const validStatuses: TaskStatus[] = [
   'merged',
   'blocked',
   'failed',
+  'stale',
   'cancelled',
+  'superseded',
 ];
 
 function printUsage(): void {
@@ -25,12 +28,14 @@ Usage:
   npm run tickets -- create <description>
   npm run tickets -- list [--status <status>]
   npm run tickets -- show <ticket-id>
-  npm run tickets -- retry <ticket-id>
-  npm run tickets -- autopilot [--include-cancelled] [--no-self-audit] [--self-audit-limit <count>] [--dry-run]
+  npm run tickets -- retry <ticket-id> [--amend <description>]
+  npm run tickets -- autopilot [--include-cancelled] [--no-self-audit] [--self-audit-limit <count>] [--max-attempts <count>] [--dry-run]
   npm run tickets -- approve <ticket-id> <reviewer> [reason]
   npm run tickets -- reject <ticket-id> <reviewer> [reason]
   npm run tickets -- resume <ticket-id>
   npm run tickets -- cancel <ticket-id> [reason]
+  npm run tickets -- supersede <ticket-id> [reason]
+  npm run tickets -- export-bundle <ticket-id> [--out <directory>]
   npm run tickets -- attempts <ticket-id>
   npm run tickets -- self-audit [--limit <count>] [--dry-run]
   npm run tickets -- metrics
@@ -192,8 +197,12 @@ async function main(): Promise<void> {
           throw new Error('retry requires a ticket id.');
         }
 
-        const ticket = await repository.retryTicket(ticketId);
+        const amendedDescription = parseOption(args, '--amend');
+        const ticket = await repository.retryTicket(ticketId, { amendedDescription });
         console.log(`Retried ${ticket.id}; new status: ${ticket.status}`);
+        if (amendedDescription) {
+          console.log(`Amended description: ${ticket.description}`);
+        }
         break;
       }
 
@@ -205,6 +214,7 @@ async function main(): Promise<void> {
           parseOption(args, '--self-audit-limit'),
           '--self-audit-limit'
         );
+        const maxAttempts = parsePositiveInteger(parseOption(args, '--max-attempts'), '--max-attempts');
         const result = await runTicketAutopilot(
           {
             repository,
@@ -215,6 +225,7 @@ async function main(): Promise<void> {
             dryRun,
             seedSelfAuditWhenIdle,
             selfAuditLimit,
+            maxAttempts,
           }
         );
 
@@ -227,6 +238,10 @@ async function main(): Promise<void> {
 
         for (const ticket of result.requeued) {
           console.log(`${dryRun ? 'Would requeue' : 'Requeued'} ${ticket.id} ${ticket.description}`);
+        }
+
+        for (const ticket of result.skippedRetryCap) {
+          console.log(`Skipped retry cap ${ticket.id} attempts=${ticket.attemptCount} ${ticket.description}`);
         }
 
         if (result.selfAudit) {
@@ -305,6 +320,34 @@ async function main(): Promise<void> {
         const reason = args.slice(1).join(' ').trim() || undefined;
         const ticket = await repository.cancelTicket(ticketId, reason);
         console.log(`Cancelled ${ticket.id}; new status: ${ticket.status}`);
+        break;
+      }
+
+      case 'supersede': {
+        const ticketId = args[0];
+        if (!ticketId) {
+          throw new Error('supersede requires a ticket id.');
+        }
+
+        const reason = args.slice(1).join(' ').trim() || undefined;
+        const ticket = await repository.supersedeTicket(ticketId, reason);
+        console.log(`Superseded ${ticket.id}; new status: ${ticket.status}`);
+        break;
+      }
+
+      case 'export-bundle': {
+        const ticketId = args[0];
+        if (!ticketId) {
+          throw new Error('export-bundle requires a ticket id.');
+        }
+
+        const bundle = await exportPatchBundle(repository, ticketId, {
+          outputRoot: parseOption(args, '--out'),
+        });
+        console.log(`Exported ${bundle.patchCount} patch(es) for ${ticketId}`);
+        console.log(`Bundle: ${bundle.outputDir}`);
+        console.log(`Patch: ${bundle.patchFile}`);
+        console.log(`Manifest: ${bundle.manifestFile}`);
         break;
       }
 

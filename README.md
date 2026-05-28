@@ -2,7 +2,7 @@
 
 Hephaestus is a local-first AI engineering workflow product for turning queued software work into inspectable, policy-gated execution plans. It keeps canonical ticket state in a local SQLite store, can project that state into an operator-facing board view, gathers repository context, routes work through configurable AI backends, and records structured plans plus visible state transitions so operators can see how work moves from intake to attempted execution.
 
-This repository is configured to run Hephaestus on itself by default. That makes it useful as a GitHub-ready demo of AI automation with visible guardrails instead of an opaque “magic agent” claim.
+This repository is configured to run Hephaestus on itself by default. That makes it useful as a GitHub-ready demonstration of governed AI engineering workflow instead of an opaque "magic agent" claim.
 
 ## What It Demonstrates
 
@@ -14,7 +14,7 @@ This repository is configured to run Hephaestus on itself by default. That makes
 - Structured planning contracts with intended files, commands, verification, and risks
 - Typed engineering tool runtime for bounded reads, search, patch validation/application, and allowlisted commands
 - Ticket-store-backed repository adapters with markdown projection and bounded fixture smoke coverage
-- Repository context gathering from `package.json`, `README.md`, and git status
+- Repository context gathering from `package.json`, `README.md`, focused file ranking, selected file indexes, and git status
 - Pluggable AI backends for GitHub Copilot CLI, OpenAI, Claude, and Ollama
 - Guardrails for budget, iteration count, error thresholds, and optional auto-commit
 - Persistent state tracking in `AGENT.md`
@@ -22,7 +22,7 @@ This repository is configured to run Hephaestus on itself by default. That makes
 
 ## Current Scope
 
-Hephaestus is intentionally a safe demo project. It orchestrates tasks and records typed execution plans, but it does not yet apply code edits through a sandboxed tool runtime. That keeps the automation flow auditable while still exposing the plan the agent intends to follow.
+Hephaestus is intentionally a local-first engineering control plane, not a general autonomous programmer. It can execute bounded read/search/patch/verification plans through the governed tool runtime, pauses for approval on risky mutations, records durable attempts and artifacts, and exports local patch bundles for developer review.
 
 ## Quick Start
 
@@ -122,7 +122,10 @@ npm run tickets -- show ticket_abc123
 npm run tickets -- approve ticket_abc123 approver@example.com "Looks safe to resume"
 npm run tickets -- resume ticket_abc123
 npm run tickets -- retry ticket_abc123
+npm run tickets -- retry ticket_abc123 --amend "Retry with a narrower file target"
 npm run tickets -- cancel ticket_abc123 "Superseded by ticket_456"
+npm run tickets -- supersede ticket_abc123 "Covered by a newer ticket"
+npm run tickets -- export-bundle ticket_abc123
 npm run tickets -- attempts ticket_abc123
 npm run tickets -- render-board
 ```
@@ -148,7 +151,7 @@ Hephaestus requires Node.js 22.5 or newer because the default ticket store uses 
 
 ## Tool Runtime
 
-The first typed engineering tools live behind a policy runtime. It supports bounded repository search, protected-path-aware file reads, patch dry-runs and application through `git apply`, and exact allowlisted verification commands. Delivery tools for branches, commits, and pull requests are defined but fail closed until approval-backed adapters are added.
+The typed engineering tools live behind a policy runtime. It supports bounded repository search, protected-path-aware file reads, patch dry-runs and application through `git apply`, and exact allowlisted verification commands. Branch, commit, and PR delivery remain fail-closed; the supported delivery path is a local patch bundle with manifest provenance for developer review.
 
 ## Architecture
 

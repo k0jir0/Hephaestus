@@ -206,6 +206,23 @@ describe('parseTaskPlan', () => {
     assert.equal(parsed.toolCalls[0]?.arguments.path, 'src/runtime.ts');
   });
 
+  it('rejects delivery tool calls outside the local execution envelope', () => {
+    assert.throws(
+      () =>
+        parseStructuredExecutionResponse(`{
+          "summary": "Open a pull request.",
+          "intendedFiles": [],
+          "commands": [],
+          "toolCalls": [
+            { "name": "github.pr", "arguments": { "title": "Demo" } }
+          ],
+          "verification": ["Ask the operator to deliver the change"],
+          "risks": []
+        }`),
+      /repo\.search, file\.read, patch\.apply, command\.run/
+    );
+  });
+
   it('rejects a payload without verification steps', () => {
     assert.throws(
       () =>
@@ -238,7 +255,10 @@ describe('buildStructuredPlanPrompt', () => {
     assert.match(prompt, /"toolCalls"/);
     assert.match(prompt, /README excerpt/);
     assert.match(prompt, /Project path: \./);
+    assert.match(prompt, /Supported task classes/);
     assert.match(prompt, /Valid toolCalls.name values are exactly/);
+    assert.doesNotMatch(prompt, /Valid toolCalls\.name values are exactly: .*github\.pr/);
+    assert.match(prompt, /Do not emit delivery or source-control actions/);
     assert.match(prompt, /Use command.run only for safe verification commands/);
   });
 });

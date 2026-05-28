@@ -15,7 +15,8 @@ function makeApproval(status: TaskApprovalState['status']): TaskApprovalState {
 function makeTicket(
   id: string,
   status: TaskTicket['status'],
-  approval?: TaskApprovalState
+  approval?: TaskApprovalState,
+  attemptCount = 0
 ): TaskTicket {
   return {
     id,
@@ -23,7 +24,7 @@ function makeTicket(
     status,
     createdAt: new Date(),
     updatedAt: new Date(),
-    attemptCount: 0,
+    attemptCount,
     sourceOrder: 1,
     approval,
   };
@@ -44,6 +45,7 @@ describe('runTicketAutopilot', () => {
             return [
               makeTicket('ticket_blocked', 'blocked'),
               makeTicket('ticket_failed', 'failed'),
+              makeTicket('ticket_stale', 'stale'),
               makeTicket('ticket_resume', 'awaiting_approval', makeApproval('approved')),
             ];
           },
@@ -73,13 +75,44 @@ describe('runTicketAutopilot', () => {
       {}
     );
 
-    assert.deepEqual(calls.retried, ['ticket_blocked', 'ticket_failed']);
+    assert.deepEqual(calls.retried, ['ticket_blocked', 'ticket_failed', 'ticket_stale']);
     assert.deepEqual(calls.resumed, ['ticket_resume']);
     assert.equal(calls.seeded, 0);
     assert.equal(result.runnableTicketCount, 0);
     assert.equal(result.awaitingApprovalCount, 0);
-    assert.equal(result.requeued.length, 2);
+    assert.equal(result.requeued.length, 3);
     assert.equal(result.resumed.length, 1);
+    assert.equal(result.queueReady, true);
+  });
+
+  it('caps futile retries and leaves exhausted tickets for operator review', async () => {
+    const calls = {
+      retried: [] as string[],
+    };
+
+    const result = await runTicketAutopilot(
+      {
+        repository: {
+          async listTickets() {
+            return [
+              makeTicket('ticket_retry', 'blocked', undefined, 2),
+              makeTicket('ticket_exhausted', 'blocked', undefined, 3),
+            ];
+          },
+          async retryTicket(ticketId: string) {
+            calls.retried.push(ticketId);
+            return makeTicket(ticketId, 'pending');
+          },
+          async resumeApprovedTicket() {
+            throw new Error('resumeApprovedTicket should not be called for blocked tickets');
+          },
+        },
+      },
+      { maxAttempts: 3 }
+    );
+
+    assert.deepEqual(calls.retried, ['ticket_retry']);
+    assert.deepEqual(result.skippedRetryCap.map((ticket) => ticket.id), ['ticket_exhausted']);
     assert.equal(result.queueReady, true);
   });
 

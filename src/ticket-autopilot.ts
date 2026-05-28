@@ -9,7 +9,7 @@ const runnableStatuses = new Set<TaskStatus>([
   'verifying',
 ]);
 
-const retryableStatuses = new Set<TaskStatus>(['blocked', 'failed']);
+const retryableStatuses = new Set<TaskStatus>(['blocked', 'failed', 'stale']);
 
 export interface TicketAutopilotRepository {
   listTickets(status?: TaskStatus | 'all'): Promise<TaskTicket[]>;
@@ -26,6 +26,7 @@ export interface TicketAutopilotOptions {
   dryRun?: boolean;
   seedSelfAuditWhenIdle?: boolean;
   selfAuditLimit?: number;
+  maxAttempts?: number;
 }
 
 export interface TicketAutopilotResult {
@@ -33,6 +34,7 @@ export interface TicketAutopilotResult {
   awaitingApprovalCount: number;
   resumed: TaskTicket[];
   requeued: TaskTicket[];
+  skippedRetryCap: TaskTicket[];
   selfAudit: SelfAuditSeedResult | null;
   queueReady: boolean;
 }
@@ -73,9 +75,12 @@ export async function runTicketAutopilot(
   const runnableTicketCount = tickets.filter(isRunnableTicket).length;
   const awaitingApprovalCount = tickets.filter(isPendingOperatorApproval).length;
   const resumableTickets = tickets.filter(isApprovedAwaitingApproval);
-  const retryableTickets = tickets.filter(
+  const retryAttemptLimit = options.maxAttempts ?? 3;
+  const retryCandidates = tickets.filter(
     (ticket) => retryableStatuses.has(ticket.status) || (options.includeCancelled && ticket.status === 'cancelled')
   );
+  const retryableTickets = retryCandidates.filter((ticket) => ticket.attemptCount < retryAttemptLimit);
+  const skippedRetryCap = retryCandidates.filter((ticket) => ticket.attemptCount >= retryAttemptLimit);
 
   const resumed: TaskTicket[] = [];
   for (const ticket of resumableTickets) {
@@ -113,6 +118,7 @@ export async function runTicketAutopilot(
     awaitingApprovalCount,
     resumed,
     requeued,
+    skippedRetryCap,
     selfAudit,
     queueReady: queueReady || (selfAudit?.created.length ?? 0) > 0,
   };

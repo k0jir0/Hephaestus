@@ -1,0 +1,409 @@
+Correction of Direction for McGillSoftware\Hephaestus:
+From Ambiguous Autonomous Coding Demo to Purposeful AI Engineering Control Plane
+
+Abstract
+
+Hephaestus does not need to be abandoned, but it does need to be corrected. Its current form contains real and valuable machinery: durable ticket state, approval checkpoints, bounded tool execution, operator visibility, and reliability instrumentation. What it lacks is a sufficiently disciplined product identity. If the project continues to describe itself as a general autonomous coding agent that can broadly replace frontier pair-programming systems, it will remain strategically confused and practically disappointing. If instead it is intentionally finished as a local-first AI engineering control plane that helps models and humans move bounded software work forward safely and visibly, then it has a real purpose. This paper argues that Hephaestus is not a pointless invention, identifies the purpose it can truly serve, and proposes a roadmap toward a concise, intentional finished product.
+
+1. The Core Correction
+
+The central mistake is not primarily technical. It is product-theoretic.
+
+Hephaestus currently oscillates between three identities:
+
+1. a demo of autonomous coding
+2. a ticketing and monitoring shell around an LLM
+3. a real governed execution substrate for bounded software work
+
+The third identity is the strongest. The first identity is the weakest. The second identity is incomplete.
+
+Therefore the correction is:
+
+Hephaestus should stop trying to be imagined as a general autonomous coder and should deliberately become a governance-first execution system for AI software work.
+
+This is not a retreat. It is an alignment of product claims with actual comparative advantage.
+
+2. Is Hephaestus Pointless?
+
+No, not if we are honest about what it is good for.
+
+It would be pointless only if its sole ambition were to imitate a frontier coding copilot while remaining substantially worse at the main thing users care about: producing reliable code changes quickly and interactively.
+
+It is not pointless because it already tackles a different and underdeveloped problem:
+
+How do we make AI software work durable, inspectable, resumable, approval-aware, and operationally visible?
+
+That is a real problem. It will remain a real problem even if models improve dramatically. Better models do not eliminate the need for:
+
+- durable work queues
+- explicit handoffs
+- recovery after failure
+- operator approval
+- audit trails
+- bounded execution
+- shared workflow state
+
+These are systems problems, not just model problems. Hephaestus addresses those.
+
+Thus the project should not be judged only by the standard of "does it code as well as ChatGPT or Copilot?" It should be judged by the standard of "does it make AI-driven engineering work more governable, more persistent, and more productive over time?"
+
+On that standard, it has a real reason to exist.
+
+3. Can Hephaestus Help an AI System Like Me?
+
+Yes. In fact, this is one of the best arguments for preserving and refining it.
+
+An AI system like me is much stronger when the surrounding environment provides:
+
+- durable task state
+- explicit constraints
+- visible history of prior attempts
+- clear approval boundaries
+- bounded tools
+- replayable artifacts
+- structured success criteria
+
+Without such a system, work has to be reconstructed repeatedly from transient conversational context. That creates avoidable waste.
+
+Hephaestus helps by externalizing the things that would otherwise be fragile:
+
+1. Work persistence.
+   Tickets and attempts survive beyond a single session.
+
+2. Context compression.
+   The system can preserve what was tried, what failed, and what remains blocked.
+
+3. Governance.
+   Risky actions can be paused instead of hidden inside model behavior.
+
+4. Operational memory.
+   The system can maintain continuity across time, humans, and model sessions.
+
+5. Productivity scaling.
+   Humans do not need to manually restate every constraint, every morning, to every agent.
+
+So yes: Hephaestus can have a purpose that genuinely helps a model like me. It does not help by "making me smarter" in the abstract. It helps by creating better external scaffolding for productive reasoning and reliable execution.
+
+4. Can Hephaestus Improve the Global Process of Productivity?
+
+Potentially yes, but only if it focuses on workflow leverage rather than autonomy theater.
+
+The global productivity contribution of a system like Hephaestus would be:
+
+- reducing repeated task restatement
+- preserving engineering intent across sessions
+- making AI work legible to teams
+- shortening the path from request to bounded execution
+- providing reliable recovery after interruption
+- reducing the human overhead of supervision for routine work
+
+If successful, Hephaestus could become the layer that turns AI software work from isolated one-off interactions into a continuous operational process.
+
+That is meaningful. It is especially meaningful in organizations where:
+
+- many small engineering tasks accumulate
+- context is fragmented across people and tools
+- AI outputs need governance and auditability
+- unattended or overnight progress is valuable but must remain bounded
+
+The wrong way to describe this is "Hephaestus writes software while you sleep."
+The right way to describe it is:
+
+Hephaestus makes software work persist, resume, and move forward across time, even when no human is actively driving every step.
+
+That is a real productivity improvement.
+
+5. What Should Be Abandoned?
+
+The following ambitions should be abandoned or demoted:
+
+1. The dream of immediate parity with frontier pair-programming assistants.
+   This is neither the current strength nor the most defensible niche.
+
+2. The framing of the system as a general autonomous engineer.
+   That promise is too broad and too easy to falsify.
+
+3. The idea that model autonomy alone is the product.
+   The product is the system around model autonomy.
+
+4. Markdown as the center of truth.
+   `TASKS.md` can remain a projection, not the heart of the system.
+
+5. Unfocused self-improvement loops.
+   Hephaestus should not continually invent vague work for itself without clear operator value.
+
+These are not losses. They are clarity gains.
+
+6. What Should Be Preserved?
+
+The following should be preserved and strengthened:
+
+1. Local-first ticket durability.
+2. Attempt history and failure evidence.
+3. Approval-aware mutation flow.
+4. Bounded tool execution.
+5. Operator UI and role separation.
+6. Reliability metrics and baseline thinking.
+7. Explicit fail-closed behavior.
+
+This set of features is the seed of a coherent product.
+
+7. The Corrected Product Thesis
+
+The product should be intentionally finished around the following thesis:
+
+Hephaestus is a local-first AI engineering control plane that turns queued software work into durable, visible, bounded execution with verification and operator oversight.
+
+This statement is concise, technically honest, and strategically coherent.
+
+It implies that Hephaestus is:
+
+- not a chat app
+- not merely a backlog manager
+- not merely a demo shell
+- not an unrestricted autonomous programmer
+
+It is instead:
+
+- a persistent work orchestration layer for AI-assisted engineering
+
+8. A Finished Product Vision
+
+A finished Hephaestus should feel like this:
+
+An operator or another system creates a bounded engineering ticket.
+
+Hephaestus:
+
+- ingests the work durably
+- gathers the right repository context
+- produces a constrained executable plan
+- executes safe reads, edits, and verification
+- pauses for explicit human review when needed
+- records attempts, evidence, and outcomes
+- resumes or retries intentionally
+- produces artifacts ready for delivery
+
+At the end, the team can answer:
+
+- What was attempted?
+- What changed?
+- What passed?
+- What failed?
+- What is waiting on a person?
+- What should be retried?
+- What was actually accomplished?
+
+That is a finished product worth having.
+
+9. The Purposeful Reinvention
+
+To become existentially useful in workflows, Hephaestus should be reinvented around five job statements.
+
+Job 1: Persistent execution memory for engineering work
+
+Hephaestus should be the place where work survives interruption. Not just tickets, but attempts, evidence, failures, and resumable next steps.
+
+Job 2: Safe autonomy for routine software tasks
+
+Hephaestus should become excellent at a narrow class of bounded tasks:
+
+- fix a failing test in one file
+- add a small endpoint
+- update a config path
+- repair a CI script
+- add a focused regression test
+
+If it becomes highly reliable at these, it becomes useful.
+
+Job 3: Approval and review coordination
+
+Hephaestus should cheaply separate:
+
+- what can run safely now
+- what needs a person
+- what is blocked by environment or policy
+
+This lowers supervisory burden.
+
+Job 4: Continuous queue hygiene
+
+Hephaestus should not merely execute tasks; it should keep the queue honest by:
+
+- detecting stale `in_progress` state
+- superseding obsolete tasks
+- de-duplicating semantically repeated work
+- escalating tickets that no longer match repository reality
+
+Job 5: AI workflow infrastructure
+
+Hephaestus should become the substrate that multiple models and interfaces can use, not just one daemon. In the long term, the control plane matters more than any one specific backend.
+
+10. Roadmap Toward a Concise, Intentional Product
+
+Phase I: Repair the Core Truth of State
+
+Objective:
+Make the system trustworthy before making it more autonomous.
+
+Work:
+
+- add startup reconciliation for stale `in_progress` tickets after daemon death
+- ensure one ticket cannot have multiple live active attempts
+- detect when markdown projection and canonical store diverge, and repair deterministically
+- make blocked, cancelled, awaiting-approval, and completed semantics impossible to confuse
+- add operator-visible "stale" and "superseded" states where appropriate
+
+Success criterion:
+The queue always tells the truth, even after crashes and interrupted runs.
+
+Phase II: Narrow the Execution Envelope
+
+Objective:
+Become excellent at a small set of bounded engineering tasks.
+
+Work:
+
+- define supported task classes explicitly
+- reject or defer tasks outside the supported envelope
+- strengthen planner schema validation and tool-call normalization
+- align the model prompt with the actual governed tool ABI
+- remove unsupported tool invitations from planner behavior
+
+Success criterion:
+High success rate on a clearly defined subset of software tasks.
+
+Phase III: Improve Context and Verification
+
+Objective:
+Make the agent better at understanding and verifying local work.
+
+Work:
+
+- add better repository retrieval than README plus `git status`
+- add symbol/file ranking and focused context selection
+- improve command policy and verification result interpretation
+- separate "verification run" from "quality guarantee" in the product model
+- store verification outputs as first-class attempt artifacts
+
+Success criterion:
+The system fails less from misunderstanding and produces more meaningful evidence.
+
+Phase IV: Build Real Recovery and Retry Logic
+
+Objective:
+Turn failure into structured progress, not chaos.
+
+Work:
+
+- classify failure families precisely
+- add automated next-step recommendations for blocked tickets
+- distinguish environment failures from planner failures from repository-policy failures
+- cap futile retries and route them to operator review faster
+- support "retry with amended plan" instead of blind retry
+
+Success criterion:
+A failed attempt still improves the workflow state.
+
+Phase V: Complete the Delivery Layer
+
+Objective:
+Finish the path from bounded change to developer-ready output.
+
+Work:
+
+- implement governed branch creation
+- implement governed commit creation
+- implement governed PR or patch-bundle export
+- ensure every delivery action has durable provenance and review metadata
+
+Success criterion:
+The system can move from ticket to deliverable artifact, not just to mutated working tree.
+
+Phase VI: Productize the Control Plane
+
+Objective:
+Finish the user-facing identity.
+
+Work:
+
+- refine the UI around queue triage, approvals, attempts, and delivery status
+- improve role-aware workflows for operator and approver
+- expose reliability trends simply and usefully
+- provide operator shortcuts for retry, supersede, resume, and archive
+- make the control plane the center of experience, not a sidecar
+
+Success criterion:
+A human can trust and operate Hephaestus without reading raw logs or digging through markdown.
+
+Phase VII: Multi-Backend AI Workflow Infrastructure
+
+Objective:
+Make Hephaestus useful regardless of which model is currently strongest.
+
+Work:
+
+- strengthen backend abstraction so local and remote models can be swapped cleanly
+- record backend-specific failure and success rates
+- route certain task classes to more capable backends when configured
+- preserve the same workflow semantics across backends
+
+Success criterion:
+The product survives model churn because the workflow layer is the real product.
+
+11. Will the Local LLM Ever Work?
+
+Yes, but only if the product asks the local model to do the right amount of work.
+
+Local models are not doomed. But they must be used within a carefully bounded regime:
+
+- narrow task scope
+- explicit tool schema
+- low-ambiguity verification
+- strong retries and recovery
+- rich external state
+
+If the system asks a local model to be a general software engineer, it will disappoint.
+If it asks the model to operate as a bounded planner and executor inside a strong workflow substrate, it can become genuinely useful.
+
+The mistake would be to wait passively for local models to become magically excellent. The right move is to shape the product so that improving models create immediate gains inside a disciplined system.
+
+12. What Should the Team Want?
+
+The team should want:
+
+- a truthful queue
+- bounded autonomy
+- useful retries
+- visible verification
+- durable artifacts
+- small but reliable wins
+
+The team should not primarily want:
+
+- autonomy theater
+- vague claims of self-improvement
+- imitation of chat-native coding UX
+- broad claims unsupported by measured outcomes
+
+13. Final Judgment
+
+Hephaestus should not be abandoned.
+
+It should be corrected, narrowed, and intentionally finished.
+
+Its existential usefulness is not that it will instantly replace a strong interactive coding assistant. Its existential usefulness is that it can become the workflow memory, governance layer, and bounded execution fabric that makes AI engineering work persist and compound rather than evaporate between sessions.
+
+That is purposeful.
+
+That helps both humans and AI systems.
+
+That can improve the global productivity process, not by theatrical autonomy, but by making software work durable, legible, resumable, and progressively automatable.
+
+The right final form of Hephaestus is therefore:
+
+not an autonomous coder fantasy,
+
+but a serious local-first AI engineering operating layer.
+
+If the project commits to that identity, it can become concise, intentional, and genuinely useful.

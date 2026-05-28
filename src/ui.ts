@@ -364,6 +364,7 @@ function buildStyles(): string {
     }
 
     .status-pill.awaiting_approval,
+    .status-pill.stale,
     .signal-pill.warning {
       color: var(--warning);
     }
@@ -376,6 +377,7 @@ function buildStyles(): string {
 
     .status-pill.completed,
     .status-pill.merged,
+    .status-pill.superseded,
     .signal-pill.success {
       color: var(--success);
     }
@@ -1083,9 +1085,18 @@ function buildClientScript(): string {
       const approval = ticket.approval || null;
       const actionButtons = [];
 
-      if (commands.retry && (ticket.status === 'blocked' || ticket.status === 'failed' || ticket.status === 'cancelled')) {
+      if (commands.retry && (ticket.status === 'blocked' || ticket.status === 'failed' || ticket.status === 'stale' || ticket.status === 'cancelled')) {
         actionButtons.push(actionButton('Retry Ticket', 'ghost-button', function () {
           return runCommand('/api/tickets/' + encodeURIComponent(ticket.id) + '/retry', 'Retry this ticket?');
+        }));
+        actionButtons.push(actionButton('Retry With Amendment', 'ghost-button', async function () {
+          const amendedDescription = window.prompt('Amended ticket description', ticket.description);
+          if (amendedDescription === null || amendedDescription.trim() === '') {
+            return;
+          }
+          await runCommand('/api/tickets/' + encodeURIComponent(ticket.id) + '/retry', null, {
+            amendedDescription: amendedDescription,
+          });
         }));
       }
 
@@ -1096,6 +1107,22 @@ function buildClientScript(): string {
             return;
           }
           await runCommand('/api/tickets/' + encodeURIComponent(ticket.id) + '/cancel', null, { reason: reason });
+        }));
+      }
+
+      if (commands.supersede && ticket.status !== 'completed' && ticket.status !== 'merged' && ticket.status !== 'superseded') {
+        actionButtons.push(actionButton('Supersede Ticket', 'ghost-button', async function () {
+          const reason = window.prompt('Supersession reason', 'Superseded by newer work.');
+          if (reason === null) {
+            return;
+          }
+          await runCommand('/api/tickets/' + encodeURIComponent(ticket.id) + '/supersede', null, { reason: reason });
+        }));
+      }
+
+      if (commands.exportBundle) {
+        actionButtons.push(actionButton('Export Patch Bundle', 'ghost-button', function () {
+          return runCommand('/api/tickets/' + encodeURIComponent(ticket.id) + '/export-bundle', 'Export a local patch bundle for this ticket?');
         }));
       }
 
@@ -1127,6 +1154,7 @@ function buildClientScript(): string {
             '<div class="action-row">' + actionButtons.join('') + '</div>' +
           '</div>' +
           approvalSummary +
+          renderRecoveryBlock(detail) +
           renderPatchBlock(detail) +
           '<div class="split-tight">' +
             '<div class="detail-block"><h3>Attempts</h3>' + renderAttempts(detail.attempts || []) + '</div>' +
@@ -1154,6 +1182,20 @@ function buildClientScript(): string {
         blocks.push('<div class="detail-block"><h3>Patch Delta</h3><pre>' + escapeHtml(JSON.stringify(derived.patchDeltas, null, 2)) + '</pre></div>');
       }
       return blocks.join('');
+    }
+
+    function renderRecoveryBlock(detail) {
+      const recommendation = detail.derived && detail.derived.recoveryRecommendation;
+      if (!recommendation || recommendation.source === 'none') {
+        return '';
+      }
+
+      return '<div class="detail-block"><h3>Recovery Recommendation</h3><div class="detail-list">' +
+        detailItem('Failure Family', recommendation.family || 'unknown') +
+        detailItem('Retryable', recommendation.retryable ? 'yes' : 'no') +
+        detailItem('Source', recommendation.source || '-') +
+        detailItem('Recommendation', recommendation.recommendation || '-') +
+      '</div></div>';
     }
 
     function renderAttempts(attempts) {
@@ -1304,6 +1346,15 @@ function buildClientScript(): string {
       cards.push(metricCard('Taxonomy Stability', formatRatio(metrics.executionFailureTaxonomyStability), 'Dominant failure taxonomy share across attempts.'));
       cards.push(metricCard('Completed', String(metrics.completedTickets), 'Tickets in completed state.'));
       cards.push(metricCard('Awaiting Approval', String(metrics.awaitingApprovalTickets), 'Pending high-risk operator reviews.'));
+      const backendEntries = Object.entries(metrics.backendReliability || {});
+      if (backendEntries.length) {
+        const bestBackend = backendEntries
+          .slice()
+          .sort(function (left, right) {
+            return (Number(right[1].successRatio) || 0) - (Number(left[1].successRatio) || 0);
+          })[0];
+        cards.push(metricCard('Best Backend', bestBackend[0] + ' ' + formatRatio(bestBackend[1].successRatio), 'Backend success ratio across recorded attempts.'));
+      }
       byId('reliability-cards').innerHTML = cards.join('');
 
       byId('baseline-comparisons').innerHTML = comparisons.length
@@ -1498,8 +1549,10 @@ export function renderUIHtml(title = 'Hephaestus Control Plane'): string {
               <option value="in_progress">In progress</option>
               <option value="awaiting_approval">Awaiting approval</option>
               <option value="blocked">Blocked</option>
+              <option value="stale">Stale</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
+              <option value="superseded">Superseded</option>
             </select>
           </section>
 
