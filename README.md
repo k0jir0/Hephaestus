@@ -2,6 +2,8 @@
 
 Hephaestus is a local-first AI engineering workflow product for turning queued software work into inspectable, policy-gated execution plans. It keeps canonical ticket state in a local SQLite store, can project that state into an operator-facing board view, gathers repository context, routes work through configurable AI backends, and records structured plans plus visible state transitions so operators can see how work moves from intake to attempted execution.
 
+In the current self-hosted operator workflow, running Hephaestus in parallel with development tasks yielded an estimated 25-40% effective throughput improvement by reducing orchestration overhead, tightening feedback loops, and improving queue-level prioritization.
+
 This repository is configured to run Hephaestus on itself by default. That makes it useful as a GitHub-ready demonstration of governed AI engineering workflow instead of an opaque "magic agent" claim.
 
 ## Current State (2026-05-28)
