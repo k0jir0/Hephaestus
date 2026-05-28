@@ -125,6 +125,9 @@ That means the agent reads and reasons about this repository itself. To point it
 - `npm run dev` runs the agent directly from source with `tsx`
 - `npm run dev:once` runs a single-pass source-mode demo
 - `npm run tickets -- <command>` creates, lists, retries, and inspects canonical tickets
+- `npm run models:report` prints the active model profile, installed Ollama models, and upgrade recommendations
+- `npm run models:smoke -- <model>` checks whether a local Ollama model can return strict JSON
+- `npm run models:benchmark -- --models codellama:latest,gpt-oss:20b,qwen3-coder:30b` compares candidate models on small agent-discipline checks
 - `npm test` runs contract, repository, runtime, and smoke tests
 
 ## Task Lifecycle
@@ -244,6 +247,21 @@ GitHub Actions runs the TypeScript build and the unit tests on every push and pu
 - `openai` for OpenAI chat completions
 - `claude` for Anthropic models
 - `ollama` for local model execution
+
+## Local Model Upgrades
+
+Hephaestus treats local model selection as an evidence problem, not a branding problem. The active `AI_MODEL` is resolved against built-in profiles for `codellama`, `gpt-oss`, and `qwen3-coder`, then exposed through config validation, `/health`, `/api/model-status`, and the operations UI.
+
+Recommended upgrade path:
+
+```bash
+npm run models:report
+ollama pull qwen3-coder:30b
+npm run models:smoke -- qwen3-coder:30b
+npm run models:benchmark -- --models codellama:latest,qwen3-coder:30b
+```
+
+If the machine cannot run `qwen3-coder:30b` comfortably, test `gpt-oss:20b` as the lower-memory structured-output and reasoning candidate. Keep `codellama:latest` as a baseline control rather than the target default.
 
 ## License
 

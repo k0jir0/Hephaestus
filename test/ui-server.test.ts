@@ -154,9 +154,11 @@ afterEach(async () => {
       const healthPayload = await health.json() as {
         status: string;
         counts: Record<string, number>;
+        model: { activeModel: string; profile: { known: boolean } };
       };
       assert.equal(healthPayload.status, 'ok');
       assert.equal(healthPayload.counts.awaiting_approval, 1);
+      assert.ok(healthPayload.model.activeModel.length > 0);
 
       const session = await fetchJson(`${url}/api/session`, 'viewer-token') as { role: string; permissions: string[] };
       assert.equal(session.role, 'viewer');
@@ -164,9 +166,11 @@ afterEach(async () => {
 
       const overview = await fetchJson(`${url}/api/overview`, 'viewer-token') as {
         ticketCounts: Record<string, number>;
+        model: { activeModel: string; summary: string };
         recentTickets: Array<{ id: string }>;
       };
       assert.equal(overview.ticketCounts.awaiting_approval, 1);
+      assert.ok(overview.model.summary.length > 0);
       assert.ok(overview.recentTickets.length >= 3);
 
       const detail = await fetchJson(`${url}/api/tickets/${seeded.awaitingApprovalId}`, 'viewer-token') as {

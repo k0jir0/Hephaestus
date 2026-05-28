@@ -1,4 +1,5 @@
 import { pathToFileURL } from 'node:url';
+import { resolveModelProfile, summarizeModelProfile } from './model-profiles.js';
 
 export function validateConfig(env: Record<string, string | undefined> = process.env) {
   const allowed = ['ollama', 'openai', 'copilot', 'claude'];
@@ -6,7 +7,16 @@ export function validateConfig(env: Record<string, string | undefined> = process
   if (!allowed.includes(backend)) {
     throw new Error(`Invalid AI_BACKEND: ${backend}. Allowed: ${allowed.join(', ')}`);
   }
-  return { aiBackend: backend, dailyTokenBudget: env['DAILY_TOKEN_BUDGET'] || '10.00', maxIterations: env['MAX_ITERATIONS'] || '50' };
+  const model = env['AI_MODEL'] || (backend === 'ollama' ? 'codellama' : '');
+  const profile = model ? resolveModelProfile(model, backend as 'ollama' | 'openai' | 'copilot' | 'claude') : undefined;
+  return {
+    aiBackend: backend,
+    aiModel: model || 'default',
+    modelProfile: model ? summarizeModelProfile(model, backend as 'ollama' | 'openai' | 'copilot' | 'claude') : 'unprofiled',
+    modelProfileKnown: profile?.known ?? false,
+    dailyTokenBudget: env['DAILY_TOKEN_BUDGET'] || '10.00',
+    maxIterations: env['MAX_ITERATIONS'] || '50',
+  };
 }
 
 const isDirectRun = process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href;

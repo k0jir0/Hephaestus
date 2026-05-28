@@ -951,6 +951,11 @@ function buildClientScript(): string {
       renderOverviewCards(overview);
       renderOperationsTable(overview.recentTickets || []);
       renderRecentEvents(overview.recentEvents || []);
+      try {
+        renderModelStatus(await api('/api/model-status'));
+      } catch (error) {
+        byId('model-status-panel').innerHTML = '<div class="empty-state">Model inventory unavailable: ' + escapeHtml(error instanceof Error ? error.message : String(error)) + '</div>';
+      }
     }
 
     async function refreshTickets() {
@@ -1014,10 +1019,16 @@ function buildClientScript(): string {
       const cards = [];
       const counts = overview.ticketCounts || {};
       const efficiency = overview.efficiency || {};
+      const model = overview.model || {};
       cards.push(metricCard('Tickets', counts.total || 0, 'Canonical ticket objects in the store.'));
       cards.push(metricCard('Awaiting Approval', counts.awaiting_approval || 0, 'High-risk mutations waiting for review.'));
       cards.push(metricCard('Blocked', counts.blocked || 0, 'Tickets requiring intervention or policy reset.'));
       cards.push(metricCard('Completed', counts.completed || 0, 'Tickets that reached a terminal success state.'));
+      if (model.activeModel) {
+        const profile = model.profile && model.profile.profile ? model.profile.profile : {};
+        const known = model.profile && model.profile.known ? 'profiled' : 'unprofiled';
+        cards.push(metricCard('Active Model', model.activeModel, (model.summary || known) + ' | ' + (profile.recommendedTaskClass || 'unknown task class')));
+      }
       cards.push(metricCard('Admission Latency', formatRatio(overview.metrics.averageAdmissionToStartLatencyMs) + ' ms', 'Average create-to-start delay.'));
       cards.push(metricCard('Retry Success', formatRatio(overview.metrics.blockedRetrySuccessRatio), 'Blocked tickets that later complete.'));
       if (efficiency.efficiencyIndex && typeof efficiency.efficiencyIndex.score === 'number') {
@@ -1028,6 +1039,41 @@ function buildClientScript(): string {
 
     function metricCard(label, value, detail) {
       return '<article class="metric-card"><div class="metric-label">' + escapeHtml(label) + '</div><div class="metric-value">' + escapeHtml(value) + '</div><div class="metric-detail">' + escapeHtml(detail) + '</div></article>';
+    }
+
+    function renderModelStatus(status) {
+      const profile = status.profile && status.profile.profile ? status.profile.profile : {};
+      const inventory = status.inventory || {};
+      const installed = inventory.models || [];
+      const recommendations = status.recommendations || [];
+      const installedHtml = installed.length
+        ? installed.map(function (model) {
+            const modelProfile = model.profile && model.profile.known ? 'profiled' : 'unprofiled';
+            const size = model.sizeGb ? model.sizeGb + ' GB' : 'unknown size';
+            return '<div class="meta-item"><strong>' + escapeHtml(model.name) + '</strong><div class="helper">' + escapeHtml(size + ' | ' + modelProfile) + '</div></div>';
+          }).join('')
+        : '<div class="empty-state">' + escapeHtml(inventory.error || 'No installed Ollama models reported.') + '</div>';
+
+      const recommendationHtml = recommendations.length
+        ? recommendations.map(function (recommendation) {
+            const state = recommendation.installed ? 'installed' : 'not installed';
+            return '<div class="meta-item"><strong>' + escapeHtml(recommendation.model) + '</strong><div class="helper">' + escapeHtml(state + ' | ' + recommendation.reason) + '</div></div>';
+          }).join('')
+        : '<div class="empty-state">No model recommendations available.</div>';
+
+      byId('model-status-panel').innerHTML =
+        '<div class="detail-list">' +
+          detailItem('Backend', status.backend || '-') +
+          detailItem('Active Model', status.activeModel || '-') +
+          detailItem('Profile', status.summary || '-') +
+          detailItem('Task Class', profile.recommendedTaskClass || '-') +
+          detailItem('Context', profile.contextWindowTokens ? String(profile.contextWindowTokens) : '-') +
+          detailItem('Capabilities', profile.capabilities ? Object.entries(profile.capabilities).filter(function (entry) { return entry[1]; }).map(function (entry) { return entry[0]; }).join(', ') : '-') +
+        '</div>' +
+        '<div class="split-tight">' +
+          '<div><h3>Installed Models</h3><div class="meta-list">' + installedHtml + '</div></div>' +
+          '<div><h3>Upgrade Recommendations</h3><div class="meta-list">' + recommendationHtml + '</div></div>' +
+        '</div>';
     }
 
     function renderOperationsTable(tickets) {
@@ -1613,6 +1659,18 @@ export function renderUIHtml(title = 'Hephaestus Control Plane'): string {
                       </thead>
                       <tbody id="operations-table-body"></tbody>
                     </table>
+                  </div>
+                </article>
+
+                <article class="panel">
+                  <div class="panel-header">
+                    <div>
+                      <h2>Model Upgrade Status</h2>
+                      <div class="helper">Active profile, installed Ollama models, and benchmark-first upgrade recommendations.</div>
+                    </div>
+                  </div>
+                  <div id="model-status-panel">
+                    <div class="empty-state">Connect to load model status.</div>
                   </div>
                 </article>
 

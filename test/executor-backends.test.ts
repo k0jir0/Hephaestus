@@ -43,34 +43,88 @@ afterEach(async () => {
 });
 
 describe('OllamaBackendClient', () => {
-  it('streams generated content into the returned response and stream log', async () => {
+  it('streams chat content into the returned response and stream log', async () => {
     const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), 'hephaestus-ollama-'));
     tempDirs.push(baseDir);
 
     const encoder = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
-        controller.enqueue(encoder.encode('{"response":"Hello ","done":false}\n'));
-        controller.enqueue(encoder.encode('{"response":"world","done":false}\n'));
-        controller.enqueue(encoder.encode('{"done":true}\n'));
+        controller.enqueue(encoder.encode('{"message":{"content":"Hello "},"done":false}\n'));
+        controller.enqueue(encoder.encode('{"message":{"content":"world"},"done":false}\n'));
+        controller.enqueue(encoder.encode('{"done":true,"prompt_eval_count":12,"eval_count":2}\n'));
         controller.close();
       },
     });
+    let requestedUrl = '';
+    let requestedBody = '';
 
     const client = createBackendClient({
       config: makeConfig(baseDir),
-      fetchImpl: async () => new Response(body, {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+      fetchImpl: async (input, init) => {
+        requestedUrl = String(input);
+        requestedBody = String(init?.body ?? '');
+        return new Response(body, {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      },
     });
 
     const response = await client.requestStructuredPlan('PROMPT', 'SYSTEM');
 
     assert.equal(response.success, true);
     assert.match(response.content, /Hello world/);
+    assert.equal(response.tokens?.prompt, 12);
+    assert.equal(response.tokens?.completion, 2);
+    assert.match(requestedUrl, /\/api\/chat$/);
+    assert.match(requestedBody, /"messages"/);
 
     const logContent = await fs.readFile(path.join(baseDir, 'logs', 'ollama-stream.out'), 'utf8');
+    assert.match(logContent, /endpoint=chat/);
     assert.match(logContent, /Hello world/);
+  });
+
+  it('falls back to generate when the chat endpoint is unavailable', async () => {
+    const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), 'hephaestus-ollama-'));
+    tempDirs.push(baseDir);
+
+    const encoder = new TextEncoder();
+    const generateBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('{"response":"Fallback ","done":false}\n'));
+        controller.enqueue(encoder.encode('{"response":"works","done":true,"prompt_eval_count":6,"eval_count":2}\n'));
+        controller.close();
+      },
+    });
+    const requestedUrls: string[] = [];
+
+    const client = createBackendClient({
+      config: makeConfig(baseDir),
+      fetchImpl: async (input) => {
+        requestedUrls.push(String(input));
+        if (requestedUrls.length === 1) {
+          return new Response('', { status: 404, statusText: 'Not Found' });
+        }
+
+        return new Response(generateBody, {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      },
+    });
+
+    const response = await client.requestStructuredPlan('PROMPT', 'SYSTEM');
+
+    assert.equal(response.success, true);
+    assert.equal(response.content, 'Fallback works');
+    assert.equal(response.tokens?.prompt, 6);
+    assert.equal(response.tokens?.completion, 2);
+    assert.match(requestedUrls[0] ?? '', /\/api\/chat$/);
+    assert.match(requestedUrls[1] ?? '', /\/api\/generate$/);
+
+    const logContent = await fs.readFile(path.join(baseDir, 'logs', 'ollama-stream.out'), 'utf8');
+    assert.match(logContent, /endpoint=generate/);
+    assert.match(logContent, /Fallback works/);
   });
 });
