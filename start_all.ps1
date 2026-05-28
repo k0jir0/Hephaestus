@@ -102,6 +102,8 @@ $showOllamaStreamWindow = Get-EnvFlag 'SHOW_OLLAMA_STREAM_WINDOW' ($AI_BACKEND -
 $tasksBoardFile = Join-Path $root 'TASKS.md'
 $watchTasksBoardScript = Join-Path $root 'watch-tasks-board.ps1'
 $showTasksBoardWindow = Get-EnvFlag 'SHOW_TASKS_BOARD_WINDOW' (Get-EnvFlag 'TASK_BOARD_PROJECTION_ENABLED' $true)
+$controlMenuScript = Join-Path $root 'control-menu.cmd'
+$showControlMenuWindow = Get-EnvFlag 'SHOW_CONTROL_MENU_WINDOW' $true
 $autopilotOnStartup = Get-EnvFlag 'AUTOPILOT_ON_STARTUP' $true
 $autopilotIncludeCancelled = Get-EnvFlag 'AUTOPILOT_INCLUDE_CANCELLED' $false
 $autopilotNoSelfAudit = Get-EnvFlag 'AUTOPILOT_NO_SELF_AUDIT' $false
@@ -163,6 +165,34 @@ function Start-TasksBoardViewer() {
     $viewerCommand = "title Hephaestus TASKS.md && powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$watchTasksBoardScript`" -Path `"$tasksBoardFile`""
     $viewerProc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $viewerCommand -WorkingDirectory $root -PassThru
     Set-Content -Path $viewerPidFile -Value $viewerProc.Id
+}
+
+function Start-ControlMenuWindow() {
+    if (-not $showControlMenuWindow) {
+        return
+    }
+
+    if (-not (Test-Path $controlMenuScript)) {
+        Write-Host "WARNING: Control menu script is missing at $controlMenuScript" -ForegroundColor Yellow
+        return
+    }
+
+    $menuPidFile = Join-Path $root 'run/control-menu.pid'
+    if (Test-Path $menuPidFile) {
+        $existingPid = Get-Content $menuPidFile -ErrorAction SilentlyContinue
+        if ($existingPid) {
+            try {
+                Get-Process -Id ([int]$existingPid) -ErrorAction Stop | Out-Null
+                return
+            } catch {
+                Remove-Item $menuPidFile -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    $menuCommand = "title Hephaestus Control Menu && call `"$controlMenuScript`""
+    $menuProc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $menuCommand -WorkingDirectory $root -PassThru
+    Set-Content -Path $menuPidFile -Value $menuProc.Id
 }
 
 function Wait-ForQueueActivity([long]$InitialLogLength, [int]$TimeoutSeconds) {
@@ -260,7 +290,7 @@ $daemonCommand = @"
 `$env:MAX_ITERATIONS = $maxIterationsLiteral
 & $npmCommand run start:daemon
 "@
-$daemonProc = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-Command",$daemonCommand -WorkingDirectory $root -RedirectStandardOutput $daemonLog -RedirectStandardError $daemonErr -PassThru
+$daemonProc = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-Command",$daemonCommand -WorkingDirectory $root -RedirectStandardOutput $daemonLog -RedirectStandardError $daemonErr -WindowStyle Hidden -PassThru
 Set-Content -Path run/daemon.pid -Value $daemonProc.Id
 
 # Start UI
@@ -274,7 +304,7 @@ $uiCommand = @"
 `$env:UI_PORT = $uiPortLiteral
 & $npxCommand tsx src/ui-server.ts
 "@
-$uiProc = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-Command",$uiCommand -WorkingDirectory $root -RedirectStandardOutput $uiLog -RedirectStandardError $uiErr -PassThru
+$uiProc = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-Command",$uiCommand -WorkingDirectory $root -RedirectStandardOutput $uiLog -RedirectStandardError $uiErr -WindowStyle Hidden -PassThru
 Set-Content -Path run/ui.pid -Value $uiProc.Id
 
 Start-Sleep -Seconds 3
@@ -295,12 +325,13 @@ Write-Host " - Daemon PID: $(Get-Content run/daemon.pid)"
 Write-Host " - UI PID: $(Get-Content run/ui.pid)"
 Write-Host " - Safety: DAILY_TOKEN_BUDGET=$($env:DAILY_TOKEN_BUDGET), MAX_ITERATIONS=$($env:MAX_ITERATIONS)"
 
-if(-not $sm['ollama'] -or -not $sm['ui']){
+$startupSmokeFailed = (-not $sm['ollama']) -or (-not $sm['ui'])
+
+if($startupSmokeFailed){
     Write-Host "One or more smoke tests failed. See logs/ for details." -ForegroundColor Yellow
-    exit 3
 }
 
-if ($autopilotOnStartup) {
+if (-not $startupSmokeFailed -and $autopilotOnStartup) {
     $queueActivityLogLength = 0
     if (Test-Path $daemonLog) {
         $queueActivityLogLength = (Get-Item $daemonLog).Length
@@ -340,8 +371,14 @@ if ($autopilotOnStartup) {
             Write-Log 'boot-failure.log' "No queue activity observed within $queueActivityWaitSeconds seconds after startup autopilot"
         }
     }
-} else {
+} elseif (-not $startupSmokeFailed) {
     Write-Host 'Startup autopilot is disabled. Set AUTOPILOT_ON_STARTUP=1 to queue work automatically.'
+}
+
+Start-ControlMenuWindow
+
+if ($startupSmokeFailed) {
+    exit 3
 }
 
 Pop-Location

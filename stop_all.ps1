@@ -99,12 +99,14 @@ $stoppedProcessIds = New-Object 'System.Collections.Generic.HashSet[int]'
 Write-Status 'Stopping managed Hephaestus processes...'
 $null = Stop-ManagedPidFile (Join-Path $root 'run/daemon.pid') 'daemon' $stoppedProcessIds
 $null = Stop-ManagedPidFile (Join-Path $root 'run/ui.pid') 'UI server' $stoppedProcessIds
+$null = Stop-ManagedPidFile (Join-Path $root 'run/control-menu.pid') 'control menu' $stoppedProcessIds
 $null = Stop-ManagedPidFile (Join-Path $root 'run/ollama-stream-viewer.pid') 'Ollama stream viewer' $stoppedProcessIds
 $null = Stop-ManagedPidFile (Join-Path $root 'run/tasks-board-viewer.pid') 'TASKS.md viewer' $stoppedProcessIds
 
 if (-not $SkipPatternScan) {
     Stop-ManagedProcessesByPattern 'dist/agent\.js --daemon|src/agent\.ts --daemon|npm(?:\.cmd)? run start:daemon' 'daemon' $stoppedProcessIds
     Stop-ManagedProcessesByPattern 'src/ui-server\.ts|npm(?:\.cmd)? run ui|npx(?:\.cmd)? tsx src/ui-server\.ts' 'UI server' $stoppedProcessIds
+    Stop-ManagedProcessesByPattern 'control-menu\.ps1|control-menu\.cmd' 'control menu' $stoppedProcessIds
     Stop-ManagedProcessesByPattern 'watch-ollama-stream\.ps1' 'Ollama stream viewer' $stoppedProcessIds
     Stop-ManagedProcessesByPattern 'watch-tasks-board\.ps1' 'TASKS.md viewer' $stoppedProcessIds
 }

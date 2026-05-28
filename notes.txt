@@ -1,0 +1,5 @@
+
+Restore Checkpoint
+implement a CLI that appears in a cmd window on launch, where the varied methods of controlling the application that we have been meandering around are implemented into simple functions controlled by a numbered menu. this appears after start_all.bat is ran.
+there are two blue powershell windows that appear on start but display nothing, can these be hidden?
+the output stream window's text appears disjointed, can it be processed and aligned in any way?

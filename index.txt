@@ -31,6 +31,7 @@ Memory Type	Implementation	Purpose
 Short-Term	Redis / Local Cache	Current task steps and immediate context.
 Long-Term	Vector DB (Pinecone/Milvus)	Retrieving relevant past experiences via RAG.
 Relational	PostgreSQL / MongoDB	Hard data, user preferences, and "State" logs.
+
 4. Safety & "Circuit Breakers"
 Running an AI autonomously for 24 hours can be expensive and risky if it gets stuck in an infinite loop or starts hallucinating tool calls.
 
