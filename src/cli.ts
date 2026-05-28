@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import fsAsync from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { spawn, spawnSync } from 'node:child_process';
@@ -65,6 +66,10 @@ function removePidFile(pidFile: string): void {
   }
 }
 
+function quoteForCmd(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
 function stopByPidFile(label: string, pidFile: string): void {
   const pid = readPid(pidFile);
   if (pid === null) {
@@ -109,20 +114,24 @@ function spawnManagedProcess(
 
   removePidFile(pidFile);
 
-  const outFd = fs.openSync(outLog, 'a');
-  const errFd = fs.openSync(errLog, 'a');
-
-  const child = spawn(command, args, {
-    cwd: ROOT,
-    env: process.env,
-    detached: true,
-    stdio: ['ignore', outFd, errFd],
-    windowsHide: true,
-  });
+  const commandLine = `${quoteForCmd(command)} ${args.map(quoteForCmd).join(' ')} >> ${quoteForCmd(outLog)} 2>> ${quoteForCmd(errLog)}`;
+  const child =
+    process.platform === 'win32'
+      ? spawn('cmd.exe', ['/c', commandLine], {
+          cwd: ROOT,
+          env: process.env,
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true,
+        })
+      : spawn(command, args, {
+          cwd: ROOT,
+          env: process.env,
+          detached: true,
+          stdio: 'ignore',
+        });
 
   child.unref();
-  fs.closeSync(outFd);
-  fs.closeSync(errFd);
   fs.writeFileSync(pidFile, String(child.pid), 'utf-8');
   console.log(`${label}: started (${child.pid})`);
 }
@@ -160,16 +169,59 @@ async function testHttpHealth(url: string): Promise<boolean> {
   }
 }
 
-function tailFile(filePath: string, lineCount = 60): void {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function ensureUiReady(uiPort: string): Promise<boolean> {
+  const healthUrl = `http://127.0.0.1:${uiPort}/health`;
+  if (await testHttpHealth(healthUrl)) {
+    return true;
+  }
+
+  const uiPid = readPid(PID_FILES.ui);
+  if (uiPid === null || !isProcessRunning(uiPid)) {
+    spawnManagedProcess(
+      'ui',
+      PID_FILES.ui,
+      npmExecutable(),
+      ['run', 'ui'],
+      LOG_FILES.uiOut,
+      LOG_FILES.uiErr
+    );
+  }
+
+  const deadline = Date.now() + 20000;
+  while (Date.now() < deadline) {
+    if (await testHttpHealth(healthUrl)) {
+      return true;
+    }
+    await sleep(500);
+  }
+
+  return false;
+}
+
+async function tailFile(filePath: string, lineCount = 60): Promise<void> {
   if (!fs.existsSync(filePath)) {
     console.log(`File does not exist: ${filePath}`);
     return;
   }
 
-  const content = fs.readFileSync(filePath, 'utf-8');
+  const content = await fsAsync.readFile(filePath, 'utf-8');
   const lines = content.split(/\r?\n/);
   const tail = lines.slice(Math.max(0, lines.length - lineCount));
   console.log(tail.join('\n'));
+}
+
+async function uiPortConflictDetected(uiPort: string): Promise<boolean> {
+  if (!fs.existsSync(LOG_FILES.uiOut)) {
+    return false;
+  }
+
+  const output = await fsAsync.readFile(LOG_FILES.uiOut, 'utf-8');
+  const recentLines = output.split(/\r?\n/).slice(-80).join('\n');
+  return recentLines.includes('EADDRINUSE') && recentLines.includes(`:${uiPort}`);
 }
 
 function printHeader(title: string): void {
@@ -406,16 +458,16 @@ async function logsMenu(rl: readline.Interface): Promise<void> {
 
     switch (choice) {
       case '1':
-        tailFile(LOG_FILES.daemonOut);
+        await tailFile(LOG_FILES.daemonOut);
         break;
       case '2':
-        tailFile(LOG_FILES.daemonErr);
+        await tailFile(LOG_FILES.daemonErr);
         break;
       case '3':
-        tailFile(LOG_FILES.uiOut);
+        await tailFile(LOG_FILES.uiOut);
         break;
       case '4':
-        tailFile(LOG_FILES.uiErr);
+        await tailFile(LOG_FILES.uiErr);
         break;
       default:
         console.log(`Unknown option: ${choice}`);
@@ -430,7 +482,7 @@ async function main(): Promise<void> {
   ensureDirs();
 
   const rl = readline.createInterface({ input: stdin, output: stdout });
-  const uiPort = process.env.UI_PORT?.trim() || '4181';
+  const uiPort = process.env.UI_PORT?.trim() || '4180';
   const aiBackend = process.env.AI_BACKEND?.trim() || 'ollama';
 
   try {
@@ -470,8 +522,17 @@ async function main(): Promise<void> {
           await pause(rl);
           break;
         case '5':
-          openUiBrowser(uiPort);
-          console.log('Opened UI in default browser.');
+          if (await ensureUiReady(uiPort)) {
+            openUiBrowser(uiPort);
+            console.log('Opened UI in default browser.');
+          } else {
+            console.log(`UI did not become reachable at http://127.0.0.1:${uiPort}/health.`);
+            if (await uiPortConflictDetected(uiPort)) {
+              console.log(`Port ${uiPort} is already in use by another process.`);
+              console.log('Stop the conflicting process or set a different UI_PORT, then retry.');
+            }
+            console.log(`Check ${LOG_FILES.uiOut} and ${LOG_FILES.uiErr} for startup errors.`);
+          }
           await pause(rl);
           break;
         case '6':

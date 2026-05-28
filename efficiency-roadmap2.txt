@@ -1,0 +1,155 @@
+Hephaestus Efficiency Roadmap 2:
+Code Review While Running Hephaestus On Itself
+
+Run Context
+
+Hephaestus was run against its own checkout with:
+
+npm run dev:once
+
+Observed result:
+
+- startup preflight passed
+- Ollama backend was available
+- target project was the Hephaestus repository
+- single-pass mode found no pending tickets
+- no task execution occurred because the queue was empty
+
+This means the live self-run validated startup and idle behavior, but the efficiency review had to focus on code-path analysis rather than an active ticket execution trace.
+
+Review Summary
+
+Hephaestus already contains several efficiency improvements from the prior roadmap:
+
+- cached project context assembly
+- bounded file index depth and size
+- cached git status
+- adaptive pending-ticket polling
+- projection write coalescing
+- efficiency metrics snapshots
+- UI efficiency display plumbing
+
+The remaining high-value inefficiency is not the planner loop. It is the control-plane read path.
+
+Finding 1: UI revision polling scans too much state
+
+Location:
+src/ui-server.ts computeRevisionStamp
+
+Problem:
+The SSE refresh loop computed the revision stamp by loading every ticket and every event, then reducing in memory. On a long-running daemon, ticket_events grows continually, so a cheap heartbeat becomes proportional to historical event volume.
+
+Impact:
+The UI can become slower over time even when no meaningful operator work is happening.
+
+Solution implemented:
+TicketStoreRepository now exposes getRevisionStamp(), which uses SQLite aggregate queries:
+
+- count tickets
+- max ticket updated_at
+- count events
+- max event created_at
+
+The UI now uses that aggregate revision stamp instead of loading full tickets and events.
+
+Finding 2: UI and metrics paths use N+1 attempt queries
+
+Locations:
+
+- src/ui-server.ts loadStoreSnapshot
+- src/ui-server.ts buildApprovalQueueResponse
+- src/tickets.ts metrics command
+- src/reliability-harness.ts collectRepositoryMetrics
+- src/efficiency-metrics.ts collectSnapshot
+
+Problem:
+These paths loaded tickets first, then called listAttempts(ticket.id) once per ticket. This is tolerable for small queues but creates avoidable database churn as ticket history grows.
+
+Impact:
+Overview pages, reliability metrics, efficiency metrics, and approval queue rendering become slower with every additional ticket.
+
+Solution implemented:
+TicketStoreRepository now exposes listAttemptsForTickets(ticketIds), which bulk-loads attempts in ordered SQL chunks and groups them by ticket id. The UI, metrics CLI, reliability harness, and efficiency metrics collector now use the bulk method.
+
+Finding 3: Existing efficiency metrics are useful but still rely on expensive collection
+
+Location:
+src/efficiency-metrics.ts
+
+Problem:
+The collector already writes useful time-series snapshots, but it previously used the same N+1 attempt loading pattern.
+
+Impact:
+The metric intended to improve efficiency could itself become expensive as the store grows.
+
+Solution implemented:
+The efficiency collector now uses listAttemptsForTickets, reducing one query per ticket down to chunked bulk reads.
+
+Finding 4: Context assembly is no longer the top bottleneck
+
+Location:
+src/runtime.ts
+
+Observation:
+The prior roadmap's context-cache work is present. Project summaries, README excerpts, selected file index, and git status are cached. This area should remain monitored, but it is no longer the best first target.
+
+Next Work
+
+Phase 1: Finish control-plane read efficiency
+
+- Add bounded event APIs for recent events instead of loading all events for overview and reliability pages.
+- Add lightweight count APIs for health endpoints.
+- Add pagination for attempts and artifacts in ticket detail.
+
+Phase 2: Reduce UI payload size
+
+- Truncate large artifact payloads by default.
+- Add lazy expansion for full artifacts.
+- Return current patch and policy snapshots separately from the full attempt list.
+
+Phase 3: Make efficiency measurable per endpoint
+
+- Record UI endpoint latency.
+- Track database query counts per request in development mode.
+- Add a regression test that seeds many tickets and ensures overview stays under a query budget.
+
+Phase 4: Optimize projection drift checks
+
+- Keep drift detection operator-visible, but avoid checking full TASKS.md projection on every admission when no projection writes or external file changes occurred.
+- Add explicit sync-board audit command for full projection validation.
+
+Phase 5: Queue throughput improvements
+
+- Add an event-assisted wakeup path when tickets are created through the repository.
+- Keep adaptive polling only as a fallback.
+- Track pending-dispatch latency in efficiency metrics.
+
+Implemented In This Pass
+
+- Added TicketStoreRepository.listAttemptsForTickets(ticketIds).
+- Added TicketStoreRepository.getRevisionStamp().
+- Replaced UI SSE revision full scans with aggregate revision stamps.
+- Replaced N+1 attempt loading in UI snapshots, approval queue, reliability metrics, ticket metrics, and efficiency metrics.
+- Added task-store coverage for bulk attempt loading and aggregate revision stamps.
+
+Expected Efficiency Gain
+
+This pass mainly improves scaling efficiency, not single-ticket latency. Expected benefit appears when the repository has many tickets, attempts, and events:
+
+- lower UI heartbeat cost
+- faster overview and reliability page construction
+- faster efficiency metric collection
+- less SQLite statement churn
+- lower event-loop pressure during operator observation
+
+Success Criteria
+
+- npm run lint passes
+- npm test passes
+- UI refresh behavior remains unchanged
+- metrics output remains semantically unchanged
+- long-running stores do not require full event scans just to detect revisions
+
+Closing
+
+Hephaestus is becoming more efficient in the correct architectural direction: make the daemon and UI cheap at idle, bulk-load operational history when it is actually needed, and reserve expensive full-history reads for explicit analysis commands.

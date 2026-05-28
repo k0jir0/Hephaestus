@@ -1,0 +1,71 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-28T21:01:39.465Z",
+  "lane": "fast",
+  "laneReason": "status=blocked",
+  "ticket": {
+    "id": "ticket_db5399e972f8",
+    "description": "Efficiency P2: Add codex tandem handoff bundle contract for active tickets",
+    "status": "blocked",
+    "attemptCount": 1,
+    "updatedAt": "2026-05-28T20:57:40.047Z"
+  },
+  "codexContext": {
+    "prompt": "Use a minimal-change fast lane: prioritize the smallest safe patch and one narrow verification command.\nTicket: Efficiency P2: Add codex tandem handoff bundle contract for active tickets\nCurrent status: blocked\nAttempt count: 1",
+    "recentArtifacts": [
+      "[admission_1a57b40c3b84] policy.snapshot [265ae181a51b44e7] {\"version\":\"hephaestus-tool-policy/v1\",\"workspaceRoot\":\"c:\\\\Users\\\\ryanv\\\\Desktop\\\\MCGILL\\\\McGillSoftware\\\\Hephaestus\",\"dryRunByDefault\":false,\"maxReadBytes\":131072,\"maxOutputBytes\":65536,\"maxSearchResults\":50,\"commandTimeoutMs\":60000,\"commandAllowlist\":[\"npm test\",\"npm run test\",\"npm run lint\",\"npm run build\",\"npm run validate:config\",\"npm run preflight\",\"npm run start:once\",\"npm run tickets\",\"node scripts/run-tests.mjs\",\"node_modules/.bin/tsc --noEmit\",\"node_modules\\\\.bin\\\\tsc.cmd --noEmit\"],\"protectedPathPrefixes\":[\".git\",\"node_modules\",\"dist\",\".env\",\".env.local\",\".hephaestus-tickets.db\",\".hephaestus-tickets.db-shm\",\".hephaestus-tickets.db-wal\"],\"patchRiskThresholds\":{\"maxSafeTouchedPaths\":1,\"maxSafeChangedLines\":20},\"generatedAt\":\"2026-05-28T20:57:38.014Z\",\"signature\":\"265ae181a51b44e7\"}",
+      "[admission_1a57b40c3b84] deferred-mutation create src/contracts/tandem-handoff.ts: mutating file plans require governed tool calls.",
+      "[admission_1a57b40c3b84] deferred-mutation update src/models/ticket.ts: mutating file plans require governed tool calls.",
+      "[admission_1a57b40c3b84] command.run npm run validate:config -> success: Command succeeded: npm run validate:config",
+      "[admission_1a57b40c3b84] file.read src/models/ticket.ts -> failure [tool-execution-failed]: file.read failed.",
+      "[admission_1a57b40c3b84] backend.ollama model=codellama",
+      "[blocked_ticket_db5399e972f8_1780001860002] failure.classification environment; retryable=true; recommendation=Restore the missing local service, file, or lock condition, then retry the same ticket."
+    ],
+    "recentEvents": [
+      {
+        "type": "claimed",
+        "createdAt": "2026-05-28T20:57:27.416Z",
+        "details": "Efficiency P2: Add codex tandem handoff bundle contract for active tickets (attempt_506e89bc6c1b)"
+      },
+      {
+        "type": "attempt-started",
+        "createdAt": "2026-05-28T20:57:27.416Z",
+        "details": "attempt_506e89bc6c1b"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T20:57:40.003Z",
+        "details": "memory.record-blocker:blocked_ticket_db5399e972f8_1780001860002:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T20:57:40.003Z",
+        "details": "memory.add-session-summary:blocked_ticket_db5399e972f8_1780001860002:memory.add-session-summary"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T20:57:40.016Z",
+        "details": "memory.record-blocker:blocked_ticket_db5399e972f8_1780001860002:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T20:57:40.035Z",
+        "details": "memory.add-session-summary:blocked_ticket_db5399e972f8_1780001860002:memory.add-session-summary"
+      },
+      {
+        "type": "blocked",
+        "createdAt": "2026-05-28T20:57:40.047Z",
+        "details": "file.read failed.: ENOENT: no such file or directory, open 'c:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\src\\models\\ticket.ts'"
+      },
+      {
+        "type": "attempt-finished",
+        "createdAt": "2026-05-28T20:57:40.047Z",
+        "details": "attempt_506e89bc6c1b"
+      }
+    ],
+    "pendingToolCalls": [
+      "file.read",
+      "file.read"
+    ]
+  }
+}

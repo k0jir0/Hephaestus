@@ -631,6 +631,7 @@ function buildClientScript(): string {
       token: localStorage.getItem('hephaestusUIToken') || '',
       reviewer: localStorage.getItem('hephaestusUIReviewer') || '',
       session: null,
+      reliabilityEfficiency: null,
       view: window.location.hash.replace('#', '') || 'operations',
       filters: loadJson('hephaestusUIFilters', { query: '', status: 'all' }),
       selectedTicketId: null,
@@ -1002,6 +1003,7 @@ function buildClientScript(): string {
 
     async function refreshReliability() {
       const response = await api('/api/reliability');
+      state.reliabilityEfficiency = response.efficiency || null;
       renderReliabilityMetrics(response.metrics, response.comparisons || []);
       renderFailureTaxonomy(response.metrics ? response.metrics.failureTaxonomyCounts : {});
       renderBaseline(response.baseline || { markdown: '', values: {} });
@@ -1011,12 +1013,16 @@ function buildClientScript(): string {
     function renderOverviewCards(overview) {
       const cards = [];
       const counts = overview.ticketCounts || {};
+      const efficiency = overview.efficiency || {};
       cards.push(metricCard('Tickets', counts.total || 0, 'Canonical ticket objects in the store.'));
       cards.push(metricCard('Awaiting Approval', counts.awaiting_approval || 0, 'High-risk mutations waiting for review.'));
       cards.push(metricCard('Blocked', counts.blocked || 0, 'Tickets requiring intervention or policy reset.'));
       cards.push(metricCard('Completed', counts.completed || 0, 'Tickets that reached a terminal success state.'));
       cards.push(metricCard('Admission Latency', formatRatio(overview.metrics.averageAdmissionToStartLatencyMs) + ' ms', 'Average create-to-start delay.'));
       cards.push(metricCard('Retry Success', formatRatio(overview.metrics.blockedRetrySuccessRatio), 'Blocked tickets that later complete.'));
+      if (efficiency.efficiencyIndex && typeof efficiency.efficiencyIndex.score === 'number') {
+        cards.push(metricCard('Efficiency Score', formatRatio(efficiency.efficiencyIndex.score), 'Latest composite throughput/latency efficiency index.'));
+      }
       byId('operations-cards').innerHTML = cards.join('');
     }
 
@@ -1340,6 +1346,7 @@ function buildClientScript(): string {
 
     function renderReliabilityMetrics(metrics, comparisons) {
       const cards = [];
+      const efficiency = state.reliabilityEfficiency || {};
       cards.push(metricCard('State Lag', String(metrics.stateConsistencyLagMs) + ' ms', 'Difference between latest ticket update and latest board sync.'));
       cards.push(metricCard('Admission Latency', formatRatio(metrics.averageAdmissionToStartLatencyMs) + ' ms', 'Average time from created to started.'));
       cards.push(metricCard('Retry Success', formatRatio(metrics.blockedRetrySuccessRatio), 'Recovery rate after a blocked attempt.'));
@@ -1354,6 +1361,16 @@ function buildClientScript(): string {
             return (Number(right[1].successRatio) || 0) - (Number(left[1].successRatio) || 0);
           })[0];
         cards.push(metricCard('Best Backend', bestBackend[0] + ' ' + formatRatio(bestBackend[1].successRatio), 'Backend success ratio across recorded attempts.'));
+      }
+      if (efficiency.efficiencyIndex && typeof efficiency.efficiencyIndex.score === 'number') {
+        cards.push(metricCard('Efficiency Score', formatRatio(efficiency.efficiencyIndex.score), 'Latest measured efficiency composite.'));
+      }
+      if (
+        efficiency.latencyMs &&
+        efficiency.latencyMs.admissionToComplete &&
+        typeof efficiency.latencyMs.admissionToComplete.p95 === 'number'
+      ) {
+        cards.push(metricCard('p95 Admit->Complete', formatRatio(efficiency.latencyMs.admissionToComplete.p95) + ' ms', 'Latest p95 cycle time from efficiency monitor.'));
       }
       byId('reliability-cards').innerHTML = cards.join('');
 

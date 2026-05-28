@@ -53,6 +53,7 @@ export interface TicketStoreRepositoryOptions {
   redispatchPendingAfterMs?: number;
   projectionRetryDelayMs?: number;
   projectionRetryMaxDelayMs?: number;
+  staleRecoveryMinAgeMs?: number;
   projectionWriter?: (tasksFile: string, content: string) => Promise<void>;
 }
 
@@ -68,6 +69,14 @@ export interface ProjectionDriftStatus {
   checked: boolean;
   drifted: boolean;
   reason?: string;
+}
+
+export interface TicketStoreRevisionStamp {
+  value: string;
+  ticketCount: number;
+  latestTicketUpdateMs: number;
+  eventCount: number;
+  latestEventMs: number;
 }
 
 interface TicketRow {
@@ -142,21 +151,28 @@ export class TicketStoreRepository
   private readonly redispatchPendingAfterMs: number;
   private readonly projectionRetryDelayMs: number;
   private readonly projectionRetryMaxDelayMs: number;
+  private readonly staleRecoveryMinAgeMs: number;
   private readonly projectionWriter: (tasksFile: string, content: string) => Promise<void>;
   private readonly knownPendingTaskIds = new Set<string>();
   private readonly pendingRedispatchAfter = new Map<string, number>();
   private readonly pendingDispatchInFlight = new Set<string>();
   private pendingPollTimer: NodeJS.Timeout | null = null;
   private projectionRetryTimer: NodeJS.Timeout | null = null;
+  private projectionFlushTimer: NodeJS.Timeout | null = null;
   private projectionScheduledRetryDelayMs: number | null = null;
   private projectionLastError: string | null = null;
   private projectionConsecutiveFailures = 0;
   private projectionNextRetryDelayMs = 0;
+  private projectionWriteInProgress = false;
+  private projectionWriteQueued = false;
+  private lastProjectionWriteAtMs = 0;
+  private readonly projectionMinWriteIntervalMs: number;
   private onNewTask: ((task: Task) => Promise<void>) | null = null;
   private db: DatabaseSync | null = null;
   private initialization: Promise<void> | null = null;
   private usingFallback = false;
   private dispatchInProgress = false;
+  private currentPollIntervalMs: number;
 
   constructor(options: TicketStoreRepositoryOptions = {}) {
     this.tasksFile = options.tasksFile ?? config.tasksFile;
@@ -170,10 +186,19 @@ export class TicketStoreRepository
     this.redispatchPendingAfterMs = options.redispatchPendingAfterMs ?? 60_000;
     this.projectionRetryDelayMs = options.projectionRetryDelayMs ?? 1_000;
     this.projectionRetryMaxDelayMs = options.projectionRetryMaxDelayMs ?? 30_000;
+    this.staleRecoveryMinAgeMs = Math.max(
+      0,
+      options.staleRecoveryMinAgeMs ?? Number.parseInt(process.env.STALE_RECOVERY_MIN_AGE_MS ?? '180000', 10)
+    );
+    this.projectionMinWriteIntervalMs = Math.max(
+      0,
+      Number.parseInt(process.env.PROJECTION_MIN_WRITE_INTERVAL_MS ?? '0', 10)
+    );
     this.projectionWriter = options.projectionWriter ?? ((tasksFile, content) =>
       fs.writeFile(tasksFile, content, 'utf-8')
     );
     this.projectionNextRetryDelayMs = this.projectionRetryDelayMs;
+    this.currentPollIntervalMs = this.pollingIntervalMs;
     this.fallbackWatcher = new TaskWatcher(this.tasksFile);
   }
 
@@ -189,17 +214,12 @@ export class TicketStoreRepository
     };
 
     await this.dispatchPendingTasks();
-
-    if (!this.pendingPollTimer) {
-      this.pendingPollTimer = setInterval(() => {
-        void this.dispatchPendingTasks();
-      }, this.pollingIntervalMs);
-    }
+    this.schedulePendingDispatch(this.pollingIntervalMs);
   }
 
   async stop(): Promise<void> {
     if (this.pendingPollTimer) {
-      clearInterval(this.pendingPollTimer);
+      clearTimeout(this.pendingPollTimer);
       this.pendingPollTimer = null;
     }
 
@@ -207,6 +227,11 @@ export class TicketStoreRepository
       clearTimeout(this.projectionRetryTimer);
       this.projectionRetryTimer = null;
       this.projectionScheduledRetryDelayMs = null;
+    }
+
+    if (this.projectionFlushTimer) {
+      clearTimeout(this.projectionFlushTimer);
+      this.projectionFlushTimer = null;
     }
 
     if (this.usingFallback) {
@@ -1051,6 +1076,99 @@ export class TicketStoreRepository
     return rows.map((row) => this.mapAttemptRow(row));
   }
 
+  async listAttemptsForTickets(ticketIds?: string[]): Promise<Map<string, TaskAttempt[]>> {
+    await this.ensureInitialized();
+
+    const attemptsByTicket = new Map<string, TaskAttempt[]>();
+    const uniqueTicketIds = ticketIds === undefined
+      ? undefined
+      : [...new Set(ticketIds.filter((ticketId) => ticketId.trim().length > 0))];
+
+    if (uniqueTicketIds) {
+      for (const ticketId of uniqueTicketIds) {
+        attemptsByTicket.set(ticketId, []);
+      }
+    }
+
+    if (this.usingFallback || uniqueTicketIds?.length === 0) {
+      return attemptsByTicket;
+    }
+
+    const rows: TaskAttemptRow[] = [];
+    if (!uniqueTicketIds) {
+      rows.push(
+        ...(this.getDatabase()
+          .prepare(
+            `select *
+             from ticket_attempts
+             order by ticket_id asc, attempt_number asc`
+          )
+          .all() as unknown as TaskAttemptRow[])
+      );
+    } else {
+      const chunkSize = 500;
+      for (let start = 0; start < uniqueTicketIds.length; start += chunkSize) {
+        const chunk = uniqueTicketIds.slice(start, start + chunkSize);
+        const placeholders = chunk.map(() => '?').join(',');
+        rows.push(
+          ...(this.getDatabase()
+            .prepare(
+              `select *
+               from ticket_attempts
+               where ticket_id in (${placeholders})
+               order by ticket_id asc, attempt_number asc`
+            )
+            .all(...chunk) as unknown as TaskAttemptRow[])
+        );
+      }
+    }
+
+    for (const row of rows) {
+      const attempts = attemptsByTicket.get(row.ticket_id) ?? [];
+      attempts.push(this.mapAttemptRow(row));
+      attemptsByTicket.set(row.ticket_id, attempts);
+    }
+
+    return attemptsByTicket;
+  }
+
+  async getRevisionStamp(): Promise<TicketStoreRevisionStamp> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      const tasks = await this.fallbackWatcher.getPendingTasks();
+      const latestTicketUpdateMs = tasks.reduce(
+        (latest, task) => Math.max(latest, task.updatedAt?.getTime() ?? task.createdAt.getTime()),
+        0
+      );
+      const value = [tasks.length, latestTicketUpdateMs, 0, 0].join(':');
+      return {
+        value,
+        ticketCount: tasks.length,
+        latestTicketUpdateMs,
+        eventCount: 0,
+        latestEventMs: 0,
+      };
+    }
+
+    const ticketRow = this.getDatabase()
+      .prepare('select count(*) as count, max(updated_at) as latest_updated_at from tickets')
+      .get() as { count: number; latest_updated_at: string | null };
+    const eventRow = this.getDatabase()
+      .prepare('select count(*) as count, max(created_at) as latest_created_at from ticket_events')
+      .get() as { count: number; latest_created_at: string | null };
+    const latestTicketUpdateMs = parseTimestampMs(ticketRow.latest_updated_at);
+    const latestEventMs = parseTimestampMs(eventRow.latest_created_at);
+
+    return {
+      value: [ticketRow.count, latestTicketUpdateMs, eventRow.count, latestEventMs].join(':'),
+      ticketCount: ticketRow.count,
+      latestTicketUpdateMs,
+      eventCount: eventRow.count,
+      latestEventMs,
+    };
+  }
+
   async getRepositoryReadiness(): Promise<Array<{ code: string; message: string; blocking: boolean }>> {
     try {
       await this.ensureInitialized();
@@ -1584,9 +1702,16 @@ export class TicketStoreRepository
       )
       .all() as unknown as TicketRow[];
     const now = new Date().toISOString();
+    const nowMs = Date.parse(now);
     let recoveredTicketCount = 0;
 
     for (const row of rows) {
+      const updatedAtMs = Date.parse(row.updated_at);
+      const ageMs = Number.isFinite(updatedAtMs) ? nowMs - updatedAtMs : Number.POSITIVE_INFINITY;
+      if (ageMs < this.staleRecoveryMinAgeMs) {
+        continue;
+      }
+
       const recoveredAttemptIds = this.closeOpenAttemptsForTicket(
         row.id,
         now,
@@ -1647,8 +1772,11 @@ export class TicketStoreRepository
     }
 
     this.dispatchInProgress = true;
+    let pendingCount = 0;
+    let dispatchedCount = 0;
     try {
       const tasks = this.listTasksByStatus('pending');
+      pendingCount = tasks.length;
       const now = Date.now();
       const newTasks = tasks.filter((task) => {
         if (this.pendingDispatchInFlight.has(task.id)) {
@@ -1687,9 +1815,40 @@ export class TicketStoreRepository
           this.pendingRedispatchAfter.delete(task.id);
         }
       }
+
+      dispatchedCount = newTasks.length;
     } finally {
       this.dispatchInProgress = false;
+      if (this.onNewTask) {
+        this.schedulePendingDispatch(this.computeNextPollInterval(pendingCount, dispatchedCount));
+      }
     }
+  }
+
+  private computeNextPollInterval(pendingCount: number, dispatchedCount: number): number {
+    if (pendingCount === 0) {
+      this.currentPollIntervalMs = Math.min(this.currentPollIntervalMs * 2, 5_000);
+      return this.currentPollIntervalMs;
+    }
+
+    if (dispatchedCount > 0) {
+      this.currentPollIntervalMs = Math.max(250, Math.floor(this.pollingIntervalMs / 2));
+      return this.currentPollIntervalMs;
+    }
+
+    this.currentPollIntervalMs = this.pollingIntervalMs;
+    return this.currentPollIntervalMs;
+  }
+
+  private schedulePendingDispatch(delayMs: number): void {
+    if (this.pendingPollTimer || !this.onNewTask) {
+      return;
+    }
+
+    this.pendingPollTimer = setTimeout(() => {
+      this.pendingPollTimer = null;
+      void this.dispatchPendingTasks();
+    }, Math.max(100, delayMs));
   }
 
   private insertTicket(input: {
@@ -2010,9 +2169,31 @@ export class TicketStoreRepository
       return;
     }
 
+    if (!force && this.projectionWriteInProgress) {
+      this.projectionWriteQueued = true;
+      return;
+    }
+
+    if (!force && this.projectionMinWriteIntervalMs > 0) {
+      const elapsedMs = Date.now() - this.lastProjectionWriteAtMs;
+      const waitMs = this.projectionMinWriteIntervalMs - elapsedMs;
+      if (waitMs > 0) {
+        if (!this.projectionFlushTimer) {
+          this.projectionFlushTimer = setTimeout(() => {
+            this.projectionFlushTimer = null;
+            void this.writeProjectionSafely();
+          }, waitMs);
+        }
+        return;
+      }
+    }
+
+    this.projectionWriteInProgress = true;
+
     try {
       const board = renderTaskBoard(this.listAllTasks());
       await this.projectionWriter(this.tasksFile, board);
+      this.lastProjectionWriteAtMs = Date.now();
       this.clearProjectionFailureState();
 
       if (this.db) {
@@ -2044,6 +2225,12 @@ export class TicketStoreRepository
         forced: force,
       });
       this.scheduleProjectionRetry();
+    } finally {
+      this.projectionWriteInProgress = false;
+      if (this.projectionWriteQueued) {
+        this.projectionWriteQueued = false;
+        void this.writeProjectionSafely();
+      }
     }
   }
 
@@ -2055,6 +2242,11 @@ export class TicketStoreRepository
     if (this.projectionRetryTimer) {
       clearTimeout(this.projectionRetryTimer);
       this.projectionRetryTimer = null;
+    }
+
+    if (this.projectionFlushTimer) {
+      clearTimeout(this.projectionFlushTimer);
+      this.projectionFlushTimer = null;
     }
 
     this.projectionScheduledRetryDelayMs = null;
@@ -2117,6 +2309,15 @@ function createDescriptionKey(description: string): string {
 
 function normalizeProjectionForComparison(content: string): string {
   return content.replace(/\r\n/g, '\n').trim();
+}
+
+function parseTimestampMs(value: string | null | undefined): number {
+  if (!value) {
+    return 0;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function serializeToolCalls(toolCalls: ToolCall[] | undefined): string | null {

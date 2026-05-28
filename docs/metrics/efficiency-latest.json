@@ -1,0 +1,70 @@
+{
+  "timestamp": "2026-05-28T21:01:37.203Z",
+  "totals": {
+    "tickets": 52,
+    "attempts": 82,
+    "completed": 31,
+    "blocked": 12,
+    "awaitingApproval": 0,
+    "pending": 0,
+    "inProgress": 0,
+    "cancelled": 5
+  },
+  "throughput": {
+    "completedLast24h": 9,
+    "completedPerDay": 9
+  },
+  "latencyMs": {
+    "admissionToStart": {
+      "p50": 94124,
+      "p95": 101982974,
+      "p99": 101983060,
+      "average": 7216407.222,
+      "sampleCount": 36
+    },
+    "startToComplete": {
+      "p50": 13562,
+      "p95": 7292965,
+      "p99": 7292965,
+      "average": 1529303.444,
+      "sampleCount": 18
+    },
+    "admissionToComplete": {
+      "p50": 115004,
+      "p95": 104750292,
+      "p99": 104750292,
+      "average": 7335187.722,
+      "sampleCount": 18
+    }
+  },
+  "quality": {
+    "retryRate": 0.269,
+    "blockRate": 0.231,
+    "approvalRate": 0,
+    "completionRate": 0.596
+  },
+  "efficiencyIndex": {
+    "score": 39.52,
+    "targetScore": 70,
+    "status": "below-target",
+    "components": {
+      "throughputScore": 0.563,
+      "latencyScore": 0.017,
+      "completionScore": 0.596,
+      "retryPenaltyScore": 0.731
+    }
+  },
+  "variance": {
+    "sampleCount": 3,
+    "alerts": [
+      "efficiency-score variance alert z=9.012"
+    ],
+    "deltas": {
+      "completedPerDayDelta": 3,
+      "p95AdmissionToCompleteDeltaMs": 0,
+      "completionRateDelta": 0.058,
+      "retryRateDelta": 0.019,
+      "efficiencyScoreDelta": 7.524
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-28T21:01:39.465Z",
+  "lane": "fast",
+  "laneReason": "status=blocked",
+  "ticket": {
+    "id": "ticket_6e8cc8ecb911",
+    "description": "Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json",
+    "status": "blocked",
+    "attemptCount": 1,
+    "updatedAt": "2026-05-28T20:56:52.841Z"
+  },
+  "codexContext": {
+    "prompt": "Use a minimal-change fast lane: prioritize the smallest safe patch and one narrow verification command.\nTicket: Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json\nCurrent status: blocked\nAttempt count: 1",
+    "recentArtifacts": [
+      "[admission_af0c95bd92a8] policy.snapshot [265ae181a51b44e7] {\"version\":\"hephaestus-tool-policy/v1\",\"workspaceRoot\":\"c:\\\\Users\\\\ryanv\\\\Desktop\\\\MCGILL\\\\McGillSoftware\\\\Hephaestus\",\"dryRunByDefault\":false,\"maxReadBytes\":131072,\"maxOutputBytes\":65536,\"maxSearchResults\":50,\"commandTimeoutMs\":60000,\"commandAllowlist\":[\"npm test\",\"npm run test\",\"npm run lint\",\"npm run build\",\"npm run validate:config\",\"npm run preflight\",\"npm run start:once\",\"npm run tickets\",\"node scripts/run-tests.mjs\",\"node_modules/.bin/tsc --noEmit\",\"node_modules\\\\.bin\\\\tsc.cmd --noEmit\"],\"protectedPathPrefixes\":[\".git\",\"node_modules\",\"dist\",\".env\",\".env.local\",\".hephaestus-tickets.db\",\".hephaestus-tickets.db-shm\",\".hephaestus-tickets.db-wal\"],\"patchRiskThresholds\":{\"maxSafeTouchedPaths\":1,\"maxSafeChangedLines\":20},\"generatedAt\":\"2026-05-28T20:56:52.806Z\",\"signature\":\"265ae181a51b44e7\"}",
+      "[admission_af0c95bd92a8] deferred-mutation update docs/metrics/efficiency-latest.json: mutating file plans require governed tool calls.",
+      "[admission_af0c95bd92a8] command.run npm run ui -> denied [command-not-allowlisted]: Command is not allowlisted: npm run ui",
+      "[admission_af0c95bd92a8] backend.ollama model=codellama",
+      "[blocked_ticket_6e8cc8ecb911_1780001812808] failure.classification repository-policy; retryable=false; recommendation=Inspect the policy decision; approve explicitly or reduce the patch scope before retrying."
+    ],
+    "recentEvents": [
+      {
+        "type": "claimed",
+        "createdAt": "2026-05-28T20:56:45.629Z",
+        "details": "Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json (attempt_9d6c2436e024)"
+      },
+      {
+        "type": "attempt-started",
+        "createdAt": "2026-05-28T20:56:45.629Z",
+        "details": "attempt_9d6c2436e024"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T20:56:52.809Z",
+        "details": "memory.record-blocker:blocked_ticket_6e8cc8ecb911_1780001812808:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T20:56:52.810Z",
+        "details": "memory.add-session-summary:blocked_ticket_6e8cc8ecb911_1780001812808:memory.add-session-summary"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T20:56:52.823Z",
+        "details": "memory.record-blocker:blocked_ticket_6e8cc8ecb911_1780001812808:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T20:56:52.832Z",
+        "details": "memory.add-session-summary:blocked_ticket_6e8cc8ecb911_1780001812808:memory.add-session-summary"
+      },
+      {
+        "type": "blocked",
+        "createdAt": "2026-05-28T20:56:52.841Z",
+        "details": "Command is not allowlisted: npm run ui"
+      },
+      {
+        "type": "attempt-finished",
+        "createdAt": "2026-05-28T20:56:52.841Z",
+        "details": "attempt_9d6c2436e024"
+      }
+    ],
+    "pendingToolCalls": []
+  }
+}

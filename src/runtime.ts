@@ -28,7 +28,7 @@ import type {
 } from './repositories.js';
 import { SafetySystem } from './safety.js';
 import { SelfAuditSeeder, type SelfAuditSeedResult } from './self-audit.js';
-import { transitionTask } from './task-lifecycle.js';
+import { canTransitionTaskStatus, transitionTask } from './task-lifecycle.js';
 import { classifyTaskEnvelope, formatTaskEnvelopeDecision } from './task-envelope.js';
 import { TicketStoreRepository } from './task-store.js';
 import { EngineeringToolRuntime, type EngineeringToolRequest } from './tool-runtime.js';
@@ -96,6 +96,19 @@ export interface RuntimeDependencies {
   selfAuditSeeder?: RuntimeSelfAuditSeeder;
 }
 
+interface CachedProjectContextSnapshot {
+  fingerprint: string;
+  generatedAtMs: number;
+  packageSummary: string[];
+  readmeExcerpt?: string;
+  fileIndex: string[];
+}
+
+interface CachedGitStatusSnapshot {
+  generatedAtMs: number;
+  output: string;
+}
+
 function createInitialState(): AgentState {
   return {
     status: 'idle',
@@ -129,6 +142,13 @@ export class HephaestusRuntime {
   private watchModeResolver: (() => void) | null = null;
   private budgetWindowDay = new Date().toDateString();
   private executionPauseReason: string | null = null;
+  private cachedProjectContext: CachedProjectContextSnapshot | null = null;
+  private cachedGitStatus: CachedGitStatusSnapshot | null = null;
+
+  private readonly contextCacheTtlMs = Number.parseInt(process.env.CONTEXT_CACHE_TTL_MS ?? '30000', 10);
+  private readonly gitStatusCacheTtlMs = Number.parseInt(process.env.GIT_STATUS_CACHE_TTL_MS ?? '15000', 10);
+  private readonly contextFileIndexLimit = Number.parseInt(process.env.CONTEXT_FILE_INDEX_LIMIT ?? '120', 10);
+  private readonly contextFileIndexDepth = Number.parseInt(process.env.CONTEXT_FILE_INDEX_DEPTH ?? '3', 10);
 
   constructor(dependencies: RuntimeDependencies = {}) {
     this.runtimeConfig = dependencies.config ?? defaultConfig;
@@ -458,6 +478,17 @@ export class HephaestusRuntime {
       this.state.currentTask = task;
       this.state.lastActivity = new Date();
       await this.memory.updateStatus('Working', task.description);
+
+      if (!canTransitionTaskStatus(task.status, 'in_progress')) {
+        logger.warn('Skipping task claim due to non-runnable status transition', {
+          ticketId: task.id,
+          currentStatus: task.status,
+          desiredStatus: 'in_progress',
+        });
+        await this.markIdle();
+        return 'rejected';
+      }
+
       Object.assign(task, transitionTask(task, 'in_progress'));
       await this.tasks.markTaskInProgress(task);
       taskMarkedInProgress = true;
@@ -512,7 +543,6 @@ export class HephaestusRuntime {
           task.error = toolExecution.awaitingApprovalReason;
           task.toolCalls = toolExecution.pendingToolCalls ?? result.toolCalls ?? [];
           task.approval = toolExecution.approvalState;
-          Object.assign(task, transitionTask(task, 'awaiting_approval'));
           await this.handleAwaitingApprovalTask(task, toolExecution.awaitingApprovalReason, taskMarkedInProgress);
           return 'awaiting_approval';
         }
@@ -523,9 +553,14 @@ export class HephaestusRuntime {
           return 'failed';
         }
 
-        Object.assign(task, transitionTask(task, 'completed'));
-
         await this.tasks.markTaskCompleted(task);
+        if (canTransitionTaskStatus(task.status, 'completed')) {
+          Object.assign(task, transitionTask(task, 'completed'));
+        } else {
+          task.status = 'completed';
+          task.updatedAt = new Date();
+          task.completedAt = task.completedAt ?? new Date();
+        }
         this.recordSuccessfulTask(task, result);
         await this.recordCompletionSideEffects(task, taskSummary, admission.correlationId);
 
@@ -1178,8 +1213,21 @@ export class HephaestusRuntime {
     await this.memory.updateStatus('Blocked', task.description);
 
     if (taskMarkedInProgress) {
-      Object.assign(task, transitionTask(task, 'blocked'));
-      await this.tasks.markTaskBlocked(task);
+      try {
+        await this.tasks.markTaskBlocked(task);
+        if (canTransitionTaskStatus(task.status, 'blocked')) {
+          Object.assign(task, transitionTask(task, 'blocked'));
+        } else {
+          task.status = 'blocked';
+          task.updatedAt = new Date();
+          task.blockedAt = task.blockedAt ?? new Date();
+        }
+      } catch (error) {
+        logger.warn('Could not persist blocked state transition; continuing shutdown-safe path', {
+          ticketId: task.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
@@ -1197,7 +1245,20 @@ export class HephaestusRuntime {
     await this.memory.updateStatus('Awaiting Approval', task.description);
 
     if (taskMarkedInProgress) {
-      await this.tasks.markTaskAwaitingApproval(task);
+      try {
+        await this.tasks.markTaskAwaitingApproval(task);
+        if (canTransitionTaskStatus(task.status, 'awaiting_approval')) {
+          Object.assign(task, transitionTask(task, 'awaiting_approval'));
+        } else {
+          task.status = 'awaiting_approval';
+          task.updatedAt = new Date();
+        }
+      } catch (error) {
+        logger.warn('Could not persist awaiting-approval state transition; continuing without daemon crash', {
+          ticketId: task.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
@@ -1205,56 +1266,25 @@ export class HephaestusRuntime {
     try {
       const contextParts: string[] = [];
 
-      try {
-        const packageJson = await fs.readFile(
-          `${this.runtimeConfig.targetProject}/package.json`,
-          'utf-8'
-        );
-        const pkg = JSON.parse(packageJson) as { name?: string; scripts?: Record<string, string> };
-        contextParts.push(`Project: ${pkg.name || 'unknown'}`);
-        contextParts.push(`Scripts: ${Object.keys(pkg.scripts || {}).join(', ')}`);
-      } catch {
-        // Ignore if no package.json
+      const cachedContext = await this.loadCachedProjectContext();
+      contextParts.push(...cachedContext.packageSummary);
+      if (cachedContext.readmeExcerpt) {
+        contextParts.push(`README (excerpt):\n${cachedContext.readmeExcerpt}`);
       }
 
-      try {
-        const readme = await fs.readFile(
-          `${this.runtimeConfig.targetProject}/README.md`,
-          'utf-8'
-        );
-        const lines = readme.split('\n').slice(0, 20);
-        contextParts.push(`README (excerpt):\n${lines.join('\n')}`);
-      } catch {
-        // Ignore if no README
-      }
-
-      try {
-        const fileIndex = await this.collectProjectFileIndex(this.runtimeConfig.targetProject);
-        if (fileIndex.length > 0) {
-          const focusedCandidates = rankContextCandidates(task?.description ?? '', fileIndex);
-          if (focusedCandidates.length > 0) {
-            contextParts.push(
-              `Focused context candidates:\n${formatRankedContextCandidates(focusedCandidates)}`
-            );
-          }
-          contextParts.push(`Project file index (selected):\n${fileIndex.join('\n')}`);
+      if (cachedContext.fileIndex.length > 0) {
+        const focusedCandidates = rankContextCandidates(task?.description ?? '', cachedContext.fileIndex);
+        if (focusedCandidates.length > 0) {
+          contextParts.push(
+            `Focused context candidates:\n${formatRankedContextCandidates(focusedCandidates)}`
+          );
         }
-      } catch {
-        // Ignore file index failures; it is context, not an admission gate.
+        contextParts.push(`Project file index (selected):\n${cachedContext.fileIndex.join('\n')}`);
       }
 
-      try {
-        const { exec } = await import('child_process');
-        const { promisify } = await import('util');
-        const execAsync = promisify(exec);
-        const { stdout } = await execAsync('git status --short', {
-          cwd: this.runtimeConfig.targetProject,
-        });
-        if (stdout.trim()) {
-          contextParts.push(`Git status:\n${stdout}`);
-        }
-      } catch {
-        // Ignore if not a git repo
+      const gitStatus = await this.loadCachedGitStatus();
+      if (gitStatus.trim()) {
+        contextParts.push(`Git status:\n${gitStatus}`);
       }
 
       return contextParts.join('\n\n');
@@ -1269,25 +1299,33 @@ export class HephaestusRuntime {
   private async collectProjectFileIndex(projectRoot: string): Promise<string[]> {
     const roots = ['src', 'test', 'tests', 'docs'];
     const selectedFiles: string[] = [];
+    const fileLimit = Math.max(20, this.contextFileIndexLimit);
 
     for (const root of roots) {
-      if (selectedFiles.length >= 120) {
+      if (selectedFiles.length >= fileLimit) {
         break;
       }
 
-      await this.collectFiles(path.join(projectRoot, root), projectRoot, selectedFiles, 3);
+      await this.collectFiles(
+        path.join(projectRoot, root),
+        projectRoot,
+        selectedFiles,
+        Math.max(1, this.contextFileIndexDepth),
+        fileLimit
+      );
     }
 
-    return selectedFiles.slice(0, 120);
+    return selectedFiles.slice(0, fileLimit);
   }
 
   private async collectFiles(
     directory: string,
     projectRoot: string,
     selectedFiles: string[],
-    depthRemaining: number
+    depthRemaining: number,
+    fileLimit: number
   ): Promise<void> {
-    if (depthRemaining < 0 || selectedFiles.length >= 120) {
+    if (depthRemaining < 0 || selectedFiles.length >= fileLimit) {
       return;
     }
 
@@ -1299,7 +1337,7 @@ export class HephaestusRuntime {
     }
 
     for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-      if (selectedFiles.length >= 120) {
+      if (selectedFiles.length >= fileLimit) {
         return;
       }
 
@@ -1309,10 +1347,113 @@ export class HephaestusRuntime {
 
       const fullPath = path.join(directory, entry.name);
       if (entry.isDirectory()) {
-        await this.collectFiles(fullPath, projectRoot, selectedFiles, depthRemaining - 1);
+        await this.collectFiles(fullPath, projectRoot, selectedFiles, depthRemaining - 1, fileLimit);
       } else if (entry.isFile()) {
         selectedFiles.push(path.relative(projectRoot, fullPath).replace(/\\/g, '/'));
       }
     }
+  }
+
+  private async loadCachedProjectContext(): Promise<CachedProjectContextSnapshot> {
+    const now = Date.now();
+    const fingerprint = await this.computeProjectContextFingerprint();
+
+    if (
+      this.cachedProjectContext &&
+      this.cachedProjectContext.fingerprint === fingerprint &&
+      now - this.cachedProjectContext.generatedAtMs <= this.contextCacheTtlMs
+    ) {
+      return this.cachedProjectContext;
+    }
+
+    const packageSummary: string[] = [];
+    let readmeExcerpt: string | undefined;
+
+    try {
+      const packageJson = await fs.readFile(
+        `${this.runtimeConfig.targetProject}/package.json`,
+        'utf-8'
+      );
+      const pkg = JSON.parse(packageJson) as { name?: string; scripts?: Record<string, string> };
+      packageSummary.push(`Project: ${pkg.name || 'unknown'}`);
+      packageSummary.push(`Scripts: ${Object.keys(pkg.scripts || {}).join(', ')}`);
+    } catch {
+      // Ignore if no package.json
+    }
+
+    try {
+      const readme = await fs.readFile(
+        `${this.runtimeConfig.targetProject}/README.md`,
+        'utf-8'
+      );
+      readmeExcerpt = readme.split('\n').slice(0, 20).join('\n');
+    } catch {
+      // Ignore if no README
+    }
+
+    let fileIndex: string[] = [];
+    try {
+      fileIndex = await this.collectProjectFileIndex(this.runtimeConfig.targetProject);
+    } catch {
+      // Ignore file index failures; it is context, not an admission gate.
+    }
+
+    this.cachedProjectContext = {
+      fingerprint,
+      generatedAtMs: now,
+      packageSummary,
+      readmeExcerpt,
+      fileIndex,
+    };
+
+    return this.cachedProjectContext;
+  }
+
+  private async loadCachedGitStatus(): Promise<string> {
+    const now = Date.now();
+    if (this.cachedGitStatus && now - this.cachedGitStatus.generatedAtMs <= this.gitStatusCacheTtlMs) {
+      return this.cachedGitStatus.output;
+    }
+
+    try {
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+      const { stdout } = await execAsync('git status --short', {
+        cwd: this.runtimeConfig.targetProject,
+      });
+
+      this.cachedGitStatus = {
+        generatedAtMs: now,
+        output: stdout,
+      };
+
+      return stdout;
+    } catch {
+      return '';
+    }
+  }
+
+  private async computeProjectContextFingerprint(): Promise<string> {
+    const paths = [
+      path.join(this.runtimeConfig.targetProject, 'package.json'),
+      path.join(this.runtimeConfig.targetProject, 'README.md'),
+      path.join(this.runtimeConfig.targetProject, 'src'),
+      path.join(this.runtimeConfig.targetProject, 'test'),
+      path.join(this.runtimeConfig.targetProject, 'tests'),
+      path.join(this.runtimeConfig.targetProject, 'docs'),
+    ];
+
+    const parts: string[] = [];
+    for (const targetPath of paths) {
+      try {
+        const stats = await fs.stat(targetPath);
+        parts.push(`${targetPath}:${stats.mtimeMs}:${stats.size}`);
+      } catch {
+        parts.push(`${targetPath}:missing`);
+      }
+    }
+
+    return parts.join('|');
   }
 }

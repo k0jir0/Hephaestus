@@ -1,0 +1,145 @@
+Hephaestus Efficiency Roadmap For Tandem Codex Operations
+
+Objective
+Raise measured operator throughput improvement beyond the current 25-40% band by systematically removing runtime waste, reducing cycle time variance, and strengthening autonomous handoff quality when Hephaestus and Codex run in tandem.
+
+North-Star Goal (90 days)
+- Target observed efficiency gain: > 55%
+- Target runtime posture: low-variance, high-throughput, policy-safe execution
+- Target control outcome: predictable queue flow with measurable and improving p95 cycle times
+
+What "Efficiency" Means In This Program
+Efficiency is not only raw speed. For this control plane, efficiency is a weighted system outcome:
+- Throughput: completed tickets per day
+- Cycle time: p95 admission-to-complete latency
+- Completion quality: completion ratio without regressions
+- Rework pressure: retry rate and blocked-rate pressure
+
+Current Baseline Constraints (Review Findings)
+1. High: Per-task context assembly repeats expensive repository scans and shell calls.
+- Location: src/runtime.ts (getProjectContext and collectProjectFileIndex)
+- Impact: avoidable latency on every task loop, especially in large repos
+- Direction: cache context snapshots with invalidation on file-system and git changes
+
+2. High: Event-loop blocking risk from synchronous process/file operations in operator pathways.
+- Location: src/cli.ts (spawnSync, readFileSync, writeFileSync)
+- Impact: startup/control responsiveness degrades under process churn
+- Direction: migrate to async process and file APIs where possible, keep sync only for strict boot sequencing
+
+3. Medium: Polling dispatch loop can produce unnecessary wakeups and redundant checks.
+- Location: src/task-store.ts (setInterval polling with dispatchPendingTasks)
+- Impact: CPU churn and jitter under low activity or large queue state
+- Direction: convert to event-driven wakeups plus adaptive backoff polling fallback
+
+4. Medium: Metrics currently focus on reliability and status, not full efficiency variance decomposition.
+- Location: src/slo-metrics.ts, src/reliability-harness.ts
+- Impact: difficult to isolate where throughput gains are lost over time
+- Direction: add dedicated efficiency metrics time series and variance alerts
+
+5. Medium: UI serialization pressure can spike with large artifact payloads.
+- Location: src/ui-server.ts and src/ui.ts (JSON payload rendering for detail views)
+- Impact: slower UI refresh under heavy ticket artifact histories
+- Direction: add pagination/truncation and lazy detail hydration for large artifacts
+
+Installed Measurement System (Implemented)
+A dedicated efficiency metrics collector has been added:
+- Command: npm run metrics:efficiency
+- Source: src/efficiency-metrics.ts
+- Outputs:
+  - docs/metrics/efficiency-latest.json
+  - docs/metrics/efficiency-history.jsonl
+
+Captured metrics include:
+- Throughput: completedLast24h, completedPerDay
+- Latency distributions: p50/p95/p99 for admission->start, start->complete, admission->complete
+- Quality factors: retryRate, blockRate, approvalRate, completionRate
+- Composite efficiency index: weighted score from throughput, latency, completion, retry penalty
+- Variance monitoring: rolling-window deltas and z-score alerts for metric drift
+
+Efficiency Index Model
+score = 100 * (
+  0.35 * throughputScore
++ 0.35 * latencyScore
++ 0.20 * completionScore
++ 0.10 * retryPenaltyScore
+)
+
+Program target: efficiency score >= 70 with sustained improvement trend and no safety regressions.
+
+Roadmap To >55% Efficiency Gain
+Phase 1 (Week 1-2): Eliminate repeat context overhead
+- Cache project file index and README/package snapshots in memory
+- Recompute only on git diff or file watcher invalidation
+- Replace per-task git status shell call with batched cadence (for example every 10-30s) or on-demand
+Expected gain: 8-14% runtime efficiency
+
+Phase 2 (Week 2-3): Reduce orchestration blocking and queue jitter
+- Replace synchronous CLI operations with async variants where safe
+- Shift queue polling to adaptive/event-assisted scheduling
+- Reduce unnecessary writeProjection frequency by batching state transitions
+Expected gain: 6-10% runtime efficiency
+
+Phase 3 (Week 3-5): Accelerate planning and execution convergence
+- Introduce context budgets so prompts use high-value files first
+- Add structured fast-path templates for common ticket classes
+- Add retry classifier that routes failures to minimal repair plans
+Expected gain: 7-12% runtime efficiency
+
+Phase 4 (Week 5-7): UI and observability scaling improvements
+- Stream ticket detail sections incrementally
+- Add artifact-size thresholds and lazy expansion
+- Surface variance trend charts directly in control plane
+Expected gain: 3-6% runtime efficiency and much lower operator reaction latency
+
+Phase 5 (Week 7-10): Tandem Codex optimization layer
+- Define explicit handoff contract from Hephaestus to Codex task context
+- Pre-compute codex-ready context bundles for active tickets
+- Add execution mode routing (fast lane vs deep lane) based on risk/complexity
+Expected gain: 10-18% net operator throughput with reduced rework
+
+Governance Guardrails While Optimizing
+- No reduction to policy gates, approval checkpoints, or safety constraints
+- Any optimization that improves speed but increases blocked-rate or defect-rate is rejected
+- Every optimization must ship with before/after metric snapshots
+
+Monitoring Plan For Variance
+Daily
+- Run npm run metrics:efficiency
+- Compare latest snapshot versus trailing window deltas
+- Investigate any z-score alerts with absolute value >= 2
+
+Weekly
+- Publish trend summary in docs with p95 cycle-time movement and completion-rate stability
+- Review top 3 regressions and top 3 wins with root-cause notes
+
+Release Gate
+- Promote optimization only if:
+  - efficiencyIndex improves or holds
+  - p95 admission->complete does not regress materially
+  - completionRate is stable or improving
+  - retryRate and blockRate do not worsen beyond tolerance
+
+Execution Backlog (Priority)
+P0
+- Context cache + invalidation in runtime context provider
+- Async CLI path replacements for non-critical sync calls
+- Efficiency dashboard card in UI using efficiency-latest.json
+
+P1
+- Adaptive queue dispatch scheduling
+- Projection write coalescing and debouncing
+- Prompt-context budgeter for task classes
+
+P2
+- Codex tandem handoff bundles and mode router
+- Regression-aware retry planner
+- Automated weekly variance report generation
+
+Success Criteria
+- Efficiency score reaches and sustains >= 70
+- Observed throughput gain exceeds 55% in tandem workflow against baseline period
+- p95 admission->complete drops materially and remains stable
+- No safety or governance regression across optimization releases
+
+Closing
+The fastest path to supremely fast runtime is disciplined optimization with hard measurements, not broad rewrites. This roadmap focuses on removing repeat overhead, reducing latency variance, and improving Hephaestus-Codex handoff quality so speed gains are real, safe, and durable.

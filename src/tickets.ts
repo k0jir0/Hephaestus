@@ -3,6 +3,7 @@ import { SelfAuditSeeder } from './self-audit.js';
 import { computeOperationalSLOMetrics, formatOperationalSLOMetrics } from './slo-metrics.js';
 import { runTicketAutopilot } from './ticket-autopilot.js';
 import { exportPatchBundle } from './delivery.js';
+import { exportCodexHandoffBundles } from './codex-handoff.js';
 import type { TaskStatus } from './types.js';
 
 const validStatuses: TaskStatus[] = [
@@ -36,6 +37,7 @@ Usage:
   npm run tickets -- cancel <ticket-id> [reason]
   npm run tickets -- supersede <ticket-id> [reason]
   npm run tickets -- export-bundle <ticket-id> [--out <directory>]
+  npm run tickets -- codex-handoff [--status <status[,status...]>] [--out <directory>]
   npm run tickets -- attempts <ticket-id>
   npm run tickets -- self-audit [--limit <count>] [--dry-run]
   npm run tickets -- metrics
@@ -66,6 +68,31 @@ function parseOption(args: string[], name: string): string | undefined {
   }
 
   return args[optionIndex + 1];
+}
+
+function parseStatusesArgument(value: string | undefined): TaskStatus[] | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const statuses = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (statuses.length === 0) {
+    return undefined;
+  }
+
+  for (const status of statuses) {
+    if (!validStatuses.includes(status as TaskStatus)) {
+      throw new Error(
+        `Invalid status \"${status}\" in --status list. Expected one of: ${validStatuses.join(', ')}`
+      );
+    }
+  }
+
+  return statuses as TaskStatus[];
 }
 
 function formatTimestamp(value: Date | undefined): string {
@@ -351,6 +378,25 @@ async function main(): Promise<void> {
         break;
       }
 
+      case 'codex-handoff': {
+        const statuses = parseStatusesArgument(parseOption(args, '--status'));
+        const exported = await exportCodexHandoffBundles(repository, {
+          outputRoot: parseOption(args, '--out'),
+          statuses,
+        });
+
+        if (exported.length === 0) {
+          console.log('No eligible active tickets found for codex handoff export.');
+          break;
+        }
+
+        for (const bundle of exported) {
+          console.log(`${bundle.ticketId}\t${bundle.lane}\t${bundle.outputFile}`);
+        }
+        console.log(`Exported ${exported.length} codex handoff bundle(s).`);
+        break;
+      }
+
       case 'attempts': {
         const ticketId = args[0];
         if (!ticketId) {
@@ -395,11 +441,7 @@ async function main(): Promise<void> {
 
       case 'metrics': {
         const tickets = await repository.listTickets('all');
-        const attemptsByTicket = new Map(
-          await Promise.all(
-            tickets.map(async (ticket) => [ticket.id, await repository.listAttempts(ticket.id)] as const)
-          )
-        );
+        const attemptsByTicket = await repository.listAttemptsForTickets(tickets.map((ticket) => ticket.id));
         const events = await repository.listEvents();
         const metrics = computeOperationalSLOMetrics({ tickets, attemptsByTicket, events });
         console.log(formatOperationalSLOMetrics(metrics));

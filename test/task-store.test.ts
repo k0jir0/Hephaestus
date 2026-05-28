@@ -213,6 +213,59 @@ describe('TicketStoreRepository', () => {
     await repository.stop();
   });
 
+  it('loads attempts in bulk and exposes an aggregate revision stamp', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(rootDir, 'TASKS.md'),
+      storeFile: path.join(rootDir, '.hephaestus-tickets.db'),
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const completed = await repository.createTicket('Bulk attempt completed');
+    await repository.markTaskInProgress(completed);
+    await repository.markTaskCompleted(withCompletedTask(completed));
+
+    const blocked = await repository.createTicket('Bulk attempt blocked');
+    await repository.markTaskInProgress(blocked);
+    await repository.markTaskBlocked({
+      ...blocked,
+      status: 'blocked',
+      error: 'Command failed: npm test',
+    });
+
+    const attemptsByTicket = await repository.listAttemptsForTickets([
+      completed.id,
+      blocked.id,
+      'ticket_missing',
+    ]);
+    assert.equal(attemptsByTicket.get(completed.id)?.length, 1);
+    assert.equal(attemptsByTicket.get(blocked.id)?.length, 1);
+    assert.deepEqual(attemptsByTicket.get('ticket_missing'), []);
+
+    const revision = await repository.getRevisionStamp();
+    assert.equal(revision.ticketCount, 2);
+    assert.ok(revision.eventCount >= 6);
+    assert.equal(
+      revision.value,
+      [
+        revision.ticketCount,
+        revision.latestTicketUpdateMs,
+        revision.eventCount,
+        revision.latestEventMs,
+      ].join(':')
+    );
+
+    await repository.retryTicket(blocked.id);
+    const nextRevision = await repository.getRevisionStamp();
+    assert.ok(nextRevision.eventCount > revision.eventCount);
+    assert.notEqual(nextRevision.value, revision.value);
+
+    await repository.stop();
+  });
+
   it('recovers stale active tickets on startup and retries them with a fresh attempt number', async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
     tempDirs.push(rootDir);
@@ -224,6 +277,7 @@ describe('TicketStoreRepository', () => {
       storeFile: ticketStoreFile,
       importLegacyTaskBoardIfStoreEmpty: false,
       projectionEnabled: false,
+      staleRecoveryMinAgeMs: 0,
     });
 
     const ticket = await firstRepository.createTicket('Recover a daemon crash');
@@ -235,6 +289,7 @@ describe('TicketStoreRepository', () => {
       storeFile: ticketStoreFile,
       importLegacyTaskBoardIfStoreEmpty: false,
       projectionEnabled: false,
+      staleRecoveryMinAgeMs: 0,
     });
 
     const recovered = await secondRepository.getTicket(ticket.id);

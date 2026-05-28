@@ -1,0 +1,63 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-28T21:01:39.465Z",
+  "lane": "fast",
+  "laneReason": "status=blocked",
+  "ticket": {
+    "id": "ticket_860896e72375",
+    "description": "CLI validation ticket 2026-05-28T14:01:51",
+    "status": "blocked",
+    "attemptCount": 1,
+    "updatedAt": "2026-05-28T20:48:24.968Z"
+  },
+  "codexContext": {
+    "prompt": "Use a minimal-change fast lane: prioritize the smallest safe patch and one narrow verification command.\nTicket: CLI validation ticket 2026-05-28T14:01:51\nCurrent status: blocked\nAttempt count: 1",
+    "recentArtifacts": [
+      "[admission_bf32eeda7ca2] task.envelope deferred unsupported: The task does not clearly fit a supported bounded engineering task class.",
+      "[blocked_ticket_860896e72375_1780001304910] failure.classification unsupported-scope; retryable=false; recommendation=Rewrite the ticket into a small supported engineering task before retrying."
+    ],
+    "recentEvents": [
+      {
+        "type": "claimed",
+        "createdAt": "2026-05-28T20:48:24.907Z",
+        "details": "CLI validation ticket 2026-05-28T14:01:51 (attempt_9456d2f2c2a9)"
+      },
+      {
+        "type": "attempt-started",
+        "createdAt": "2026-05-28T20:48:24.907Z",
+        "details": "attempt_9456d2f2c2a9"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T20:48:24.911Z",
+        "details": "memory.record-blocker:blocked_ticket_860896e72375_1780001304910:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T20:48:24.911Z",
+        "details": "memory.add-session-summary:blocked_ticket_860896e72375_1780001304910:memory.add-session-summary"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T20:48:24.928Z",
+        "details": "memory.record-blocker:blocked_ticket_860896e72375_1780001304910:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T20:48:24.954Z",
+        "details": "memory.add-session-summary:blocked_ticket_860896e72375_1780001304910:memory.add-session-summary"
+      },
+      {
+        "type": "blocked",
+        "createdAt": "2026-05-28T20:48:24.968Z",
+        "details": "Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps."
+      },
+      {
+        "type": "attempt-finished",
+        "createdAt": "2026-05-28T20:48:24.968Z",
+        "details": "attempt_9456d2f2c2a9"
+      }
+    ],
+    "pendingToolCalls": []
+  }
+}

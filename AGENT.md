@@ -11,9 +11,9 @@ This file stores the agent's long-term context and memory.
 
 ## Current State
 
-- **Status**: Blocked
-- **Current Task**: Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery
-- **Last Activity**: 2026-05-27T23:18:06.145Z
+- **Status**: Idle
+- **Current Task**: None
+- **Last Activity**: 2026-05-28T21:12:35.739Z
 
 ## Working Context
 
@@ -56,6 +56,9 @@ This file stores the agent's long-term context and memory.
 | 2026-05-27 | Self-audit (read-only) analyze repo and create ... | Plan ready |
 | 2026-05-27 | Audit this repository, identify concrete startu... | Plan ready |
 | 2026-05-27 | Add operator approval gating so file mutations ... | Plan ready |
+| 2026-05-28 | Efficiency P1: Add projection write coalescing/... | Plan ready |
+| 2026-05-28 | Efficiency P1: Add prompt context budget contro... | Plan ready |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snaps... | Plan ready |
 
 ### Blockers Encountered
 | Date | Blocker | Resolution |
@@ -3048,6 +3051,106 @@ ok 21 - TaskWatcher
 | 2026-05-27 | Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery | Structured plan validation failed: Field "verification[0]" must be a non-empty string. |
 | 2026-05-27 | Self-audit [high/startup]: Add a /health endpoint to the UI server and update smoke checks to use it | Command curl http://localhost:8080/health is not declared in the validated plan commands. |
 | 2026-05-27 | Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery | Command is not allowlisted: npm run plan |
+| 2026-05-28 | CLI validation ticket 2026-05-28T14:01:04 | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. |
+| 2026-05-28 | CLI validation ticket 2026-05-28T14:01:51 | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. |
+| 2026-05-28 | "CLI validation ticket 2026-05-28T18:03:11.611Z" | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. |
+| 2026-05-28 | "CLI validation ticket 2026-05-28T18:04:39.301Z" | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. |
+| 2026-05-28 | "CLI validation ticket 2026-05-28T18:05:20.102Z" | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. |
+| 2026-05-28 | "CLI validation ticket 2026-05-28T18:06:00.708Z" | Error threshold (5) exceeded [admission_5256e39b77be] |
+| 2026-05-28 | "CLI validation ticket 2026-05-28T18:08:53.097Z" | Error threshold (5) exceeded [admission_1a2780d75e38] |
+| 2026-05-28 | Run self-check: summarize current blocked tickets and suggest retry order. | Error threshold (5) exceeded [admission_3b4c3355bdf9] |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Error threshold (5) exceeded [admission_029371adec09] |
+| 2026-05-28 | Efficiency P0: Reduce sync blocking in CLI by migrating non-critical paths to async process/file APIs | Error threshold (5) exceeded [admission_d4c61769f6ea] |
+| 2026-05-28 | Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json | Error threshold (5) exceeded [admission_c172209df49e] |
+| 2026-05-28 | Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler | Error threshold (5) exceeded [admission_9f93623a6900] |
+| 2026-05-28 | Efficiency P1: Add projection write coalescing/debounce to reduce redundant TASKS.md rewrites | Error threshold (5) exceeded [admission_63c306d58504] |
+| 2026-05-28 | Efficiency P1: Add prompt context budget controls for focused high-value files | Error threshold (5) exceeded [admission_70bc2f50b623] |
+| 2026-05-28 | Efficiency P2: Add codex tandem handoff bundle contract for active tickets | Error threshold (5) exceeded [admission_d5c7ca62c4c5] |
+| 2026-05-28 | Efficiency P2: Add weekly automated variance report generation from efficiency history | Error threshold (5) exceeded [admission_b932a4452175] |
+| 2026-05-28 | "CLI validation ticket 2026-05-28T18:06:00.708Z" | Error threshold (5) exceeded [admission_82d2a2530de9] |
+| 2026-05-28 | "CLI validation ticket 2026-05-28T18:08:53.097Z" | Error threshold (5) exceeded [admission_b4003ce816f0] |
+| 2026-05-28 | Run self-check: summarize current blocked tickets and suggest retry order. | Error threshold (5) exceeded [admission_77295d61157a] |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Error threshold (5) exceeded [admission_cd142d5ab5d7] |
+| 2026-05-28 | Efficiency P0: Reduce sync blocking in CLI by migrating non-critical paths to async process/file APIs | Error threshold (5) exceeded [admission_d81d9e846d04] |
+| 2026-05-28 | Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json | Error threshold (5) exceeded [admission_467348d8d2d0] |
+| 2026-05-28 | Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler | Error threshold (5) exceeded [admission_536a37664f68] |
+| 2026-05-28 | Efficiency P1: Add projection write coalescing/debounce to reduce redundant TASKS.md rewrites | Error threshold (5) exceeded [admission_17a4ceef6348] |
+| 2026-05-28 | Efficiency P1: Add prompt context budget controls for focused high-value files | Error threshold (5) exceeded [admission_40d7f2f7c8c5] |
+| 2026-05-28 | Efficiency P2: Add codex tandem handoff bundle contract for active tickets | Error threshold (5) exceeded [admission_c0c120495f09] |
+| 2026-05-28 | Efficiency P2: Add weekly automated variance report generation from efficiency history | Error threshold (5) exceeded [admission_dc343da0013b] |
+| 2026-05-28 | "CLI validation ticket 2026-05-28T18:06:00.708Z" | Error threshold (5) exceeded [admission_6fef1b91ff33] |
+| 2026-05-28 | "CLI validation ticket 2026-05-28T18:08:53.097Z" | Error threshold (5) exceeded [admission_4d6483365144] |
+| 2026-05-28 | Run self-check: summarize current blocked tickets and suggest retry order. | Error threshold (5) exceeded [admission_98051acc9681] |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Error threshold (5) exceeded [admission_a33533b32ebb] |
+| 2026-05-28 | Efficiency P0: Reduce sync blocking in CLI by migrating non-critical paths to async process/file APIs | Error threshold (5) exceeded [admission_0f0d8c2295b7] |
+| 2026-05-28 | Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json | Error threshold (5) exceeded [admission_ef7e59ae42ca] |
+| 2026-05-28 | Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler | Error threshold (5) exceeded [admission_b9017db766cd] |
+| 2026-05-28 | Efficiency P1: Add projection write coalescing/debounce to reduce redundant TASKS.md rewrites | Error threshold (5) exceeded [admission_0eb2a2a08480] |
+| 2026-05-28 | Efficiency P1: Add prompt context budget controls for focused high-value files | Error threshold (5) exceeded [admission_2fbaf830316f] |
+| 2026-05-28 | Efficiency P2: Add codex tandem handoff bundle contract for active tickets | Error threshold (5) exceeded [admission_04cf1239aeb0] |
+| 2026-05-28 | Efficiency P2: Add weekly automated variance report generation from efficiency history | Error threshold (5) exceeded [admission_a03fa71ce6b3] |
+| 2026-05-28 | "CLI validation ticket 2026-05-28T18:06:00.708Z" | Error threshold (5) exceeded [admission_825e9670c93e] |
+| 2026-05-28 | "CLI validation ticket 2026-05-28T18:08:53.097Z" | Error threshold (5) exceeded [admission_3417d45a06d9] |
+| 2026-05-28 | Run self-check: summarize current blocked tickets and suggest retry order. | Error threshold (5) exceeded [admission_64ff73ed745f] |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Error threshold (5) exceeded [admission_1f7c597cdbb7] |
+| 2026-05-28 | Efficiency P0: Reduce sync blocking in CLI by migrating non-critical paths to async process/file APIs | Error threshold (5) exceeded [admission_289ea909f263] |
+| 2026-05-28 | Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json | Error threshold (5) exceeded [admission_be54610e44f1] |
+| 2026-05-28 | Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler | Error threshold (5) exceeded [admission_d798a81015de] |
+| 2026-05-28 | Efficiency P1: Add projection write coalescing/debounce to reduce redundant TASKS.md rewrites | Error threshold (5) exceeded [admission_ff6278f322ee] |
+| 2026-05-28 | Efficiency P1: Add prompt context budget controls for focused high-value files | Error threshold (5) exceeded [admission_1cd6e02257b4] |
+| 2026-05-28 | Efficiency P2: Add codex tandem handoff bundle contract for active tickets | Error threshold (5) exceeded [admission_bf2e359a7c90] |
+| 2026-05-28 | Efficiency P2: Add weekly automated variance report generation from efficiency history | Error threshold (5) exceeded [admission_e49abea388e2] |
+| 2026-05-28 | "CLI validation ticket 2026-05-28T18:08:53.097Z" | Error threshold (5) exceeded [admission_4d448998b865] |
+| 2026-05-28 | Run self-check: summarize current blocked tickets and suggest retry order. | Error threshold (5) exceeded [admission_414d6a1d9edc] |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Error threshold (5) exceeded [admission_0f02957a382a] |
+| 2026-05-28 | Efficiency P0: Reduce sync blocking in CLI by migrating non-critical paths to async process/file APIs | Error threshold (5) exceeded [admission_b0f94143e4f8] |
+| 2026-05-28 | Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json | Error threshold (5) exceeded [admission_a0e654f65280] |
+| 2026-05-28 | Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler | Error threshold (5) exceeded [admission_e481a5108897] |
+| 2026-05-28 | Efficiency P1: Add projection write coalescing/debounce to reduce redundant TASKS.md rewrites | Error threshold (5) exceeded [admission_ed7e37032c43] |
+| 2026-05-28 | Efficiency P1: Add prompt context budget controls for focused high-value files | Error threshold (5) exceeded [admission_d9acb7beb8ae] |
+| 2026-05-28 | Efficiency P2: Add codex tandem handoff bundle contract for active tickets | Error threshold (5) exceeded [admission_30e52679f7d2] |
+| 2026-05-28 | Efficiency P2: Add weekly automated variance report generation from efficiency history | Error threshold (5) exceeded [admission_4e0dff0edc58] |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Error threshold (5) exceeded [admission_1d3ba1c233af] |
+| 2026-05-28 | Efficiency P0: Reduce sync blocking in CLI by migrating non-critical paths to async process/file APIs | Error threshold (5) exceeded [admission_714a598e65e0] |
+| 2026-05-28 | Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json | Error threshold (5) exceeded [admission_f15e09bfc0c1] |
+| 2026-05-28 | Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler | Error threshold (5) exceeded [admission_5ce1c98bed58] |
+| 2026-05-28 | Efficiency P1: Add projection write coalescing/debounce to reduce redundant TASKS.md rewrites | Error threshold (5) exceeded [admission_4ce795ce211b] |
+| 2026-05-28 | Efficiency P1: Add prompt context budget controls for focused high-value files | Error threshold (5) exceeded [admission_526a1ea04ff6] |
+| 2026-05-28 | Efficiency P2: Add codex tandem handoff bundle contract for active tickets | Error threshold (5) exceeded [admission_665c2a8a92ad] |
+| 2026-05-28 | Efficiency P2: Add weekly automated variance report generation from efficiency history | Error threshold (5) exceeded [admission_b878381d96b4] |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Invalid task transition in ticket ticket_a434477eddef: pending -> completed |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Error threshold (5) exceeded [admission_59f1f2f560e5] |
+| 2026-05-28 | Efficiency P0: Reduce sync blocking in CLI by migrating non-critical paths to async process/file APIs | Error threshold (5) exceeded [admission_9cb7c6e7a680] |
+| 2026-05-28 | Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json | Error threshold (5) exceeded [admission_5a825e87b6e3] |
+| 2026-05-28 | Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler | Error threshold (5) exceeded [admission_e786dab7af74] |
+| 2026-05-28 | Efficiency P1: Add projection write coalescing/debounce to reduce redundant TASKS.md rewrites | Error threshold (5) exceeded [admission_c0a25a942194] |
+| 2026-05-28 | Efficiency P1: Add prompt context budget controls for focused high-value files | Error threshold (5) exceeded [admission_5540b1df938a] |
+| 2026-05-28 | Efficiency P2: Add codex tandem handoff bundle contract for active tickets | Error threshold (5) exceeded [admission_81134fed1167] |
+| 2026-05-28 | Efficiency P2: Add weekly automated variance report generation from efficiency history | Error threshold (5) exceeded [admission_590aa79cd12b] |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Error threshold (5) exceeded [admission_23cc98923689] |
+| 2026-05-28 | Efficiency P0: Reduce sync blocking in CLI by migrating non-critical paths to async process/file APIs | Error threshold (5) exceeded [admission_dafaeefc26b0] |
+| 2026-05-28 | Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json | Error threshold (5) exceeded [admission_67d3dcfd7d6c] |
+| 2026-05-28 | Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler | Error threshold (5) exceeded [admission_b025cdf3281a] |
+| 2026-05-28 | Efficiency P1: Add projection write coalescing/debounce to reduce redundant TASKS.md rewrites | Error threshold (5) exceeded [admission_26b33c79546e] |
+| 2026-05-28 | Efficiency P1: Add prompt context budget controls for focused high-value files | Error threshold (5) exceeded [admission_01cd059961fa] |
+| 2026-05-28 | Efficiency P2: Add codex tandem handoff bundle contract for active tickets | Error threshold (5) exceeded [admission_443306cb0dca] |
+| 2026-05-28 | Efficiency P2: Add weekly automated variance report generation from efficiency history | Error threshold (5) exceeded [admission_79586e37a42f] |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Error threshold (5) exceeded [admission_ff11a1a19d65] |
+| 2026-05-28 | Efficiency P0: Reduce sync blocking in CLI by migrating non-critical paths to async process/file APIs | Error threshold (5) exceeded [admission_60b91d1a64c0] |
+| 2026-05-28 | Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json | Error threshold (5) exceeded [admission_51eab606c6a6] |
+| 2026-05-28 | Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler | Error threshold (5) exceeded [admission_c0707e2947bf] |
+| 2026-05-28 | Efficiency P1: Add projection write coalescing/debounce to reduce redundant TASKS.md rewrites | Error threshold (5) exceeded [admission_a43000df56c1] |
+| 2026-05-28 | Efficiency P1: Add prompt context budget controls for focused high-value files | Error threshold (5) exceeded [admission_ff8a70c137a6] |
+| 2026-05-28 | Efficiency P2: Add codex tandem handoff bundle contract for active tickets | Error threshold (5) exceeded [admission_96d905f81bd0] |
+| 2026-05-28 | Efficiency P2: Add weekly automated variance report generation from efficiency history | Error threshold (5) exceeded [admission_d5ba9f56f04d] |
+| 2026-05-28 | Efficiency P0: Reduce sync blocking in CLI by migrating non-critical paths to async process/file APIs | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. |
+| 2026-05-28 | Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json | Command is not allowlisted: npm run ui |
+| 2026-05-28 | Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Error threshold (5) exceeded [admission_f04938c98a67] |
+| 2026-05-28 | Efficiency P2: Add weekly automated variance report generation from efficiency history | Error threshold (5) exceeded [admission_e72e0212cab0] |
+| 2026-05-28 | Efficiency P2: Add codex tandem handoff bundle contract for active tickets | file.read failed.: ENOENT: no such file or directory, open 'c:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\src\models\ticket.ts' |
+| 2026-05-28 | Efficiency P2: Add weekly automated variance report generation from efficiency history | File read target docs/metrics/efficiency-history.jsonl is not declared in the validated plan. |
+| 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Invalid task transition in ticket ticket_a434477eddef: completed -> in_progress |
 
 ## Preferences
 
@@ -3208,6 +3311,30 @@ ok 21 - TaskWatcher
 - [2026-05-27T23:17:49.497Z] Blocked: Self-audit [high/startup]: Add a /health endpoint to the UI server and update smoke checks to use it
 - [2026-05-27T23:18:06.135Z] Blocked: Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery
 - [2026-05-27T23:18:06.162Z] Agent started successfully
+- [2026-05-28T19:43:54.536Z] Startup preflight passed
+- [2026-05-28T19:45:57.647Z] Startup preflight passed
+- [2026-05-28T20:48:24.863Z] Blocked: CLI validation ticket 2026-05-28T14:01:04
+- [2026-05-28T20:48:24.929Z] Blocked: CLI validation ticket 2026-05-28T14:01:51
+- [2026-05-28T20:48:25.063Z] Blocked: "CLI validation ticket 2026-05-28T18:03:11.611Z"
+- [2026-05-28T20:48:25.110Z] Blocked: "CLI validation ticket 2026-05-28T18:04:39.301Z"
+- [2026-05-28T20:48:25.184Z] Blocked: "CLI validation ticket 2026-05-28T18:05:20.102Z"
+- [2026-05-28T20:48:25.637Z] Agent started successfully
+- [2026-05-28T20:53:28.718Z] Blocked: Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL
+- [2026-05-28T20:53:28.742Z] Agent shutdown: fatal
+- [2026-05-28T20:56:45.590Z] Blocked: Efficiency P0: Reduce sync blocking in CLI by migrating non-critical paths to async process/file APIs
+- [2026-05-28T20:56:52.824Z] Blocked: Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json
+- [2026-05-28T20:56:52.883Z] Blocked: Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler
+- [2026-05-28T20:57:01.943Z] Planned: Efficiency P1: Add projection write coalescing/debounce to reduce redundant TASKS.md rewrites
+- [2026-05-28T20:57:27.376Z] Planned: Efficiency P1: Add prompt context budget controls for focused high-value files
+- [2026-05-28T20:57:40.025Z] Blocked: Efficiency P2: Add codex tandem handoff bundle contract for active tickets
+- [2026-05-28T20:58:03.460Z] Startup preflight passed
+- [2026-05-28T20:58:42.105Z] Planned: Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL
+- [2026-05-28T20:58:42.125Z] Single-pass run complete
+- [2026-05-28T20:58:42.228Z] Blocked: Efficiency P2: Add weekly automated variance report generation from efficiency history
+- [2026-05-28T20:58:42.289Z] Blocked: Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL
+- [2026-05-28T20:58:42.308Z] Agent started successfully
+- [2026-05-28T21:02:57.257Z] Agent started successfully
+- [2026-05-28T21:12:35.729Z] Single-pass run found no pending tasks
 
 ---
 

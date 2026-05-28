@@ -60,6 +60,30 @@ interface BaselineSnapshot {
   values: Record<string, string>;
 }
 
+interface EfficiencySnapshot {
+  timestamp?: string;
+  efficiencyIndex?: {
+    score?: number;
+    targetScore?: number;
+    status?: string;
+  };
+  throughput?: {
+    completedPerDay?: number;
+  };
+  latencyMs?: {
+    admissionToComplete?: {
+      p95?: number;
+    };
+  };
+  quality?: {
+    completionRate?: number;
+    retryRate?: number;
+  };
+  variance?: {
+    alerts?: string[];
+  };
+}
+
 interface PolicySnapshotArtifact {
   raw: string;
   correlationId?: string;
@@ -113,6 +137,7 @@ export class UIServer {
   private readonly repository: TicketStoreRepository;
   private readonly ownsRepository: boolean;
   private readonly baselineFile: string;
+  private readonly efficiencySnapshotFile: string;
   private readonly sseIntervalMs: number;
   private readonly authTokens: UIAuthToken[];
   private readonly defaultTokenInUse: boolean;
@@ -133,6 +158,7 @@ export class UIServer {
     });
     this.ownsRepository = !options.repository;
     this.baselineFile = options.baselineFile ?? path.join(config.baseDir, 'docs', 'reliability-baselines.md');
+    this.efficiencySnapshotFile = path.join(config.baseDir, 'docs', 'metrics', 'efficiency-latest.json');
     this.sseIntervalMs = options.sseIntervalMs ?? getEnvNumber('UI_SSE_INTERVAL_MS', defaultSseIntervalMs);
     const parsedTokens = options.authTokens ?? parseUITokens(getEnv('UI_TOKENS'));
     this.authTokens = parsedTokens;
@@ -455,15 +481,7 @@ export class UIServer {
   }
 
   private async computeRevisionStamp(): Promise<string> {
-    const tickets = await this.repository.listTickets('all');
-    const events = await this.repository.listEvents();
-    const latestTicketUpdate = tickets.reduce((latest, ticket) => {
-      return Math.max(latest, ticket.updatedAt.getTime());
-    }, 0);
-    const latestEvent = events.reduce((latest, event) => {
-      return Math.max(latest, event.createdAt.getTime());
-    }, 0);
-    return [tickets.length, latestTicketUpdate, events.length, latestEvent].join(':');
+    return (await this.repository.getRevisionStamp()).value;
   }
 
   private async buildSessionResponse(role: UIRole): Promise<Record<string, unknown>> {
@@ -494,18 +512,7 @@ export class UIServer {
 
   private async loadStoreSnapshot(): Promise<StoreSnapshot> {
     const tickets = await this.repository.listTickets('all');
-    const attemptsByTicket = new Map<string, TaskAttempt>();
-    const attemptsMap = new Map<string, TaskAttempt[]>();
-    const attemptsEntries = await Promise.all(
-      tickets.map(async (ticket) => [ticket.id, await this.repository.listAttempts(ticket.id)] as const)
-    );
-    for (const [ticketId, attempts] of attemptsEntries) {
-      attemptsMap.set(ticketId, attempts);
-      const latestAttempt = attempts[attempts.length - 1];
-      if (latestAttempt) {
-        attemptsByTicket.set(ticketId, latestAttempt);
-      }
-    }
+    const attemptsMap = await this.repository.listAttemptsForTickets(tickets.map((ticket) => ticket.id));
     const events = await this.repository.listEvents();
     const metrics = computeOperationalSLOMetrics({
       tickets,
@@ -523,6 +530,7 @@ export class UIServer {
 
   private async buildOverviewResponse(): Promise<Record<string, unknown>> {
     const snapshot = await this.loadStoreSnapshot();
+    const efficiency = await readEfficiencySnapshot(this.efficiencySnapshotFile);
     const recentTickets = [...snapshot.tickets]
       .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
       .slice(0, 12);
@@ -531,6 +539,7 @@ export class UIServer {
     return {
       ticketCounts: buildTicketCounts(snapshot.tickets),
       metrics: snapshot.metrics,
+      efficiency,
       recentTickets,
       recentEvents,
     };
@@ -587,9 +596,12 @@ export class UIServer {
 
   private async buildApprovalQueueResponse(): Promise<Record<string, unknown>> {
     const tickets = await this.repository.listTickets('awaiting_approval');
+    const attemptsByTicket = await this.repository.listAttemptsForTickets(
+      tickets.map((ticket) => ticket.id)
+    );
     const items = await Promise.all(
       tickets.map(async (ticket) => {
-        const attempts = await this.repository.listAttempts(ticket.id);
+        const attempts = attemptsByTicket.get(ticket.id) ?? [];
         const policySnapshots = extractPolicySnapshots(attempts);
         const patchDeltas = extractPatchDeltas(attempts);
         return {
@@ -612,11 +624,13 @@ export class UIServer {
   private async buildReliabilityResponse(): Promise<Record<string, unknown>> {
     const snapshot = await this.loadStoreSnapshot();
     const baseline = await readBaselineSnapshot(this.baselineFile);
+    const efficiency = await readEfficiencySnapshot(this.efficiencySnapshotFile);
 
     return {
       metrics: snapshot.metrics,
       comparisons: buildMetricComparisons(snapshot.metrics, baseline.values),
       baseline,
+      efficiency,
       recentEvents: [...snapshot.events].slice(-24).reverse(),
     };
   }
@@ -888,6 +902,15 @@ async function readBaselineSnapshot(filePath: string): Promise<BaselineSnapshot>
     return { markdown, values };
   } catch {
     return { markdown: '', values: {} };
+  }
+}
+
+async function readEfficiencySnapshot(filePath: string): Promise<EfficiencySnapshot> {
+  try {
+    const content = await readFile(filePath, 'utf-8');
+    return JSON.parse(content) as EfficiencySnapshot;
+  } catch {
+    return {};
   }
 }
 

@@ -1,0 +1,73 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-28T21:01:39.465Z",
+  "lane": "deep",
+  "laneReason": "status=blocked, high retry pressure, long task description",
+  "ticket": {
+    "id": "ticket_ecb969cec9d4",
+    "description": "Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery",
+    "status": "blocked",
+    "attemptCount": 7,
+    "updatedAt": "2026-05-28T18:01:05.432Z"
+  },
+  "codexContext": {
+    "prompt": "Use a deep lane: perform a brief design-first analysis, then apply phased edits with explicit verification checkpoints.\nTicket: Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery\nCurrent status: blocked\nAttempt count: 7",
+    "recentArtifacts": [
+      "[admission_5d44baa42200] policy.snapshot [84ccb708059d0acd] {\"version\":\"hephaestus-tool-policy/v1\",\"workspaceRoot\":\"C:\\\\Users\\\\ryanv\\\\Desktop\\\\MCGILL\\\\McGillSoftware\\\\Hephaestus\",\"dryRunByDefault\":false,\"maxReadBytes\":131072,\"maxOutputBytes\":65536,\"maxSearchResults\":50,\"commandTimeoutMs\":60000,\"commandAllowlist\":[\"npm test\",\"npm run test\",\"npm run lint\",\"npm run build\",\"npm run validate:config\",\"npm run preflight\",\"npm run start:once\",\"npm run tickets\",\"node scripts/run-tests.mjs\",\"node_modules/.bin/tsc --noEmit\",\"node_modules\\\\.bin\\\\tsc.cmd --noEmit\"],\"protectedPathPrefixes\":[\".git\",\"node_modules\",\"dist\",\".env\",\".env.local\",\".hephaestus-tickets.db\",\".hephaestus-tickets.db-shm\",\".hephaestus-tickets.db-wal\"],\"patchRiskThresholds\":{\"maxSafeTouchedPaths\":1,\"maxSafeChangedLines\":20},\"generatedAt\":\"2026-05-27T23:18:05.000Z\",\"signature\":\"84ccb708059d0acd\"}",
+      "[admission_5d44baa42200] deferred-mutation update src/plan-contract.ts: mutating file plans require governed tool calls.",
+      "[admission_5d44baa42200] deferred-mutation update src/runtime.ts: mutating file plans require governed tool calls.",
+      "[admission_5d44baa42200] deferred-mutation update src/self-audit.ts: mutating file plans require governed tool calls.",
+      "[admission_5d44baa42200] deferred-mutation update src/ui-server.ts: mutating file plans require governed tool calls.",
+      "[admission_5d44baa42200] command.run npm run tickets -> success: Command succeeded: npm run tickets",
+      "[admission_5d44baa42200] command.run npm run plan -> denied [command-not-allowlisted]: Command is not allowlisted: npm run plan"
+    ],
+    "recentEvents": [
+      {
+        "type": "attempt-started",
+        "createdAt": "2026-05-27T23:17:49.536Z",
+        "details": "attempt_4e8224af8aeb"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-27T23:18:06.124Z",
+        "details": "memory.record-blocker:blocked_ticket_ecb969cec9d4_1779923886124:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-27T23:18:06.124Z",
+        "details": "memory.add-session-summary:blocked_ticket_ecb969cec9d4_1779923886124:memory.add-session-summary"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-27T23:18:06.135Z",
+        "details": "memory.record-blocker:blocked_ticket_ecb969cec9d4_1779923886124:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-27T23:18:06.144Z",
+        "details": "memory.add-session-summary:blocked_ticket_ecb969cec9d4_1779923886124:memory.add-session-summary"
+      },
+      {
+        "type": "blocked",
+        "createdAt": "2026-05-27T23:18:06.154Z",
+        "details": "Command is not allowlisted: npm run plan"
+      },
+      {
+        "type": "attempt-finished",
+        "createdAt": "2026-05-27T23:18:06.154Z",
+        "details": "attempt_4e8224af8aeb"
+      },
+      {
+        "type": "stale-recovered",
+        "createdAt": "2026-05-28T18:01:05.432Z",
+        "details": "Cleared orphaned active attempt metadata without changing terminal ticket status."
+      }
+    ],
+    "pendingToolCalls": [
+      "file.read",
+      "file.read",
+      "file.read",
+      "file.read"
+    ]
+  }
+}

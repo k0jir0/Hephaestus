@@ -1,0 +1,74 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-28T21:01:39.465Z",
+  "lane": "fast",
+  "laneReason": "status=blocked",
+  "ticket": {
+    "id": "ticket_b5220f915b25",
+    "description": "Efficiency P2: Add weekly automated variance report generation from efficiency history",
+    "status": "blocked",
+    "attemptCount": 1,
+    "updatedAt": "2026-05-28T20:58:42.248Z"
+  },
+  "codexContext": {
+    "prompt": "Use a minimal-change fast lane: prioritize the smallest safe patch and one narrow verification command.\nTicket: Efficiency P2: Add weekly automated variance report generation from efficiency history\nCurrent status: blocked\nAttempt count: 1",
+    "recentArtifacts": [
+      "[admission_454202e3b3c1] policy.snapshot [265ae181a51b44e7] {\"version\":\"hephaestus-tool-policy/v1\",\"workspaceRoot\":\"c:\\\\Users\\\\ryanv\\\\Desktop\\\\MCGILL\\\\McGillSoftware\\\\Hephaestus\",\"dryRunByDefault\":false,\"maxReadBytes\":131072,\"maxOutputBytes\":65536,\"maxSearchResults\":50,\"commandTimeoutMs\":60000,\"commandAllowlist\":[\"npm test\",\"npm run test\",\"npm run lint\",\"npm run build\",\"npm run validate:config\",\"npm run preflight\",\"npm run start:once\",\"npm run tickets\",\"node scripts/run-tests.mjs\",\"node_modules/.bin/tsc --noEmit\",\"node_modules\\\\.bin\\\\tsc.cmd --noEmit\"],\"protectedPathPrefixes\":[\".git\",\"node_modules\",\"dist\",\".env\",\".env.local\",\".hephaestus-tickets.db\",\".hephaestus-tickets.db-shm\",\".hephaestus-tickets.db-wal\"],\"patchRiskThresholds\":{\"maxSafeTouchedPaths\":1,\"maxSafeChangedLines\":20},\"generatedAt\":\"2026-05-28T20:57:54.759Z\",\"signature\":\"265ae181a51b44e7\"}",
+      "[admission_454202e3b3c1] deferred-mutation create docs/metrics/efficiency-weekly-report.md: mutating file plans require governed tool calls.",
+      "[admission_454202e3b3c1] deferred-mutation create src/efficiency-weekly-report.ts: mutating file plans require governed tool calls.",
+      "[admission_454202e3b3c1] command.run npm run build -> success: Command succeeded: npm run build",
+      "[admission_454202e3b3c1] command.run npm run validate:config -> success: Command succeeded: npm run validate:config",
+      "[admission_454202e3b3c1] command.run npm run preflight -> success: Command succeeded: npm run preflight",
+      "[admission_454202e3b3c1] command.run npm run start:once -> success: Command succeeded: npm run start:once",
+      "[admission_454202e3b3c1] denied file.binding docs/metrics/efficiency-history.jsonl: File read target docs/metrics/efficiency-history.jsonl is not declared in the validated plan.",
+      "[admission_454202e3b3c1] backend.ollama model=codellama",
+      "[blocked_ticket_b5220f915b25_1780001922209] failure.classification planner; retryable=true; recommendation=Retry with a narrower prompt or amend the plan so it satisfies the structured contract."
+    ],
+    "recentEvents": [
+      {
+        "type": "claimed",
+        "createdAt": "2026-05-28T20:57:40.073Z",
+        "details": "Efficiency P2: Add weekly automated variance report generation from efficiency history (attempt_cd0da4ebfbdc)"
+      },
+      {
+        "type": "attempt-started",
+        "createdAt": "2026-05-28T20:57:40.073Z",
+        "details": "attempt_cd0da4ebfbdc"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T20:58:42.210Z",
+        "details": "memory.record-blocker:blocked_ticket_b5220f915b25_1780001922209:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T20:58:42.212Z",
+        "details": "memory.add-session-summary:blocked_ticket_b5220f915b25_1780001922209:memory.add-session-summary"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T20:58:42.228Z",
+        "details": "memory.record-blocker:blocked_ticket_b5220f915b25_1780001922209:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T20:58:42.240Z",
+        "details": "memory.add-session-summary:blocked_ticket_b5220f915b25_1780001922209:memory.add-session-summary"
+      },
+      {
+        "type": "blocked",
+        "createdAt": "2026-05-28T20:58:42.248Z",
+        "details": "File read target docs/metrics/efficiency-history.jsonl is not declared in the validated plan."
+      },
+      {
+        "type": "attempt-finished",
+        "createdAt": "2026-05-28T20:58:42.248Z",
+        "details": "attempt_cd0da4ebfbdc"
+      }
+    ],
+    "pendingToolCalls": [
+      "file.read",
+      "file.read"
+    ]
+  }
+}

@@ -10,7 +10,7 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 ## In Progress
 
 <!-- Currently working on these tasks -->
-- [ ] Extend the plan contract and executor prompt so plans can declare executable edit operations, verification commands, and approval requirements in a machine-runnable format <!-- hephaestus-ticket:ticket_a612151dbdd0 -->
+- (empty)
 
 ## Completed
 
@@ -43,12 +43,21 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Self-audit (read-only) analyze repo and create improvement tickets - READ ONLY <!-- hephaestus-ticket:ticket_2da0176fc0e6 -->
 - [x] Audit this repository, identify concrete startup, reliability, and safety improvements, and create actionable follow-up work. <!-- hephaestus-ticket:ticket_7b6579a8ef1b -->
 - [x] Add operator approval gating so file mutations and non-safe verification commands pause for approval instead of executing automatically <!-- hephaestus-ticket:ticket_2537693f1939 -->
+- [x] Efficiency P1: Add projection write coalescing/debounce to reduce redundant TASKS.md rewrites <!-- hephaestus-ticket:ticket_7e3148ce3cb6 -->
+- [x] Efficiency P1: Add prompt context budget controls for focused high-value files <!-- hephaestus-ticket:ticket_c4d2745803f9 -->
+- [x] Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL <!-- hephaestus-ticket:ticket_a434477eddef -->
 
 ## Blocked
 
 <!-- Tasks that need operator attention before they should be retried -->
+- [ ] Extend the plan contract and executor prompt so plans can declare executable edit operations, verification commands, and approval requirements in a machine-runnable format <!-- hephaestus-ticket:ticket_a612151dbdd0 -->
 - [ ] Self-audit [high/startup]: Add a /health endpoint to the UI server and update smoke checks to use it <!-- hephaestus-ticket:ticket_3d876b0f11c5 -->
 - [ ] Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery <!-- hephaestus-ticket:ticket_ecb969cec9d4 -->
+- [ ] CLI validation ticket 2026-05-28T14:01:04 <!-- hephaestus-ticket:ticket_92dce2c6d60a -->
+- [ ] CLI validation ticket 2026-05-28T14:01:51 <!-- hephaestus-ticket:ticket_860896e72375 -->
+- [ ] "CLI validation ticket 2026-05-28T18:03:11.611Z" <!-- hephaestus-ticket:ticket_a1787a295da6 -->
+- [ ] "CLI validation ticket 2026-05-28T18:04:39.301Z" <!-- hephaestus-ticket:ticket_0687c2abaf14 -->
+- [ ] "CLI validation ticket 2026-05-28T18:05:20.102Z" <!-- hephaestus-ticket:ticket_d10babe05507 -->
 
 ## Cancelled
 
@@ -58,6 +67,14 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Self-audit [medium/tooling]: Add a stop_all script that terminates daemon and UI processes from PID files <!-- hephaestus-ticket:ticket_8652a997cf85 -->
 - [x] Self-audit [medium/general]: Implement a `/health` endpoint for the UI server and update smoke tests to use it. This would allow us to monitor the health of the application more easily and ensure that it is always available. <!-- hephaestus-ticket:ticket_dad5faf01c0e -->
 - [x] Self-audit [medium/general]: Add a `stop_all` script that terminates the daemon and UI processes from PID files. This would make it easier to shut down the application when needed, and ensure that all processes are properly terminated. <!-- hephaestus-ticket:ticket_cda9c04eebbc -->
+- [x] "CLI validation ticket 2026-05-28T18:06:00.708Z" <!-- hephaestus-ticket:ticket_937107667b91 -->
+- [x] "CLI validation ticket 2026-05-28T18:08:53.097Z" <!-- hephaestus-ticket:ticket_439b35330b93 -->
+- [x] Run self-check: summarize current blocked tickets and suggest retry order. <!-- hephaestus-ticket:ticket_b9e9f1b254b8 -->
+- [x] Efficiency P0: Reduce sync blocking in CLI by migrating non-critical paths to async process/file APIs <!-- hephaestus-ticket:ticket_c8d0615aa941 -->
+- [x] Efficiency P0: Add efficiency metrics card in UI from docs/metrics/efficiency-latest.json <!-- hephaestus-ticket:ticket_6e8cc8ecb911 -->
+- [x] Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler <!-- hephaestus-ticket:ticket_0269380dc905 -->
+- [x] Efficiency P2: Add codex tandem handoff bundle contract for active tickets <!-- hephaestus-ticket:ticket_db5399e972f8 -->
+- [x] Efficiency P2: Add weekly automated variance report generation from efficiency history <!-- hephaestus-ticket:ticket_b5220f915b25 -->
 
 ---
 

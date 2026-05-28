@@ -63,11 +63,7 @@ async function waitFor(assertion: () => boolean | Promise<boolean>, timeoutMs = 
 
 async function collectRepositoryMetrics(repository: TicketStoreRepository): Promise<OperationalSLOMetrics> {
   const tickets = await repository.listTickets('all');
-  const attemptsByTicket = new Map(
-    await Promise.all(
-      tickets.map(async (ticket) => [ticket.id, await repository.listAttempts(ticket.id)] as const)
-    )
-  );
+  const attemptsByTicket = await repository.listAttemptsForTickets(tickets.map((ticket) => ticket.id));
   const events = await repository.listEvents();
 
   return computeOperationalSLOMetrics({ tickets, attemptsByTicket, events });
@@ -85,6 +81,7 @@ export async function runFaultInjectionHarness(): Promise<FaultHarnessReport> {
     storeFile,
     importLegacyTaskBoardIfStoreEmpty: false,
     projectionEnabled: true,
+    staleRecoveryMinAgeMs: 0,
     projectionRetryDelayMs: 10,
     projectionRetryMaxDelayMs: 20,
     projectionWriter: async (targetPath, content) => {
@@ -129,6 +126,7 @@ export async function runFaultInjectionHarness(): Promise<FaultHarnessReport> {
     storeFile,
     importLegacyTaskBoardIfStoreEmpty: false,
     projectionEnabled: false,
+    staleRecoveryMinAgeMs: 0,
   });
   try {
     const ticket = await restartRepository.createTicket('Survive mid-transition restart');
@@ -140,6 +138,7 @@ export async function runFaultInjectionHarness(): Promise<FaultHarnessReport> {
       storeFile,
       importLegacyTaskBoardIfStoreEmpty: false,
       projectionEnabled: false,
+      staleRecoveryMinAgeMs: 0,
     });
     try {
       const reopenedTicket = await reopenedRepository.getTicket(ticket.id);
