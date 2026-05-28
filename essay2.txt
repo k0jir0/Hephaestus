@@ -1,0 +1,64 @@
+Hephaestus as a Useful Self-Hosting Engineering Control Plane
+Date: 2026-05-28
+
+Abstract
+Hephaestus is useful because it does more than generate plans: it maintains durable workflow state, enforces policy boundaries, exposes operator controls, and provides measurable reliability signals. This essay argues usefulness through direct, reproducible observations from a same-day self-hosted run where Hephaestus operated on its own repository.
+
+1. Problem Statement
+Many AI coding systems are difficult to trust in production-like environments because they are opaque, stateless across failures, and weakly governed. A useful engineering agent must satisfy four requirements:
+- durable state that survives process restarts,
+- explicit control points for operators,
+- policy-gated action execution,
+- observability that supports triage and decisions.
+
+Hephaestus addresses these requirements with a local-first architecture centered on a canonical ticket store, projected task board, constrained tool runtime, and role-gated control plane.
+
+2. Method
+To evaluate practical usefulness, Hephaestus was run against itself (TARGET_PROJECT=.). The evaluation intentionally used ordinary operator flows instead of one-off scripts:
+- list and render queue state,
+- inspect reliability metrics,
+- authenticate in the control plane,
+- create new work from the UI,
+- verify persistence from the CLI.
+
+Representative commands:
+- npm run tickets -- render-board
+- npm run tickets -- metrics
+- npm run ui
+- npm run tickets -- list --status pending
+
+3. Evidence from the Self-Hosted Run
+The run produced concrete state and metrics from the live ticket store:
+- Total tickets: 43
+- Completed tickets: 28
+- Blocked tickets: 2
+- Awaiting approval tickets: 0
+
+These values are not synthetic examples; they reflect the currently persisted system history and queue condition.
+
+The UI login path also succeeded under token-based access control using the intended local token flow. After authentication, the control plane exposed role and permissions, live updates, and operational views. A ticket created from the UI was subsequently visible via CLI listing, demonstrating end-to-end consistency between browser actions and canonical store state.
+
+4. Why This Demonstrates Usefulness
+4.1 Durable, Inspectable Workflow
+Hephaestus does not treat work as ephemeral chat context. Tickets, attempts, and transitions are persisted and queryable. This enables replay, auditability, and reliable operator handoffs.
+
+4.2 Operator-in-the-Loop Governance
+Mutating operations are policy-gated with approval pathways. This reduces unbounded automation risk and allows practical adoption in repositories where traceability matters.
+
+4.3 Unified Control Surface
+The numbered CLI and token-gated UI expose complementary control paths over one shared source of truth. Operators can inspect and act from either interface without drifting state.
+
+4.4 Reliability as an Operational Artifact
+Metrics such as blocked-retry success ratio and admission-to-start latency provide a feedback loop for runtime quality. Usefulness is therefore measurable over time, not a one-time demo claim.
+
+5. Limitations and Honest Boundaries
+Hephaestus is not a fully autonomous replacement for engineering judgment. It is a bounded control plane for governed execution and supervised queue progression. Model output quality and backend readiness still influence throughput. These constraints are explicit in the design rather than hidden.
+
+6. Conclusion
+The current system behavior supports a practical claim of usefulness: Hephaestus can run on itself, expose real operational state, accept authenticated operator actions, and preserve consistency between UI and CLI workflows. In this framing, usefulness is evidenced by durable control, not just generated text.
+
+Appendix: Reproducibility Notes
+- Repository: McGillSoftware/Hephaestus
+- Runtime style: local-first, self-hosted
+- UI default endpoint: http://127.0.0.1:4180
+- Token flow: role token via query parameter or bearer token

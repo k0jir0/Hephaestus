@@ -21,6 +21,24 @@ Current implemented state includes:
 
 The current project focus is no longer "multiple ways to start the app". The supported operator entrypoint is now the numbered Hephaestus CLI, which exposes stack lifecycle, ticket operations, reliability tooling, and log inspection from one control plane.
 
+## Validated Today (2026-05-28)
+
+Hephaestus was run on itself (`TARGET_PROJECT=.`) and validated end-to-end through both CLI and UI paths:
+
+- rendered the projected board from canonical SQLite ticket state (`npm run tickets -- render-board`)
+- produced live operational metrics from the same store (`npm run tickets -- metrics`)
+- launched and authenticated into the UI control plane using token auth
+- created a ticket from the browser UI and verified it from the ticket CLI
+
+Observed operator signals from the current run included:
+
+- `Total tickets: 43`
+- `Completed tickets: 28`
+- `Blocked tickets: 2`
+- `Awaiting approval tickets: 0`
+
+This is the core usefulness claim in practice: Hephaestus can manage its own improvement queue with durable state, inspectable transitions, role-gated operations, and operator-visible reliability telemetry.
+
 ## What It Demonstrates
 
 - Queue-driven automation through durable ticket objects
@@ -56,7 +74,10 @@ npm run validate:config
 # Create work in the ticket store
 npm run tickets -- create "Inspect the runtime flow"
 
-# Start the numbered operator CLI (canonical entrypoint)
+# Start the numbered operator CLI from the project folder
+.\start.ps1
+
+# Or run it directly through npm if you prefer
 npm run cli
 
 # Run one bounded demo pass
@@ -71,10 +92,16 @@ npm run start
 
 Canonical operator path:
 
+- Canonical launcher: `.\start.ps1`
 - Numbered control plane: `npm run cli`
 - Service-level runs for development and verification: `npm run start`, `npm run start:once`, `npm run ui`
 
-Windows launcher scripts remain available for compatibility, but operational guidance now routes through the CLI control plane.
+Self-hosted proof path:
+
+- `npm run tickets -- render-board`
+- `npm run tickets -- metrics`
+- `npm run ui`
+- open `http://127.0.0.1:4180/?token=<your-token>`
 
 ## Default Demo Setup
 
@@ -89,8 +116,8 @@ That means the agent reads and reasons about this repository itself. To point it
 ## Scripts
 
 - `npm run build` compiles the TypeScript source into `dist/`
+- `start.ps1` launches the numbered operator control plane from the repository root
 - `npm run cli` starts the numbered operator control plane for stack lifecycle, tickets, reliability, and logs
-- `start_all.bat` and `stop_all.bat` remain compatibility launchers for existing Windows workflows
 - `npm run preflight` validates config, repo files, and backend reachability
 - `npm run start` builds and starts watcher mode
 - `npm run start:once` builds, processes the current queue once, and exits
@@ -149,6 +176,8 @@ npm run tickets -- render-board
 
 The UI server is local-first and token-gated. By default it binds to `127.0.0.1:4180`.
 
+The current CLI defaults to the same UI port (`4180`), so stack status checks and "Open UI" actions target the same control-plane endpoint.
+
 If `UI_TOKENS` is unset, Hephaestus starts the UI with a local development admin token and logs that token on startup. To define explicit roles, set:
 
 ```env
@@ -194,7 +223,7 @@ Hephaestus/
 ├── test/
 ├── TASKS.md
 ├── AGENT.md
-└── .github/workflows/ci.yml
+└── start.ps1
 ```
 
 ## Safety Controls
