@@ -19,7 +19,7 @@ Current implemented state includes:
 - startup and shutdown orchestration for the managed local stack on Windows
 - reliability harnesses, SLO metrics, and published baseline/reporting flows
 
-The current project focus is no longer "multiple ways to start the app". The supported full-stack startup path is the current Windows launcher, which handles cleanup, validation, health checks, UI startup, and autopilot orchestration in one place.
+The current project focus is no longer "multiple ways to start the app". The supported operator entrypoint is now the numbered Hephaestus CLI, which exposes stack lifecycle, ticket operations, reliability tooling, and log inspection from one control plane.
 
 ## What It Demonstrates
 
@@ -56,8 +56,8 @@ npm run validate:config
 # Create work in the ticket store
 npm run tickets -- create "Inspect the runtime flow"
 
-# Windows full-stack startup (canonical entrypoint)
-start_all.bat
+# Start the numbered operator CLI (canonical entrypoint)
+npm run cli
 
 # Run one bounded demo pass
 npm run start:once
@@ -69,14 +69,12 @@ npm run ui
 npm run start
 ```
 
-Canonical startup path:
+Canonical operator path:
 
-- Windows full stack: `start_all.bat`
-- Windows full stack stop: `stop_all.bat`
+- Numbered control plane: `npm run cli`
 - Service-level runs for development and verification: `npm run start`, `npm run start:once`, `npm run ui`
-- Unix-like helper: `start.sh`
 
-`start_all.bat` is the documented Windows entrypoint. It delegates into the current PowerShell-based startup flow and represents the supported startup path for the local stack.
+Windows launcher scripts remain available for compatibility, but operational guidance now routes through the CLI control plane.
 
 ## Default Demo Setup
 
@@ -91,8 +89,8 @@ That means the agent reads and reasons about this repository itself. To point it
 ## Scripts
 
 - `npm run build` compiles the TypeScript source into `dist/`
-- `start_all.bat` launches the Windows full stack with cleanup, health checks, viewers, and autopilot
-- `stop_all.bat` stops the managed Windows stack and cleans up PID-tracked processes
+- `npm run cli` starts the numbered operator control plane for stack lifecycle, tickets, reliability, and logs
+- `start_all.bat` and `stop_all.bat` remain compatibility launchers for existing Windows workflows
 - `npm run preflight` validates config, repo files, and backend reachability
 - `npm run start` builds and starts watcher mode
 - `npm run start:once` builds, processes the current queue once, and exits
