@@ -21,8 +21,6 @@ Current implemented state includes:
 - startup and shutdown orchestration for the managed local stack on Windows
 - reliability harnesses, SLO metrics, and published baseline/reporting flows
 
-The current project focus is no longer "multiple ways to start the app". The supported operator entrypoint is now the numbered Hephaestus CLI, which exposes stack lifecycle, ticket operations, reliability tooling, and log inspection from one control plane.
-
 ## Validated Today (2026-05-28)
 
 Hephaestus was run on itself (`TARGET_PROJECT=.`) and validated end-to-end through both CLI and UI paths:
