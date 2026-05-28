@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { exportPatchBundle } from './delivery.js';
 import { logger } from './logger.js';
+import { buildModelStatus, fetchOllamaModelInventory } from './model-diagnostics.js';
 import { deriveRecoveryRecommendation } from './recovery-recommendation.js';
 import { computeOperationalSLOMetrics, type OperationalSLOMetrics } from './slo-metrics.js';
 import { TicketStoreRepository } from './task-store.js';
@@ -273,6 +274,12 @@ export class UIServer {
         return;
       }
 
+      if (request.method === 'GET' && url.pathname === '/api/model-status') {
+        this.requireRole(request, url, 'viewer');
+        this.respondJson(response, 200, await this.buildModelStatusResponse());
+        return;
+      }
+
       if (request.method === 'GET' && url.pathname === '/api/tickets') {
         this.requireRole(request, url, 'viewer');
         this.respondJson(response, 200, await this.buildTicketListResponse(url.searchParams));
@@ -503,6 +510,7 @@ export class UIServer {
       server: this.serverName,
       revision: this.revisionStamp,
       projectionEnabled: config.taskBoardProjectionEnabled,
+      model: buildModelStatus(config),
       counts: await this.repository.getTicketCounts(),
       timestamp: new Date().toISOString(),
     };
@@ -538,9 +546,18 @@ export class UIServer {
     return {
       ticketCounts: buildTicketCounts(snapshot.tickets),
       metrics: snapshot.metrics,
+      model: buildModelStatus(config),
       efficiency,
       recentTickets,
       recentEvents,
+    };
+  }
+
+  private async buildModelStatusResponse(): Promise<Record<string, unknown>> {
+    const inventory = await fetchOllamaModelInventory(config);
+    return {
+      ...buildModelStatus(config, inventory),
+      inventory,
     };
   }
 

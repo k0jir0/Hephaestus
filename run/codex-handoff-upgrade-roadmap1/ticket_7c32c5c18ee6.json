@@ -1,0 +1,25 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-28T21:58:36.540Z",
+  "lane": "fast",
+  "laneReason": "low-complexity ticket with limited risk signals",
+  "ticket": {
+    "id": "ticket_7c32c5c18ee6",
+    "description": "Upgrade Roadmap 1 P2: expose active model profile, installed models, and upgrade recommendations in the operator UI and health API",
+    "status": "pending",
+    "attemptCount": 0,
+    "updatedAt": "2026-05-28T21:58:21.079Z"
+  },
+  "codexContext": {
+    "prompt": "Use a minimal-change fast lane: prioritize the smallest safe patch and one narrow verification command.\nTicket: Upgrade Roadmap 1 P2: expose active model profile, installed models, and upgrade recommendations in the operator UI and health API\nCurrent status: pending\nAttempt count: 0",
+    "recentArtifacts": [],
+    "recentEvents": [
+      {
+        "type": "created",
+        "createdAt": "2026-05-28T21:58:21.079Z",
+        "details": "Upgrade Roadmap 1 P2: expose active model profile, installed models, and upgrade recommendations in the operator UI and health API"
+      }
+    ],
+    "pendingToolCalls": []
+  }
+}

@@ -1,0 +1,525 @@
+Hephaestus Upgrade Roadmap 1:
+Replacing CodeLlama With A Better Local Model
+
+Date: 2026-05-28
+
+Abstract
+
+Hephaestus can upgrade from CodeLlama to a better model immediately at the
+configuration level. The application already exposes AI_MODEL and AI_BACKEND,
+and the current local backend is Ollama. A model swap is therefore not the
+hard part. The hard part is making the model behave like a reliable software
+engineering agent: it must understand a repository, choose valid bounded
+actions, produce parseable outputs, recover from invalid commands, run tests,
+and prove that a task is complete.
+
+The central answer is yes: CodeLlama should be replaced. The installed
+CodeLlama model is a small, older local coding model with a 16K context window.
+Modern Ollama-accessible models such as qwen3-coder:30b and gpt-oss:20b offer
+substantially more attractive profiles for agentic coding work, including
+larger context windows, stronger reasoning behavior, structured outputs, and
+tool-calling support in the surrounding API. But the north star should not be
+"install a larger model and hope." The correct upgrade is a model-plus-system
+upgrade: better model, better adapter, structured action protocol, benchmark
+harness, promotion gates, and a local/Codex routing policy.
+
+
+1. Current State
+
+The current Hephaestus configuration is already model-parametric:
+
+- AI_BACKEND can be set to ollama, openai, claude, or copilot.
+- AI_MODEL is read from the environment and passed into the selected backend.
+- OLLAMA_BASE_URL defaults to the local Ollama server.
+- The local machine currently has only codellama:latest installed according to
+  ollama list.
+
+This means the shortest possible upgrade is:
+
+1. Install a better Ollama model.
+2. Set AI_MODEL to that model name.
+3. Run the existing Hephaestus preflight, task execution, and test flows.
+
+However, the current Ollama executor uses a simple prompt-to-text generation
+path. It does not yet exploit the strongest features now available in Ollama's
+chat API: explicit messages, tools, thinking controls, JSON schema output, or
+model-specific runtime options. This limits any local model, even a better one.
+
+The present architecture treats the model mostly as a verbal planner. A
+Codex-class system treats the model as one component in a controlled software
+engineering loop. The application must therefore upgrade both the model and the
+interaction contract.
+
+
+2. Why CodeLlama Is The Wrong Long-Term Default
+
+CodeLlama was important, but it is no longer the right default for an
+always-on coding agent. On Ollama, codellama:latest is listed as a 3.8 GB model
+with a 16K context window. That is small and convenient, but Hephaestus is not
+trying to autocomplete a function in isolation. It is trying to triage tickets,
+inspect project state, reason across files, choose commands, interpret test
+failures, and maintain code quality over time.
+
+For that workload, CodeLlama is weak in four ways:
+
+- Context: repository tasks need more than local snippets. A 16K context
+  window is quickly consumed by task history, file excerpts, constraints,
+  command policy, and test output.
+- Agentic discipline: older code models tend to produce plausible prose or
+  commands rather than reliably structured actions.
+- Tool compatibility: Hephaestus needs a model that can cooperate with tool
+  calls, JSON schemas, and validation loops.
+- Benchmark relevance: modern coding-agent models are being trained and
+  evaluated on long-horizon repository work, SWE-bench-style tasks, and
+  execution feedback. CodeLlama predates much of that agentic coding emphasis.
+
+The result is predictable: CodeLlama can help with small local edits and
+summaries, but it is a poor foundation for a self-improving engineering engine.
+
+
+3. Candidate Model Upgrades
+
+The first replacement candidate should be qwen3-coder:30b.
+
+Ollama lists qwen3-coder as a model family for agentic and coding tasks.
+The qwen3-coder:30b variant is listed at 19 GB with a 256K context window.
+The page describes it as designed for agentic code work, long-context
+repository understanding, and execution-driven reinforcement learning. This is
+much closer to Hephaestus' purpose than codellama:latest.
+
+Recommended first test:
+
+    ollama pull qwen3-coder:30b
+    AI_MODEL=qwen3-coder:30b
+
+If local hardware cannot run qwen3-coder:30b acceptably, the second candidate
+should be gpt-oss:20b.
+
+Ollama lists gpt-oss:20b at 14 GB with a 128K context window. OpenAI's gpt-oss
+model card describes the gpt-oss models as open-weight reasoning models
+designed for agentic workflows, tool use, reasoning controls, and structured
+outputs. The Ollama page also presents gpt-oss as suitable for reasoning,
+agentic tasks, and developer use cases. This makes gpt-oss:20b a strong
+candidate when the machine has enough memory but not enough capacity for
+larger coding-specialized models.
+
+Recommended second test:
+
+    ollama pull gpt-oss:20b
+    AI_MODEL=gpt-oss:20b
+
+The ambitious local target is gpt-oss:120b or qwen3-coder:480b, but those are
+not first-step choices. Ollama lists gpt-oss:120b at 65 GB and qwen3-coder:480b
+at 290 GB, with qwen3-coder:480b requiring very large memory. These are serious
+hardware commitments. They belong in a future high-compute tier, not in the
+baseline roadmap.
+
+The practical model ladder is:
+
+- Tier 0: codellama:latest as the baseline control model.
+- Tier 1: gpt-oss:20b as a lower-memory reasoning and tool-use candidate.
+- Tier 2: qwen3-coder:30b as the preferred coding-agent candidate.
+- Tier 3: gpt-oss:120b for high-memory local reasoning experiments.
+- Tier 4: qwen3-coder:480b or cloud-backed local-compatible models for frontier
+  agentic coding experiments.
+
+
+4. Scientific Frame
+
+The relevant research does not say that a local LLM becomes a software
+engineer just by being bigger. It says that software engineering agents need
+interfaces, feedback, benchmarks, and environmental grounding.
+
+SWE-bench showed why repository-level issue resolution is difficult. The task
+is not just code generation. It requires understanding issue descriptions,
+finding relevant code, editing multiple files, and passing tests in real
+projects. This is exactly the class of difficulty Hephaestus should measure
+against, even if it starts with a smaller internal benchmark.
+
+SWE-agent showed that the agent-computer interface matters. A model with the
+wrong interface behaves worse than the same model with tools designed for code
+navigation, editing, and testing. This argues directly for improving
+Hephaestus' action protocol rather than merely changing AI_MODEL.
+
+Agentless showed that simpler localization, repair, and validation pipelines
+can outperform more elaborate free-form agents. This is an important warning:
+Hephaestus should not become an unconstrained chatterbox with shell access. It
+should become a disciplined task processor with explicit phases and evidence.
+
+The research implication is clear: the next architecture should be less
+"verbal ticket processor" and more "bounded software engineering pipeline."
+
+
+5. The Real Upgrade: Model Plus Agent Contract
+
+The model upgrade should be implemented as part of a five-part system upgrade.
+
+First, add model profiles. Hephaestus should know the expected properties of
+each model:
+
+- context window
+- local memory requirement
+- expected latency tier
+- supports chat messages
+- supports structured outputs
+- supports tool calls
+- supports reasoning or thinking controls
+- recommended temperature
+- recommended maximum output tokens
+- preferred task classes
+
+Second, add a model benchmark harness. The harness should run the same tickets
+against each candidate model and collect comparable metrics:
+
+- plan validity rate
+- parseable response rate
+- valid command rate
+- patch generation rate
+- test pass rate
+- false completion rate
+- mean task duration
+- tokens per completed task
+- human or Codex intervention count
+
+Third, upgrade the Ollama backend from plain generation to chat-first
+interaction. Ollama's chat API accepts messages, tools, structured output
+format controls, runtime options, streaming, and thinking controls for models
+that support them. Hephaestus should use those capabilities instead of flattening
+system and user prompts into one string whenever possible.
+
+Fourth, enforce a strict action schema. The local model should not be asked to
+write loose prose and hope the parser understands it. It should produce a JSON
+object such as:
+
+    {
+      "phase": "inspect | edit | verify | summarize | escalate",
+      "intent": "short explanation",
+      "actions": [
+        {
+          "tool": "read_file | search | apply_patch | run_command",
+          "arguments": {}
+        }
+      ],
+      "verification": {
+        "commands": [],
+        "expected_signal": "what proves completion"
+      },
+      "escalation_reason": null
+    }
+
+Fifth, build command repair into the loop. Recent Hephaestus runs have shown
+that a model can fail not because it cannot reason, but because it proposes a
+command outside the allowed policy. A better system should not simply dead-end
+the ticket. It should return a structured policy error and ask the model to
+rewrite the action using the allowed command set.
+
+
+6. Implementation Roadmap
+
+Phase 1: Establish The Baseline
+
+Goal: make the current CodeLlama performance measurable before replacing it.
+
+Tasks:
+
+- Add a local model inventory command that records installed Ollama models,
+  model sizes, and current AI_MODEL.
+- Add a model smoke test that asks the active model for a tiny JSON response and
+  validates that the output can be parsed.
+- Add a fixed internal benchmark set of 10 small Hephaestus tickets:
+  documentation edit, small test addition, simple refactor, command validation,
+  UI copy edit, TypeScript type fix, failing-test diagnosis, task queue edit,
+  metrics inspection, and safe escalation.
+- Record baseline metrics for codellama:latest.
+
+Acceptance criteria:
+
+- Hephaestus can produce a repeatable model report.
+- The current CodeLlama baseline is saved.
+- Failures are classified rather than merely logged.
+
+
+Phase 2: Install And Compare Better Models
+
+Goal: test candidate models under identical tasks.
+
+Tasks:
+
+- Install qwen3-coder:30b if hardware allows.
+- Install gpt-oss:20b as the lower-memory reasoning candidate.
+- Keep codellama:latest as the control.
+- Run the internal benchmark across all installed models.
+- Rank models by verified task completion, not by subjective fluency.
+
+Acceptance criteria:
+
+- At least two candidate models are benchmarked against CodeLlama.
+- The winning model must improve verified completion rate or command-validity
+  rate by at least 25 percent over CodeLlama.
+- A slower model only wins if it produces substantially fewer false completions
+  and fewer invalid actions.
+
+
+Phase 3: Add Model Profiles
+
+Goal: make model choice explicit and inspectable.
+
+Tasks:
+
+- Create src/model-profiles.ts.
+- Define built-in profiles for codellama, qwen3-coder, and gpt-oss.
+- Add config validation that warns when AI_MODEL has no known profile.
+- Add UI and CLI visibility for active model profile, context budget, and
+  expected task class.
+- Add a "recommended model" command that inspects hardware and installed
+  models.
+
+Acceptance criteria:
+
+- The UI shows the active model, backend, and capability profile.
+- Unknown models still run, but Hephaestus marks them as unprofiled.
+- Profile information influences prompt size and task selection.
+
+
+Phase 4: Upgrade The Ollama Adapter
+
+Goal: stop treating modern local models like simple text-completion engines.
+
+Tasks:
+
+- Add an Ollama chat adapter using /api/chat.
+- Preserve /api/generate as a compatibility fallback.
+- Add structured output mode through Ollama's format field.
+- Add optional JSON schema support for action plans.
+- Add model-specific runtime options such as temperature, num_ctx, num_predict,
+  keep_alive, and reasoning effort where supported.
+- Capture token counts, load duration, prompt evaluation duration, and generation
+  duration from Ollama responses.
+
+Acceptance criteria:
+
+- The adapter can request schema-shaped responses.
+- The adapter can run with stream=false for strict parsing and stream=true for
+  interactive logs.
+- Metrics include latency and token accounting per model.
+
+
+Phase 5: Replace Free-Form Plans With Structured Actions
+
+Goal: reduce hallucinated commands and unparseable plans.
+
+Tasks:
+
+- Define a Zod schema for model actions.
+- Validate every model response before execution.
+- Return validation failures to the model as repair prompts.
+- Separate task phases into inspect, localize, edit, verify, summarize, and
+  escalate.
+- Require every completion claim to include evidence: changed files, test
+  command, command result, and remaining risk.
+
+Acceptance criteria:
+
+- Invalid model output never reaches the executor.
+- Invalid command proposals trigger repair rather than silent failure.
+- A ticket cannot be marked complete without verification evidence or an
+  explicit documented waiver.
+
+
+Phase 6: Add A Local/Codex Routing Policy
+
+Goal: use local models where they help and escalate where they do not.
+
+Tasks:
+
+- Classify tickets by difficulty and risk.
+- Route low-risk, narrow-scope tickets to the local model.
+- Route architectural, multi-file, security-sensitive, or repeated-failure
+  tickets to Codex or the human.
+- Add a maximum local retry count.
+- Add "local assisted handoff" summaries so Codex receives useful context when
+  local execution fails.
+
+Acceptance criteria:
+
+- The local model improves throughput on small tickets without increasing
+  cleanup burden.
+- Codex handoffs include concise findings, attempted commands, failed actions,
+  and recommended next step.
+- Hephaestus measures whether the local model saved time or created debt.
+
+
+Phase 7: Build A Hephaestus SWE-Bench-Lite
+
+Goal: evaluate the actual product on actual product tasks.
+
+Tasks:
+
+- Convert resolved Hephaestus tickets into replayable benchmark cases.
+- Store initial state, task prompt, expected file touch set, allowed commands,
+  and expected tests.
+- Add mutation or regression tests for high-value cases.
+- Run benchmark cases nightly or on demand.
+- Publish trend lines for each model profile.
+
+Acceptance criteria:
+
+- The benchmark can replay at least 25 historical Hephaestus tasks.
+- Model upgrades are accepted only after benchmark improvement.
+- Regressions block promotion to default.
+
+
+Phase 8: Make The Frontend Model-Aware
+
+Goal: let the human understand what the local model is doing.
+
+Tasks:
+
+- Add a model status panel to the frontend.
+- Show active backend, active model, profile, context budget, installed-model
+  inventory, and benchmark score.
+- Show current task phase and next action.
+- Show invalid action repairs as first-class events.
+- Add a "promote model to default" flow guarded by benchmark results.
+
+Acceptance criteria:
+
+- The UI makes it obvious when the local model is useful, stuck, or escalating.
+- Model choice is no longer hidden in .env only.
+- The human can compare models from evidence instead of intuition.
+
+
+7. Hardware Plan
+
+The model roadmap must be honest about hardware.
+
+Small local tier:
+
+- 8 GB to 16 GB memory.
+- Good for small quantized models and smoke tests.
+- Not a Codex replacement tier.
+
+Serious local tier:
+
+- 32 GB to 64 GB system memory or a capable consumer GPU.
+- Plausible for gpt-oss:20b and qwen3-coder:30b depending quantization,
+  offloading, and latency tolerance.
+- Useful for small tickets, summaries, queue grooming, and bounded edits.
+
+High-end local tier:
+
+- 80 GB GPU class or large unified memory.
+- Plausible for 100B-plus local reasoning models.
+- This is the first tier where "local model as serious autonomous coding agent"
+  becomes scientifically interesting rather than mostly aspirational.
+
+Cloud-local hybrid tier:
+
+- Local Hephaestus remains the orchestrator.
+- Frontier or cloud-hosted models handle hard tickets.
+- Local models handle queue maintenance, summarization, small edits, and
+  preflight diagnostics.
+
+This hybrid tier is likely the best product direction for now.
+
+
+8. Security And Reliability Constraints
+
+Upgrading the model increases capability and therefore increases the importance
+of controls.
+
+Required constraints:
+
+- No unrestricted shell execution.
+- No silent completion of tickets.
+- No destructive file or git operations without policy approval.
+- No dependency installation without explicit approval.
+- No network-dependent action hidden behind a model decision.
+- No model self-promotion without benchmark evidence.
+
+The right posture is not fear. It is instrumentation. A stronger model should
+be allowed to think better, not to bypass process.
+
+
+9. Near-Term Implementation Checklist
+
+The concrete next implementation should be:
+
+1. Create model inventory and smoke-test commands.
+2. Add qwen3-coder:30b and gpt-oss:20b to documented candidate profiles.
+3. Add src/model-profiles.ts.
+4. Add an Ollama chat adapter beside the existing generate adapter.
+5. Add structured JSON plan schema validation.
+6. Add invalid-action repair loop.
+7. Add benchmark runner with 10 initial Hephaestus tasks.
+8. Add UI model status and benchmark panel.
+9. Run CodeLlama, qwen3-coder:30b, and gpt-oss:20b through the same benchmark.
+10. Promote the best verified model to the recommended local default.
+
+
+10. Direct Answer
+
+Can we upgrade CodeLlama to a better model?
+
+Yes. The most practical first upgrade is qwen3-coder:30b if the machine can run
+it. If not, test gpt-oss:20b. Both are much better-aligned with Hephaestus'
+intended agentic software engineering role than codellama:latest.
+
+Should we merely change AI_MODEL and call the work complete?
+
+No. That would be a shallow upgrade. It may improve prose and some edits, but it
+will not solve the core autonomy problem. The real upgrade is to combine a
+better model with structured outputs, tool-aware chat, model profiles,
+benchmarking, command repair, and human/Codex escalation.
+
+Can the local LLM eventually push code changes like Codex?
+
+For bounded tickets, yes, if Hephaestus implements the roadmap and the hardware
+can run a strong enough model at usable latency. For broad architecture,
+ambiguous design, and complex multi-file reasoning, local models should first
+act as collaborators and triage agents, not as full Codex replacements. The
+scientifically realistic north star is progressive delegation: local models
+earn autonomy on measured task classes, and the system escalates when evidence
+shows they are out of depth.
+
+
+11. Sources Consulted
+
+- Ollama CodeLlama model page:
+  https://ollama.com/library/codellama
+- Ollama qwen3-coder model page:
+  https://ollama.com/library/qwen3-coder
+- Ollama gpt-oss model page:
+  https://ollama.com/library/gpt-oss
+- Ollama API introduction:
+  https://docs.ollama.com/api
+- Ollama chat API:
+  https://docs.ollama.com/api/chat
+- Ollama structured outputs:
+  https://docs.ollama.com/capabilities/structured-outputs
+- Ollama tool calling:
+  https://docs.ollama.com/capabilities/tool-calling
+- OpenAI gpt-oss model card:
+  https://openai.com/index/gpt-oss-model-card/
+- SWE-bench paper:
+  https://arxiv.org/abs/2310.06770
+- SWE-agent paper:
+  https://arxiv.org/abs/2405.15793
+- Agentless paper:
+  https://arxiv.org/abs/2407.01489
+
+
+Conclusion
+
+The correct upgrade path is not "replace CodeLlama with a magic model." It is
+"promote Hephaestus from prompt runner to measured software engineering system."
+CodeLlama should become the baseline control, not the default engine. The next
+default should be selected by benchmark evidence, with qwen3-coder:30b as the
+first serious candidate and gpt-oss:20b as the first lower-memory reasoning
+candidate.
+
+If this roadmap is implemented, Hephaestus becomes useful even before it becomes
+fully autonomous. It can catalogue work, groom tickets, attempt small changes,
+generate handoffs, and measure when local autonomy is actually helping. That is
+the real product: not a fantasy replacement for Codex, but a progressively
+trusted productivity engine that earns more responsibility by passing tests.

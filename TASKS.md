@@ -47,6 +47,8 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Efficiency P1: Add prompt context budget controls for focused high-value files <!-- hephaestus-ticket:ticket_c4d2745803f9 -->
 - [x] Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL <!-- hephaestus-ticket:ticket_a434477eddef -->
 - [x] Efficiency Roadmap 2: Remove full event scans from operational SLO/UI metrics by deriving latency from ticket lifecycle columns and latest board-sync metadata <!-- hephaestus-ticket:ticket_f4bc94f1f408 -->
+- [x] Upgrade Roadmap 1 P1: upgrade the Ollama backend to prefer /api/chat with structured JSON controls and telemetry while preserving generate fallback <!-- hephaestus-ticket:ticket_7171f50e7505 -->
+- [x] Upgrade Roadmap 1 P2: expose active model profile, installed models, and upgrade recommendations in the operator UI and health API <!-- hephaestus-ticket:ticket_7c32c5c18ee6 -->
 
 ## Blocked
 
@@ -59,6 +61,9 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [ ] "CLI validation ticket 2026-05-28T18:03:11.611Z" <!-- hephaestus-ticket:ticket_a1787a295da6 -->
 - [ ] "CLI validation ticket 2026-05-28T18:04:39.301Z" <!-- hephaestus-ticket:ticket_0687c2abaf14 -->
 - [ ] "CLI validation ticket 2026-05-28T18:05:20.102Z" <!-- hephaestus-ticket:ticket_d10babe05507 -->
+- [ ] Upgrade Roadmap 1 P0: add model profiles for codellama, qwen3-coder, and gpt-oss with capability metadata and config visibility <!-- hephaestus-ticket:ticket_2e4b2b042e83 -->
+- [ ] Upgrade Roadmap 1 P1: add Ollama model inventory, smoke test, and benchmark CLI so local models are promoted by evidence <!-- hephaestus-ticket:ticket_c3d298bbcf5a -->
+- [ ] Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking <!-- hephaestus-ticket:ticket_142bf6d52cb5 -->
 
 ## Cancelled
 

@@ -11,9 +11,9 @@ This file stores the agent's long-term context and memory.
 
 ## Current State
 
-- **Status**: Idle
-- **Current Task**: None
-- **Last Activity**: 2026-05-28T21:34:33.245Z
+- **Status**: Blocked
+- **Current Task**: Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking
+- **Last Activity**: 2026-05-28T21:59:43.188Z
 
 ## Working Context
 
@@ -60,6 +60,8 @@ This file stores the agent's long-term context and memory.
 | 2026-05-28 | Efficiency P1: Add prompt context budget contro... | Plan ready |
 | 2026-05-28 | Efficiency P0: Add cached runtime context snaps... | Plan ready |
 | 2026-05-28 | Efficiency Roadmap 2: Remove full event scans f... | Plan ready |
+| 2026-05-28 | Upgrade Roadmap 1 P1: upgrade the Ollama backen... | Plan ready |
+| 2026-05-28 | Upgrade Roadmap 1 P2: expose active model profi... | Plan ready |
 
 ### Blockers Encountered
 | Date | Blocker | Resolution |
@@ -3160,6 +3162,15 @@ ok 21 - TaskWatcher
 | 2026-05-28 | Efficiency Roadmap 2: Make efficiency metrics avoid loading the full event log by using ticket created/started/completed timestamps | Command is not allowlisted: npm run test:metrics:efficiency |
 | 2026-05-28 | Efficiency Roadmap 2: Optimize Codex handoff export with bulk attempts and bounded per-ticket event history so ChatGPT receives faster handoff context | Command is not allowlisted: npm run test:codex |
 | 2026-05-28 | Efficiency Roadmap 2: Make efficiency metrics avoid loading the full event log by using ticket created/started/completed timestamps | Invalid task transition in ticket ticket_1d68e6ff8f33: blocked -> in_progress |
+| 2026-05-28 | Upgrade Roadmap 1 P0: add model profiles for codellama, qwen3-coder, and gpt-oss with capability metadata and config visibility | Error threshold (5) exceeded [admission_0efa864bd1fe] |
+| 2026-05-28 | Upgrade Roadmap 1 P1: add Ollama model inventory, smoke test, and benchmark CLI so local models are promoted by evidence | Error threshold (5) exceeded [admission_373430bccd07] |
+| 2026-05-28 | Upgrade Roadmap 1 P1: upgrade the Ollama backend to prefer /api/chat with structured JSON controls and telemetry while preserving generate fallback | Error threshold (5) exceeded [admission_3b567d82f4c0] |
+| 2026-05-28 | Upgrade Roadmap 1 P0: add model profiles for codellama, qwen3-coder, and gpt-oss with capability metadata and config visibility | file.read failed.: ENOENT: no such file or directory, open 'c:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\src\codellama.ts' |
+| 2026-05-28 | Upgrade Roadmap 1 P2: expose active model profile, installed models, and upgrade recommendations in the operator UI and health API | Error threshold (5) exceeded [admission_3eca1acf0bb0] |
+| 2026-05-28 | Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking | Error threshold (5) exceeded [admission_7b18e41b1b83] |
+| 2026-05-28 | Upgrade Roadmap 1 P1: add Ollama model inventory, smoke test, and benchmark CLI so local models are promoted by evidence | Command failed: npm run start:once: Command timed out after 60000ms. |
+| 2026-05-28 | Upgrade Roadmap 1 P1: upgrade the Ollama backend to prefer /api/chat with structured JSON controls and telemetry while preserving generate fallback | Invalid task transition in ticket ticket_7171f50e7505: completed -> in_progress |
+| 2026-05-28 | Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking | file.read failed.: ENOENT: no such file or directory, open 'c:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\src\example.ts' |
 
 ## Preferences
 
@@ -3353,6 +3364,13 @@ ok 21 - TaskWatcher
 - [2026-05-28T21:27:10.883Z] Blocked: Efficiency Roadmap 2: Make efficiency metrics avoid loading the full event log by using ticket created/started/completed timestamps
 - [2026-05-28T21:31:32.878Z] Single-pass run found no pending tasks
 - [2026-05-28T21:34:33.233Z] Single-pass run found no pending tasks
+- [2026-05-28T21:58:16.162Z] Blocked: Upgrade Roadmap 1 P0: add model profiles for codellama, qwen3-coder, and gpt-oss with capability metadata and config visibility
+- [2026-05-28T21:59:03.809Z] Planned: Upgrade Roadmap 1 P1: upgrade the Ollama backend to prefer /api/chat with structured JSON controls and telemetry while preserving generate fallback
+- [2026-05-28T21:59:18.119Z] Planned: Upgrade Roadmap 1 P2: expose active model profile, installed models, and upgrade recommendations in the operator UI and health API
+- [2026-05-28T21:59:28.184Z] Blocked: Upgrade Roadmap 1 P1: add Ollama model inventory, smoke test, and benchmark CLI so local models are promoted by evidence
+- [2026-05-28T21:59:28.272Z] Blocked: Upgrade Roadmap 1 P1: upgrade the Ollama backend to prefer /api/chat with structured JSON controls and telemetry while preserving generate fallback
+- [2026-05-28T21:59:43.178Z] Blocked: Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking
+- [2026-05-28T21:59:43.206Z] Single-pass run complete
 
 ---
 

@@ -4,6 +4,7 @@ import path from 'path';
 import { promisify } from 'util';
 import type { Config } from './config.js';
 import { createComponentLogger } from './logger.js';
+import { resolveModelProfile } from './model-profiles.js';
 import type { AIBackend, AIResponse } from './types.js';
 
 const execFileAsync = promisify(execFile);
@@ -44,6 +45,29 @@ interface OllamaGenerateChunk {
   response?: string;
   done?: boolean;
   error?: string;
+  prompt_eval_count?: number;
+  eval_count?: number;
+}
+
+interface OllamaChatChunk {
+  message?: {
+    content?: string;
+    thinking?: string;
+  };
+  done?: boolean;
+  error?: string;
+  prompt_eval_count?: number;
+  eval_count?: number;
+  total_duration?: number;
+  load_duration?: number;
+  prompt_eval_duration?: number;
+  eval_duration?: number;
+}
+
+interface OllamaCollectionResult {
+  content: string;
+  promptTokens: number;
+  completionTokens: number;
 }
 
 function splitJsonLines(buffer: string): { lines: string[]; remainder: string } {
@@ -276,6 +300,81 @@ class OllamaBackendClient extends BaseBackendClient {
   async requestStructuredPlan(prompt: string, systemPrompt: string): Promise<AIResponse> {
     try {
       const model = this.config.aiModel || 'llama3';
+      try {
+        return await this.requestViaChat(model, prompt, systemPrompt);
+      } catch (error) {
+        logger.warn('Ollama chat request failed; falling back to generate API', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      return await this.requestViaGenerate(model, prompt, systemPrompt);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Ollama execution failed', { error: errorMessage });
+      return {
+        success: false,
+        content: `Ollama execution failed: ${errorMessage}`,
+      };
+    }
+  }
+
+  private async requestViaChat(model: string, prompt: string, systemPrompt: string): Promise<AIResponse> {
+    const resolvedProfile = resolveModelProfile(model, 'ollama');
+    const profile = resolvedProfile.profile;
+    const body: Record<string, unknown> = {
+      model,
+      stream: true,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      options: {
+        temperature: profile.recommendedOptions.temperature,
+        num_predict: profile.recommendedOptions.numPredict ?? 4096,
+      },
+    };
+
+    if (profile.recommendedOptions.keepAlive) {
+      body.keep_alive = profile.recommendedOptions.keepAlive;
+    }
+
+    if (profile.capabilities.structuredOutputs) {
+      body.format = 'json';
+    }
+
+    if (profile.capabilities.thinkingControls && profile.recommendedOptions.reasoningEffort) {
+      body.think = profile.recommendedOptions.reasoningEffort;
+    }
+
+    const response = await this.fetchImpl(`${this.config.ollamaBaseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama chat API error: ${response.status} ${response.statusText}`);
+    }
+
+    const collected = await this.collectStreamedChatResponse(response, model);
+    return {
+      success: true,
+      content: collected.content || 'No response from Ollama',
+      tokens: {
+        prompt: collected.promptTokens,
+        completion: collected.completionTokens,
+      },
+    };
+  }
+
+  private async requestViaGenerate(model: string, prompt: string, systemPrompt: string): Promise<AIResponse> {
       const response = await this.fetchImpl(`${this.config.ollamaBaseUrl}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -290,36 +389,125 @@ class OllamaBackendClient extends BaseBackendClient {
         throw new Error(`Ollama API error: ${response.statusText}`);
       }
 
+      const collected = await this.collectStreamedGenerateResponse(response, model);
       return {
         success: true,
-        content: (await this.collectStreamedResponse(response, model)) || 'No response from Ollama',
+        content: collected.content || 'No response from Ollama',
+        tokens: {
+          prompt: collected.promptTokens,
+          completion: collected.completionTokens,
+        },
       };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error('Ollama execution failed', { error: errorMessage });
-      return {
-        success: false,
-        content: `Ollama execution failed: ${errorMessage}`,
-      };
-    }
   }
 
-  private async collectStreamedResponse(response: Response, model: string): Promise<string> {
-    await this.appendStreamLog(`\n=== ${new Date().toISOString()} model=${model} ===\n`);
+  private async collectStreamedChatResponse(response: Response, model: string): Promise<OllamaCollectionResult> {
+    await this.appendStreamLog(`\n=== ${new Date().toISOString()} model=${model} endpoint=chat ===\n`);
 
     if (!response.body) {
-      const data = (await response.json()) as { response?: string };
-      const fallbackContent = data.response || '';
+      const data = (await response.json()) as OllamaChatChunk;
+      const fallbackContent = data.message?.content || '';
       if (fallbackContent.length > 0) {
         await this.appendStreamLog(`${fallbackContent}\n\n`);
       }
-      return fallbackContent;
+      return {
+        content: fallbackContent,
+        promptTokens: data.prompt_eval_count ?? 0,
+        completionTokens: data.eval_count ?? 0,
+      };
     }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
     let content = '';
+    let promptTokens = 0;
+    let completionTokens = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const { lines, remainder } = splitJsonLines(buffer);
+      buffer = remainder;
+      for (const line of lines) {
+        const chunk = JSON.parse(line) as OllamaChatChunk;
+        if (chunk.error) {
+          throw new Error(chunk.error);
+        }
+
+        if (typeof chunk.message?.thinking === 'string' && chunk.message.thinking.length > 0) {
+          await this.appendStreamLog(`[thinking] ${chunk.message.thinking}`);
+        }
+
+        if (typeof chunk.message?.content === 'string' && chunk.message.content.length > 0) {
+          content += chunk.message.content;
+          await this.appendStreamLog(chunk.message.content);
+        }
+
+        if (typeof chunk.prompt_eval_count === 'number') {
+          promptTokens = chunk.prompt_eval_count;
+        }
+
+        if (typeof chunk.eval_count === 'number') {
+          completionTokens = chunk.eval_count;
+        }
+      }
+    }
+
+    buffer += decoder.decode();
+    if (buffer.trim().length > 0) {
+      const chunk = JSON.parse(buffer) as OllamaChatChunk;
+      if (chunk.error) {
+        throw new Error(chunk.error);
+      }
+
+      if (typeof chunk.message?.content === 'string' && chunk.message.content.length > 0) {
+        content += chunk.message.content;
+        await this.appendStreamLog(chunk.message.content);
+      }
+
+      if (typeof chunk.prompt_eval_count === 'number') {
+        promptTokens = chunk.prompt_eval_count;
+      }
+
+      if (typeof chunk.eval_count === 'number') {
+        completionTokens = chunk.eval_count;
+      }
+    }
+
+    await this.appendStreamLog('\n\n');
+    return {
+      content,
+      promptTokens,
+      completionTokens,
+    };
+  }
+
+  private async collectStreamedGenerateResponse(response: Response, model: string): Promise<OllamaCollectionResult> {
+    await this.appendStreamLog(`\n=== ${new Date().toISOString()} model=${model} endpoint=generate ===\n`);
+
+    if (!response.body) {
+      const data = (await response.json()) as OllamaGenerateChunk;
+      const fallbackContent = data.response || '';
+      if (fallbackContent.length > 0) {
+        await this.appendStreamLog(`${fallbackContent}\n\n`);
+      }
+      return {
+        content: fallbackContent,
+        promptTokens: data.prompt_eval_count ?? 0,
+        completionTokens: data.eval_count ?? 0,
+      };
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let content = '';
+    let promptTokens = 0;
+    let completionTokens = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -340,6 +528,14 @@ class OllamaBackendClient extends BaseBackendClient {
           content += chunk.response;
           await this.appendStreamLog(chunk.response);
         }
+
+        if (typeof chunk.prompt_eval_count === 'number') {
+          promptTokens = chunk.prompt_eval_count;
+        }
+
+        if (typeof chunk.eval_count === 'number') {
+          completionTokens = chunk.eval_count;
+        }
       }
     }
 
@@ -354,10 +550,22 @@ class OllamaBackendClient extends BaseBackendClient {
         content += chunk.response;
         await this.appendStreamLog(chunk.response);
       }
+
+      if (typeof chunk.prompt_eval_count === 'number') {
+        promptTokens = chunk.prompt_eval_count;
+      }
+
+      if (typeof chunk.eval_count === 'number') {
+        completionTokens = chunk.eval_count;
+      }
     }
 
     await this.appendStreamLog('\n\n');
-    return content;
+    return {
+      content,
+      promptTokens,
+      completionTokens,
+    };
   }
 
   private async appendStreamLog(content: string): Promise<void> {

@@ -1,0 +1,129 @@
+import { config } from './config.js';
+import {
+  buildModelStatus,
+  fetchOllamaModelInventory,
+  runOllamaModelBenchmark,
+  runOllamaModelSmokeTest,
+} from './model-diagnostics.js';
+
+function printUsage(): void {
+  console.log(`Hephaestus model diagnostics
+
+Usage:
+  npm run models:report
+  npm run models:smoke -- [model]
+  npm run models:benchmark -- [--models <model[,model...]>]
+`);
+}
+
+function parseOption(args: string[], name: string): string | undefined {
+  const index = args.indexOf(name);
+  if (index === -1) {
+    return undefined;
+  }
+
+  return args[index + 1];
+}
+
+async function printReport(): Promise<void> {
+  const inventory = await fetchOllamaModelInventory(config);
+  const status = buildModelStatus(config, inventory);
+  const profile = status.profile.profile;
+
+  console.log(`Backend: ${status.backend}`);
+  console.log(`Active model: ${status.activeModel}`);
+  console.log(`Profile: ${status.summary}`);
+  console.log(`Known profile: ${status.profile.known ? 'yes' : 'no'}`);
+  console.log(`Recommended task class: ${profile.recommendedTaskClass}`);
+  console.log(`Context window: ${profile.contextWindowTokens ? profile.contextWindowTokens.toLocaleString() : 'unknown'}`);
+  console.log(`Minimum memory: ${profile.minimumMemoryGb ? `${profile.minimumMemoryGb} GB` : 'unknown'}`);
+  console.log(`Capabilities: chat=${profile.capabilities.chat}, structured=${profile.capabilities.structuredOutputs}, tools=${profile.capabilities.toolCalling}, thinking=${profile.capabilities.thinkingControls}`);
+
+  if (!inventory.available && inventory.error) {
+    console.log(`Inventory: unavailable (${inventory.error})`);
+  } else if (inventory.models.length === 0) {
+    console.log('Inventory: no Ollama models reported.');
+  } else {
+    console.log('Installed Ollama models:');
+    for (const model of inventory.models) {
+      const size = model.sizeGb === undefined ? 'unknown size' : `${model.sizeGb} GB`;
+      const known = model.profile.known ? 'profiled' : 'unprofiled';
+      console.log(`- ${model.name} (${size}, ${known})`);
+    }
+  }
+
+  console.log('Recommendations:');
+  for (const recommendation of status.recommendations) {
+    console.log(`- ${recommendation.model}: ${recommendation.installed ? 'installed' : 'not installed'} - ${recommendation.reason}`);
+  }
+}
+
+async function runSmoke(args: string[]): Promise<void> {
+  const model = args[0] || config.aiModel || undefined;
+  const result = await runOllamaModelSmokeTest(config, { model });
+  console.log(`Model: ${result.model}`);
+  console.log(`Success: ${result.success}`);
+  console.log(`Parsed JSON: ${result.parsedJson}`);
+  console.log(`Latency: ${result.latencyMs} ms`);
+  if (result.error) {
+    console.log(`Error: ${result.error}`);
+  } else {
+    console.log(`Content: ${result.content}`);
+  }
+
+  if (!result.success) {
+    process.exitCode = 1;
+  }
+}
+
+async function runBenchmark(args: string[]): Promise<void> {
+  const models = (parseOption(args, '--models') || config.aiModel || 'codellama')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  for (const model of models) {
+    const result = await runOllamaModelBenchmark(config, { model });
+    console.log(`\nModel: ${result.model}`);
+    console.log(`Success rate: ${result.successRate.toFixed(2)}`);
+    for (const benchmarkCase of result.cases) {
+      const status = benchmarkCase.success ? 'pass' : 'fail';
+      const error = benchmarkCase.error ? ` (${benchmarkCase.error})` : '';
+      console.log(`- ${benchmarkCase.name}: ${status}, parsed=${benchmarkCase.parsedJson}, latency=${benchmarkCase.latencyMs} ms, expected=${benchmarkCase.expectedSignal}${error}`);
+    }
+    if (result.successRate < 1) {
+      process.exitCode = 1;
+    }
+  }
+}
+
+async function main(): Promise<void> {
+  const [command, ...args] = process.argv.slice(2);
+
+  if (!command || command === '--help' || command === '-h' || command === 'help') {
+    printUsage();
+    return;
+  }
+
+  if (command === 'report') {
+    await printReport();
+    return;
+  }
+
+  if (command === 'smoke') {
+    await runSmoke(args);
+    return;
+  }
+
+  if (command === 'benchmark') {
+    await runBenchmark(args);
+    return;
+  }
+
+  throw new Error(`Unknown model diagnostic command: ${command}`);
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});

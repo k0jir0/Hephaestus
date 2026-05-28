@@ -1,0 +1,25 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-28T21:58:36.540Z",
+  "lane": "fast",
+  "laneReason": "low-complexity ticket with limited risk signals",
+  "ticket": {
+    "id": "ticket_142bf6d52cb5",
+    "description": "Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking",
+    "status": "pending",
+    "attemptCount": 0,
+    "updatedAt": "2026-05-28T21:58:28.655Z"
+  },
+  "codexContext": {
+    "prompt": "Use a minimal-change fast lane: prioritize the smallest safe patch and one narrow verification command.\nTicket: Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking\nCurrent status: pending\nAttempt count: 0",
+    "recentArtifacts": [],
+    "recentEvents": [
+      {
+        "type": "created",
+        "createdAt": "2026-05-28T21:58:28.655Z",
+        "details": "Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking"
+      }
+    ],
+    "pendingToolCalls": []
+  }
+}
