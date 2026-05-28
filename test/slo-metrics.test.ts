@@ -94,6 +94,11 @@ describe('Operational SLO metrics', () => {
     ];
 
     const metrics = computeOperationalSLOMetrics({ tickets, attemptsByTicket, events });
+    const metricsWithoutEventScan = computeOperationalSLOMetrics({
+      tickets,
+      attemptsByTicket,
+      lastBoardSyncAt: new Date('2026-05-27T00:02:04.000Z'),
+    });
     const summary = formatOperationalSLOMetrics(metrics);
 
     assert.equal(metrics.totalTickets, 3);
@@ -105,6 +110,11 @@ describe('Operational SLO metrics', () => {
     assert.equal(metrics.backendReliability.ollama?.totalAttempts, 3);
     assert.equal(metrics.backendReliability.ollama?.completedAttempts, 1);
     assert.equal(metrics.backendReliability.openai?.successRatio, 1);
+    assert.equal(
+      metricsWithoutEventScan.averageAdmissionToStartLatencyMs,
+      metrics.averageAdmissionToStartLatencyMs
+    );
+    assert.equal(metricsWithoutEventScan.lastBoardSyncAt?.toISOString(), '2026-05-27T00:02:04.000Z');
     assert.match(summary, /Average admission-to-start latency/);
     assert.match(summary, /backend timeout=1/);
     assert.match(summary, /Backend reliability: ollama=1\/3 success/);

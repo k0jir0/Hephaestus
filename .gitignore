@@ -33,3 +33,5 @@ coverage/
 .hephaestus-tickets.db
 .hephaestus-tickets.db-shm
 .hephaestus-tickets.db-wal
+.hephaestus/codex-handoff*/
+.hephaestus/metrics/

@@ -8,7 +8,9 @@ export type CodexExecutionLane = 'fast' | 'deep';
 export interface CodexHandoffRepository {
   listTickets(status: TaskStatus | 'all'): Promise<TaskTicket[]>;
   listAttempts(ticketId: string): Promise<TaskAttempt[]>;
+  listAttemptsForTickets?(ticketIds?: string[]): Promise<Map<string, TaskAttempt[]>>;
   listEvents(ticketId?: string): Promise<TaskEvent[]>;
+  listRecentEvents?(options?: { ticketId?: string; limit?: number }): Promise<TaskEvent[]>;
 }
 
 export interface CodexHandoffBundle {
@@ -165,13 +167,18 @@ export async function exportCodexHandoffBundles(
 
   const allTickets = await repository.listTickets('all');
   const eligible = allTickets.filter((ticket) => statuses.includes(ticket.status));
+  const attemptsByTicket = repository.listAttemptsForTickets
+    ? await repository.listAttemptsForTickets(eligible.map((ticket) => ticket.id))
+    : new Map<string, TaskAttempt[]>();
   const exported: ExportedCodexHandoffBundle[] = [];
 
   await fs.mkdir(outputRoot, { recursive: true });
 
   for (const ticket of eligible) {
-    const attempts = await repository.listAttempts(ticket.id);
-    const events = await repository.listEvents(ticket.id);
+    const attempts = attemptsByTicket.get(ticket.id) ?? (await repository.listAttempts(ticket.id));
+    const events = repository.listRecentEvents
+      ? await repository.listRecentEvents({ ticketId: ticket.id, limit: 8 })
+      : await repository.listEvents(ticket.id);
     const bundle = buildCodexHandoffBundle(ticket, attempts, events, generatedAt);
     const outputFile = path.join(outputRoot, `${sanitizeFileSegment(ticket.id)}.json`);
     await fs.writeFile(outputFile, `${JSON.stringify(bundle, null, 2)}\n`, 'utf-8');

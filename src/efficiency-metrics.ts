@@ -3,7 +3,7 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { generateWeeklyEfficiencyReport } from './efficiency-weekly-report.js';
 import { TicketStoreRepository } from './task-store.js';
-import type { TaskEvent, TaskStatus, TaskTicket } from './types.js';
+import type { TaskStatus, TaskTicket } from './types.js';
 
 interface EfficiencySnapshot {
   timestamp: string;
@@ -62,12 +62,6 @@ interface PercentileSummary {
   p99: number;
   average: number;
   sampleCount: number;
-}
-
-interface TimelineTimestamps {
-  createdAt?: number;
-  startedAt?: number;
-  completedAt?: number;
 }
 
 interface PersistedEfficiencySnapshot {
@@ -145,31 +139,6 @@ function stdDev(values: number[]): number {
 
 function formatMs(value: number): string {
   return `${Math.round(value)}ms`;
-}
-
-function createTimeline(events: TaskEvent[]): Map<string, TimelineTimestamps> {
-  const timeline = new Map<string, TimelineTimestamps>();
-
-  for (const event of events) {
-    const current = timeline.get(event.ticketId) ?? {};
-    const timestamp = event.createdAt.getTime();
-
-    if (event.type === 'created' && current.createdAt === undefined) {
-      current.createdAt = timestamp;
-    }
-
-    if ((event.type === 'attempt-started' || event.type === 'claimed') && current.startedAt === undefined) {
-      current.startedAt = timestamp;
-    }
-
-    if (event.type === 'completed') {
-      current.completedAt = timestamp;
-    }
-
-    timeline.set(event.ticketId, current);
-  }
-
-  return timeline;
 }
 
 async function loadHistory(): Promise<EfficiencySnapshot[]> {
@@ -271,9 +240,6 @@ async function collectSnapshot(): Promise<EfficiencySnapshot> {
     const tickets = await repository.listTickets('all');
     const attemptsByTicket = await repository.listAttemptsForTickets(tickets.map((ticket) => ticket.id));
 
-    const events = await repository.listEvents();
-    const timeline = createTimeline(events);
-
     const now = Date.now();
     const completedLast24h = tickets.filter((ticket) => {
       if (!(ticket.completedAt instanceof Date)) {
@@ -288,21 +254,20 @@ async function collectSnapshot(): Promise<EfficiencySnapshot> {
     const admissionToComplete: number[] = [];
 
     for (const ticket of tickets) {
-      const entry = timeline.get(ticket.id);
-      if (!entry?.createdAt) {
-        continue;
+      const createdAt = ticket.createdAt.getTime();
+      const startedAt = ticket.startedAt?.getTime();
+      const completedAt = ticket.completedAt?.getTime();
+
+      if (startedAt) {
+        admissionToStart.push(Math.max(0, startedAt - createdAt));
       }
 
-      if (entry.startedAt) {
-        admissionToStart.push(Math.max(0, entry.startedAt - entry.createdAt));
+      if (startedAt && completedAt) {
+        startToComplete.push(Math.max(0, completedAt - startedAt));
       }
 
-      if (entry.startedAt && entry.completedAt) {
-        startToComplete.push(Math.max(0, entry.completedAt - entry.startedAt));
-      }
-
-      if (entry.completedAt) {
-        admissionToComplete.push(Math.max(0, entry.completedAt - entry.createdAt));
+      if (completedAt) {
+        admissionToComplete.push(Math.max(0, completedAt - createdAt));
       }
     }
 
@@ -387,19 +352,98 @@ async function collectSnapshot(): Promise<EfficiencySnapshot> {
   }
 }
 
-async function persistSnapshot(snapshot: EfficiencySnapshot): Promise<void> {
-  await fs.mkdir(METRICS_DIR, { recursive: true });
-  await fs.appendFile(HISTORY_FILE, `${JSON.stringify(snapshot)}\n`, 'utf-8');
-  await fs.writeFile(LATEST_FILE, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf-8');
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isTransientFileError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === 'EPERM' || code === 'EBUSY';
+}
+
+async function runFileOperationWithRetry(description: string, operation: () => Promise<void>): Promise<void> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await operation();
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!isTransientFileError(error)) {
+        throw error;
+      }
+
+      await delay(50 * (attempt + 1));
+    }
+  }
+
+  throw new Error(`${description} failed after retries: ${formatError(lastError)}`);
+}
+
+async function writeSnapshotFiles(
+  metricsDir: string,
+  snapshot: EfficiencySnapshot,
+  usedFallback: boolean,
+  warning?: string
+): Promise<PersistedEfficiencySnapshot> {
+  const historyFile = metricsDir === METRICS_DIR
+    ? HISTORY_FILE
+    : path.join(metricsDir, 'efficiency-history.jsonl');
+  const latestFile = metricsDir === METRICS_DIR
+    ? LATEST_FILE
+    : path.join(metricsDir, 'efficiency-latest.json');
+
+  await runFileOperationWithRetry(`creating metrics directory ${metricsDir}`, async () => {
+    await fs.mkdir(metricsDir, { recursive: true });
+  });
+  await runFileOperationWithRetry(`appending efficiency history ${historyFile}`, async () => {
+    await fs.appendFile(historyFile, `${JSON.stringify(snapshot)}\n`, 'utf-8');
+  });
+  await runFileOperationWithRetry(`writing latest efficiency snapshot ${latestFile}`, async () => {
+    await fs.writeFile(latestFile, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf-8');
+  });
+
+  return {
+    metricsDir,
+    historyFile,
+    latestFile,
+    usedFallback,
+    warning,
+  };
+}
+
+async function persistSnapshot(snapshot: EfficiencySnapshot): Promise<PersistedEfficiencySnapshot> {
+  try {
+    return await writeSnapshotFiles(METRICS_DIR, snapshot, false);
+  } catch (error) {
+    if (!isTransientFileError(error) && !(error instanceof Error && error.message.includes('failed after retries'))) {
+      throw error;
+    }
+
+    const warning = `Primary metrics path unavailable; wrote fallback metrics to ${FALLBACK_METRICS_DIR}. Cause: ${formatError(error)}`;
+    return writeSnapshotFiles(FALLBACK_METRICS_DIR, snapshot, true, warning);
+  }
 }
 
 async function main(): Promise<void> {
   const snapshot = await collectSnapshot();
-  await persistSnapshot(snapshot);
-  if (AUTOGEN_WEEKLY_REPORT) {
-    const reportPath = await generateWeeklyEfficiencyReport();
-    console.log(`Weekly report updated: ${reportPath}`);
+  const persisted = await persistSnapshot(snapshot);
+  if (persisted.warning) {
+    console.warn(persisted.warning);
   }
+
+  if (AUTOGEN_WEEKLY_REPORT && !persisted.usedFallback) {
+    try {
+      const reportPath = await generateWeeklyEfficiencyReport();
+      console.log(`Weekly report updated: ${reportPath}`);
+    } catch (error) {
+      console.warn(`Weekly report generation skipped: ${formatError(error)}`);
+    }
+  } else if (AUTOGEN_WEEKLY_REPORT) {
+    console.warn('Weekly report generation skipped because primary efficiency history was unavailable.');
+  }
+
   printHumanSummary(snapshot);
 }
 

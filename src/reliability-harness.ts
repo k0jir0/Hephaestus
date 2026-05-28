@@ -64,9 +64,9 @@ async function waitFor(assertion: () => boolean | Promise<boolean>, timeoutMs = 
 async function collectRepositoryMetrics(repository: TicketStoreRepository): Promise<OperationalSLOMetrics> {
   const tickets = await repository.listTickets('all');
   const attemptsByTicket = await repository.listAttemptsForTickets(tickets.map((ticket) => ticket.id));
-  const events = await repository.listEvents();
+  const lastBoardSyncAt = await repository.getLatestEventTimestamp('board-synced');
 
-  return computeOperationalSLOMetrics({ tickets, attemptsByTicket, events });
+  return computeOperationalSLOMetrics({ tickets, attemptsByTicket, lastBoardSyncAt });
 }
 
 export async function runFaultInjectionHarness(): Promise<FaultHarnessReport> {

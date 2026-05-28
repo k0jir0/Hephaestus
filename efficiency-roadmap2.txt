@@ -93,6 +93,20 @@ src/runtime.ts
 Observation:
 The prior roadmap's context-cache work is present. Project summaries, README excerpts, selected file index, and git status are cached. This area should remain monitored, but it is no longer the best first target.
 
+Finding 5: Efficiency metrics should survive transient file locks
+
+Location:
+src/efficiency-metrics.ts
+
+Problem:
+The efficiency collector writes to docs/metrics. On Windows or under sandboxed tooling, those files can be temporarily locked by editors, previewers, indexers, or concurrent commands. A transient EPERM or EBUSY made the whole metrics run fail.
+
+Impact:
+The system loses observability exactly when the operator is asking for evidence of efficiency.
+
+Solution implemented:
+Metrics persistence now retries transient file operations, falls back to .hephaestus/metrics when the primary docs path is unavailable, and skips weekly report generation rather than failing the snapshot command if the primary history cannot be read.
+
 Next Work
 
 Phase 1: Finish control-plane read efficiency
@@ -130,7 +144,16 @@ Implemented In This Pass
 - Added TicketStoreRepository.getRevisionStamp().
 - Replaced UI SSE revision full scans with aggregate revision stamps.
 - Replaced N+1 attempt loading in UI snapshots, approval queue, reliability metrics, ticket metrics, and efficiency metrics.
+- Added resilient metrics persistence with retry, fallback storage, and non-fatal weekly report generation.
+- Added aggregate ticket-count reads for UI health checks.
+- Added bounded recent-event reads for UI recent activity and Codex handoff bundles.
+- Removed full event-log scans from operational SLO, UI metrics, ticket metrics, reliability harness metrics, and efficiency metrics by using ticket lifecycle timestamps plus latest board-sync metadata.
+- Optimized Codex handoff export to bulk-load attempts and use bounded per-ticket event context.
 - Added task-store coverage for bulk attempt loading and aggregate revision stamps.
+
+Execution Notes
+
+Four implementation tickets were created from this roadmap and processed through the Hephaestus ticket queue. The running daemon claimed them automatically. One ticket completed in Hephaestus; three were blocked by the governed command policy when the local model proposed non-allowlisted verification commands. The blocked tickets were then superseded through the ticket CLI after Codex implemented and verified the changes directly.
 
 Expected Efficiency Gain
 

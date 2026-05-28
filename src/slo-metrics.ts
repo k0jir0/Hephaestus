@@ -38,13 +38,14 @@ function normalizeFailureTaxonomy(error: string): string {
 export function computeOperationalSLOMetrics(input: {
   tickets: TaskTicket[];
   attemptsByTicket: Map<string, TaskAttempt[]>;
-  events: TaskEvent[];
+  events?: TaskEvent[];
+  lastBoardSyncAt?: Date;
 }): OperationalSLOMetrics {
   const createdAtByTicket = new Map<string, Date>();
   const startedAtByTicket = new Map<string, Date>();
-  let lastBoardSyncAt: Date | undefined;
+  let lastBoardSyncAt = input.lastBoardSyncAt;
 
-  for (const event of input.events) {
+  for (const event of input.events ?? []) {
     if (event.type === 'created' && !createdAtByTicket.has(event.ticketId)) {
       createdAtByTicket.set(event.ticketId, event.createdAt);
     }
@@ -64,8 +65,10 @@ export function computeOperationalSLOMetrics(input: {
   }
 
   const admissionLatencies = input.tickets.flatMap((ticket) => {
-    const createdAt = createdAtByTicket.get(ticket.id);
-    const startedAt = startedAtByTicket.get(ticket.id);
+    const attempts = input.attemptsByTicket.get(ticket.id) ?? [];
+    const firstAttempt = attempts[0];
+    const createdAt = ticket.createdAt ?? createdAtByTicket.get(ticket.id);
+    const startedAt = ticket.startedAt ?? startedAtByTicket.get(ticket.id) ?? firstAttempt?.startedAt;
     if (!createdAt || !startedAt) {
       return [];
     }

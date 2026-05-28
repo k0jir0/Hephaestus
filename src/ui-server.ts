@@ -51,7 +51,7 @@ interface UIPermissionSet {
 interface StoreSnapshot {
   tickets: TaskTicket[];
   attemptsByTicket: Map<string, TaskAttempt[]>;
-  events: TaskEvent[];
+  recentEvents: TaskEvent[];
   metrics: OperationalSLOMetrics;
 }
 
@@ -498,14 +498,12 @@ export class UIServer {
   }
 
   private async buildHealthResponse(): Promise<Record<string, unknown>> {
-    const tickets = await this.repository.listTickets('all');
-
     return {
       status: 'ok',
       server: this.serverName,
       revision: this.revisionStamp,
       projectionEnabled: config.taskBoardProjectionEnabled,
-      counts: buildTicketCounts(tickets),
+      counts: await this.repository.getTicketCounts(),
       timestamp: new Date().toISOString(),
     };
   }
@@ -513,17 +511,18 @@ export class UIServer {
   private async loadStoreSnapshot(): Promise<StoreSnapshot> {
     const tickets = await this.repository.listTickets('all');
     const attemptsMap = await this.repository.listAttemptsForTickets(tickets.map((ticket) => ticket.id));
-    const events = await this.repository.listEvents();
+    const recentEvents = await this.repository.listRecentEvents({ limit: 24 });
+    const lastBoardSyncAt = await this.repository.getLatestEventTimestamp('board-synced');
     const metrics = computeOperationalSLOMetrics({
       tickets,
       attemptsByTicket: attemptsMap,
-      events,
+      lastBoardSyncAt,
     });
 
     return {
       tickets,
       attemptsByTicket: attemptsMap,
-      events,
+      recentEvents,
       metrics,
     };
   }
@@ -534,7 +533,7 @@ export class UIServer {
     const recentTickets = [...snapshot.tickets]
       .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
       .slice(0, 12);
-    const recentEvents = [...snapshot.events].slice(-18).reverse();
+    const recentEvents = snapshot.recentEvents.slice(0, 18);
 
     return {
       ticketCounts: buildTicketCounts(snapshot.tickets),
@@ -631,7 +630,7 @@ export class UIServer {
       comparisons: buildMetricComparisons(snapshot.metrics, baseline.values),
       baseline,
       efficiency,
-      recentEvents: [...snapshot.events].slice(-24).reverse(),
+      recentEvents: snapshot.recentEvents.slice(0, 24),
     };
   }
 

@@ -442,8 +442,8 @@ async function main(): Promise<void> {
       case 'metrics': {
         const tickets = await repository.listTickets('all');
         const attemptsByTicket = await repository.listAttemptsForTickets(tickets.map((ticket) => ticket.id));
-        const events = await repository.listEvents();
-        const metrics = computeOperationalSLOMetrics({ tickets, attemptsByTicket, events });
+        const lastBoardSyncAt = await repository.getLatestEventTimestamp('board-synced');
+        const metrics = computeOperationalSLOMetrics({ tickets, attemptsByTicket, lastBoardSyncAt });
         console.log(formatOperationalSLOMetrics(metrics));
         break;
       }

@@ -245,6 +245,24 @@ describe('TicketStoreRepository', () => {
     assert.equal(attemptsByTicket.get(blocked.id)?.length, 1);
     assert.deepEqual(attemptsByTicket.get('ticket_missing'), []);
 
+    const counts = await repository.getTicketCounts();
+    assert.equal(counts.total, 2);
+    assert.equal(counts.completed, 1);
+    assert.equal(counts.blocked, 1);
+
+    const recentEvents = await repository.listRecentEvents({ limit: 2 });
+    assert.equal(recentEvents.length, 2);
+    assert.ok(recentEvents[0]!.createdAt.getTime() >= recentEvents[1]!.createdAt.getTime());
+
+    const blockedEvents = await repository.listRecentEvents({ ticketId: blocked.id, limit: 3 });
+    assert.ok(blockedEvents.length > 0);
+    assert.ok(blockedEvents.every((event) => event.ticketId === blocked.id));
+
+    const latestEventAt = await repository.getLatestEventTimestamp();
+    const latestCreatedAt = await repository.getLatestEventTimestamp('created');
+    assert.ok(latestEventAt instanceof Date);
+    assert.ok(latestCreatedAt instanceof Date);
+
     const revision = await repository.getRevisionStamp();
     assert.equal(revision.ticketCount, 2);
     assert.ok(revision.eventCount >= 6);

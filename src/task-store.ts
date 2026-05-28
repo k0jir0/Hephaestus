@@ -79,6 +79,11 @@ export interface TicketStoreRevisionStamp {
   latestEventMs: number;
 }
 
+export interface RecentEventQuery {
+  ticketId?: string;
+  limit?: number;
+}
+
 interface TicketRow {
   id: string;
   description: string;
@@ -576,6 +581,27 @@ export class TicketStoreRepository
     return status === 'all' ? this.listAllTasks() : this.listTasksByStatus(status);
   }
 
+  async getTicketCounts(): Promise<Record<string, number>> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      const tickets = await this.listTickets('all');
+      return buildTicketCounts(tickets);
+    }
+
+    const rows = this.getDatabase()
+      .prepare('select status, count(*) as count from tickets group by status')
+      .all() as unknown as Array<{ status: TaskStatus; count: number }>;
+
+    const counts: Record<string, number> = { total: 0 };
+    for (const row of rows) {
+      counts[row.status] = row.count;
+      counts.total += row.count;
+    }
+
+    return counts;
+  }
+
   async getTicket(ticketId: string): Promise<TaskTicket | null> {
     await this.ensureInitialized();
 
@@ -624,13 +650,59 @@ export class TicketStoreRepository
             .all()
     ) as unknown as TicketEventRow[];
 
-    return rows.map((row) => ({
-      ticketId: row.ticket_id,
-      type: row.event_type,
-      details: row.details ?? undefined,
-      correlationId: row.correlation_id ?? undefined,
-      createdAt: new Date(row.created_at),
-    }));
+    return rows.map((row) => this.mapEventRow(row));
+  }
+
+  async listRecentEvents(options: RecentEventQuery = {}): Promise<TaskEvent[]> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      return [];
+    }
+
+    const limit = clampPositiveInteger(options.limit ?? 50, 1, 1000);
+    const rows = (
+      options.ticketId
+        ? this.getDatabase()
+            .prepare(
+              `select ticket_id, event_type, details, correlation_id, created_at
+               from ticket_events
+               where ticket_id = ?
+               order by created_at desc, id desc
+               limit ?`
+            )
+            .all(options.ticketId, limit)
+        : this.getDatabase()
+            .prepare(
+              `select ticket_id, event_type, details, correlation_id, created_at
+               from ticket_events
+               order by created_at desc, id desc
+               limit ?`
+            )
+            .all(limit)
+    ) as unknown as TicketEventRow[];
+
+    return rows.map((row) => this.mapEventRow(row));
+  }
+
+  async getLatestEventTimestamp(eventType?: TaskEvent['type']): Promise<Date | undefined> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      return undefined;
+    }
+
+    const row = (
+      eventType
+        ? this.getDatabase()
+            .prepare('select max(created_at) as latest_created_at from ticket_events where event_type = ?')
+            .get(eventType)
+        : this.getDatabase()
+            .prepare('select max(created_at) as latest_created_at from ticket_events')
+            .get()
+    ) as { latest_created_at: string | null } | undefined;
+
+    return row?.latest_created_at ? new Date(row.latest_created_at) : undefined;
   }
 
   async retryTicket(
@@ -2120,6 +2192,16 @@ export class TicketStoreRepository
     };
   }
 
+  private mapEventRow(row: TicketEventRow): TaskEvent {
+    return {
+      ticketId: row.ticket_id,
+      type: row.event_type,
+      details: row.details ?? undefined,
+      correlationId: row.correlation_id ?? undefined,
+      createdAt: new Date(row.created_at),
+    };
+  }
+
   private mapSideEffectRow(row: TaskSideEffectRow): TaskSideEffect {
     return {
       id: row.id,
@@ -2318,6 +2400,23 @@ function parseTimestampMs(value: string | null | undefined): number {
 
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function clampPositiveInteger(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+
+  return Math.min(max, Math.max(min, Math.floor(value)));
+}
+
+function buildTicketCounts(tickets: TaskTicket[]): Record<string, number> {
+  const counts: Record<string, number> = { total: tickets.length };
+  for (const ticket of tickets) {
+    counts[ticket.status] = (counts[ticket.status] ?? 0) + 1;
+  }
+
+  return counts;
 }
 
 function serializeToolCalls(toolCalls: ToolCall[] | undefined): string | null {

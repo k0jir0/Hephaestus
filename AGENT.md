@@ -13,7 +13,7 @@ This file stores the agent's long-term context and memory.
 
 - **Status**: Idle
 - **Current Task**: None
-- **Last Activity**: 2026-05-28T21:12:35.739Z
+- **Last Activity**: 2026-05-28T21:31:32.888Z
 
 ## Working Context
 
@@ -59,6 +59,7 @@ This file stores the agent's long-term context and memory.
 | 2026-05-28 | Efficiency P1: Add projection write coalescing/... | Plan ready |
 | 2026-05-28 | Efficiency P1: Add prompt context budget contro... | Plan ready |
 | 2026-05-28 | Efficiency P0: Add cached runtime context snaps... | Plan ready |
+| 2026-05-28 | Efficiency Roadmap 2: Remove full event scans f... | Plan ready |
 
 ### Blockers Encountered
 | Date | Blocker | Resolution |
@@ -3151,6 +3152,14 @@ ok 21 - TaskWatcher
 | 2026-05-28 | Efficiency P2: Add codex tandem handoff bundle contract for active tickets | file.read failed.: ENOENT: no such file or directory, open 'c:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\src\models\ticket.ts' |
 | 2026-05-28 | Efficiency P2: Add weekly automated variance report generation from efficiency history | File read target docs/metrics/efficiency-history.jsonl is not declared in the validated plan. |
 | 2026-05-28 | Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL | Invalid task transition in ticket ticket_a434477eddef: completed -> in_progress |
+| 2026-05-28 | Efficiency Roadmap 2: Add aggregate ticket count and bounded recent-event store APIs for cheap UI health and recent activity reads | Error threshold (5) exceeded [admission_37e772523185] |
+| 2026-05-28 | Efficiency Roadmap 2: Remove full event scans from operational SLO/UI metrics by deriving latency from ticket lifecycle columns and latest board-sync metadata | Error threshold (5) exceeded [admission_bcd8f301acff] |
+| 2026-05-28 | Efficiency Roadmap 2: Make efficiency metrics avoid loading the full event log by using ticket created/started/completed timestamps | Error threshold (5) exceeded [admission_22e4887101a9] |
+| 2026-05-28 | Efficiency Roadmap 2: Add aggregate ticket count and bounded recent-event store APIs for cheap UI health and recent activity reads | Command is not allowlisted: npm test -- src/task-store.ts --update |
+| 2026-05-28 | Efficiency Roadmap 2: Optimize Codex handoff export with bulk attempts and bounded per-ticket event history so ChatGPT receives faster handoff context | Error threshold (5) exceeded [admission_79453ecb38e1] |
+| 2026-05-28 | Efficiency Roadmap 2: Make efficiency metrics avoid loading the full event log by using ticket created/started/completed timestamps | Command is not allowlisted: npm run test:metrics:efficiency |
+| 2026-05-28 | Efficiency Roadmap 2: Optimize Codex handoff export with bulk attempts and bounded per-ticket event history so ChatGPT receives faster handoff context | Command is not allowlisted: npm run test:codex |
+| 2026-05-28 | Efficiency Roadmap 2: Make efficiency metrics avoid loading the full event log by using ticket created/started/completed timestamps | Invalid task transition in ticket ticket_1d68e6ff8f33: blocked -> in_progress |
 
 ## Preferences
 
@@ -3335,6 +3344,14 @@ ok 21 - TaskWatcher
 - [2026-05-28T20:58:42.308Z] Agent started successfully
 - [2026-05-28T21:02:57.257Z] Agent started successfully
 - [2026-05-28T21:12:35.729Z] Single-pass run found no pending tasks
+- [2026-05-28T21:26:28.729Z] Blocked: Efficiency Roadmap 2: Add aggregate ticket count and bounded recent-event store APIs for cheap UI health and recent activity reads
+- [2026-05-28T21:26:46.978Z] Startup preflight passed
+- [2026-05-28T21:27:01.728Z] Blocked: Efficiency Roadmap 2: Make efficiency metrics avoid loading the full event log by using ticket created/started/completed timestamps
+- [2026-05-28T21:27:10.722Z] Blocked: Efficiency Roadmap 2: Optimize Codex handoff export with bulk attempts and bounded per-ticket event history so ChatGPT receives faster handoff context
+- [2026-05-28T21:27:10.744Z] Single-pass run complete
+- [2026-05-28T21:27:10.815Z] Planned: Efficiency Roadmap 2: Remove full event scans from operational SLO/UI metrics by deriving latency from ticket lifecycle columns and latest board-sync metadata
+- [2026-05-28T21:27:10.883Z] Blocked: Efficiency Roadmap 2: Make efficiency metrics avoid loading the full event log by using ticket created/started/completed timestamps
+- [2026-05-28T21:31:32.878Z] Single-pass run found no pending tasks
 
 ---
 

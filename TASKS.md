@@ -46,6 +46,7 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Efficiency P1: Add projection write coalescing/debounce to reduce redundant TASKS.md rewrites <!-- hephaestus-ticket:ticket_7e3148ce3cb6 -->
 - [x] Efficiency P1: Add prompt context budget controls for focused high-value files <!-- hephaestus-ticket:ticket_c4d2745803f9 -->
 - [x] Efficiency P0: Add cached runtime context snapshot with invalidation and git-status TTL <!-- hephaestus-ticket:ticket_a434477eddef -->
+- [x] Efficiency Roadmap 2: Remove full event scans from operational SLO/UI metrics by deriving latency from ticket lifecycle columns and latest board-sync metadata <!-- hephaestus-ticket:ticket_f4bc94f1f408 -->
 
 ## Blocked
 
@@ -75,6 +76,9 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Efficiency P1: Replace fixed interval pending dispatch with adaptive scheduler <!-- hephaestus-ticket:ticket_0269380dc905 -->
 - [x] Efficiency P2: Add codex tandem handoff bundle contract for active tickets <!-- hephaestus-ticket:ticket_db5399e972f8 -->
 - [x] Efficiency P2: Add weekly automated variance report generation from efficiency history <!-- hephaestus-ticket:ticket_b5220f915b25 -->
+- [x] Efficiency Roadmap 2: Add aggregate ticket count and bounded recent-event store APIs for cheap UI health and recent activity reads <!-- hephaestus-ticket:ticket_0b0ba8d9f494 -->
+- [x] Efficiency Roadmap 2: Make efficiency metrics avoid loading the full event log by using ticket created/started/completed timestamps <!-- hephaestus-ticket:ticket_1d68e6ff8f33 -->
+- [x] Efficiency Roadmap 2: Optimize Codex handoff export with bulk attempts and bounded per-ticket event history so ChatGPT receives faster handoff context <!-- hephaestus-ticket:ticket_b3a5ae08b832 -->
 
 ---
 
