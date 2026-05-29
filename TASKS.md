@@ -88,6 +88,16 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking <!-- hephaestus-ticket:ticket_142bf6d52cb5 -->
 - [x] Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context <!-- hephaestus-ticket:ticket_c7b1678b8697 -->
 - [x] Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles <!-- hephaestus-ticket:ticket_0a0f99ff3e57 -->
+- [x] Upgrade Roadmap 1 Replay T1: validate model inventory report and persist baseline snapshot metadata <!-- hephaestus-ticket:ticket_c907fe49df05 -->
+- [x] Upgrade Roadmap 1 Replay T2: validate smoke test JSON parsing contract across active local model <!-- hephaestus-ticket:ticket_7ca48867b059 -->
+- [x] Upgrade Roadmap 1 Replay T3: validate benchmark matrix output formatting and comparability fields <!-- hephaestus-ticket:ticket_d03947b3aec9 -->
+- [x] Upgrade Roadmap 1 Replay T4: verify model profile visibility in CLI/UI health surfaces <!-- hephaestus-ticket:ticket_4d5182b641c8 -->
+- [x] Upgrade Roadmap 1 Replay T5: verify Ollama chat-first adapter fallback telemetry fields <!-- hephaestus-ticket:ticket_23c97da5d045 -->
+- [x] Upgrade Roadmap 1 Replay T6: verify structured action schema acceptance and rejection paths <!-- hephaestus-ticket:ticket_69155b8b8e85 -->
+- [x] Upgrade Roadmap 1 Replay T7: verify invalid command denial emits actionable repair artifact <!-- hephaestus-ticket:ticket_08f98ad743af -->
+- [x] Upgrade Roadmap 1 Replay T8: verify local versus Codex routing evidence in handoff bundle output <!-- hephaestus-ticket:ticket_33fdb582c037 -->
+- [x] Upgrade Roadmap 1 Replay T9: verify benchmark evidence gating copy in docs and operator messaging <!-- hephaestus-ticket:ticket_3bc5cdc44367 -->
+- [x] Upgrade Roadmap 1 Replay T10: finalize roadmap replay summary and board state audit <!-- hephaestus-ticket:ticket_b13987aa22d1 -->
 
 ---
 
