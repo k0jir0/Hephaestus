@@ -163,7 +163,7 @@ describe('TicketStoreRepository', () => {
     });
 
     const pendingTicket = await repository.createTicket('Build demo');
-    const blockedTicket = await repository.createTicket('Retry demo', {
+    const blockedTicket = await repository.createTicket('Retry demo for D2 replay using ChandyLamport1985', {
       status: 'blocked',
     });
 
@@ -172,10 +172,10 @@ describe('TicketStoreRepository', () => {
     await assert.rejects(fs.access(tasksFile), /ENOENT/);
 
     const retriedTicket = await repository.retryTicket(blockedTicket.id, {
-      amendedDescription: 'Retry demo with narrower scope',
+      amendedDescription: 'Retry demo with narrower scope using Yao2023ReAct',
     });
     assert.equal(retriedTicket.status, 'pending');
-    assert.equal(retriedTicket.description, 'Retry demo with narrower scope');
+    assert.equal(retriedTicket.description, 'Retry demo with narrower scope using Yao2023ReAct');
     assert.equal(retriedTicket.plan, undefined);
     assert.equal(retriedTicket.toolCalls, undefined);
     assert.equal(retriedTicket.approval, undefined);
@@ -203,12 +203,68 @@ describe('TicketStoreRepository', () => {
 
     const board = await repository.renderTaskBoardProjection();
     assert.match(board, /Build demo/);
-    assert.match(board, /Retry demo with narrower scope/);
+    assert.match(board, /Retry demo with narrower scope using Yao2023ReAct/);
 
     const events = await repository.listEvents(blockedTicket.id);
+    const createdEvent = events.find((event) => event.type === 'created');
+    const amendedEvent = events.find((event) => event.type === 'amended');
+    const requeuedEvent = events.find((event) => event.type === 'requeued');
     assert.ok(events.some((event) => event.type === 'amended'));
     assert.ok(events.some((event) => event.type === 'requeued'));
     assert.ok(events.some((event) => event.type === 'superseded'));
+    assert.equal(typeof createdEvent?.evidence?.sourceOrder, 'number');
+    assert.equal(typeof createdEvent?.evidence?.descriptionKey, 'string');
+    assert.deepEqual(createdEvent?.evidence?.sourceGroundingKeys, ['ChandyLamport1985']);
+    assert.deepEqual(amendedEvent?.evidence?.sourceGroundingKeysBefore, ['ChandyLamport1985']);
+    assert.deepEqual(amendedEvent?.evidence?.sourceGroundingKeysAfter, ['Yao2023ReAct']);
+    assert.deepEqual(requeuedEvent?.evidence?.sourceGroundingKeys, ['Yao2023ReAct']);
+
+    await repository.stop();
+  });
+
+  it('dual-writes lifecycle events to domain_events and persists structured event_evidence rows', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const ticketStoreFile = path.join(rootDir, '.hephaestus-tickets.db');
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(rootDir, 'TASKS.md'),
+      storeFile: ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await repository.createTicket(
+      'Implement D2 dual-write in src/task-store.ts using ChandyLamport1985 and verify with npm run test; expected signal: tests exit 0.',
+      { status: 'blocked' }
+    );
+    await repository.retryTicket(ticket.id, {
+      amendedDescription:
+        'Implement D2 event evidence rows in src/task-store.ts using Yao2023ReAct and verify with npm run test; expected signal: tests exit 0.',
+    });
+
+    const { DatabaseSync } = await import('node:sqlite');
+    const db = new DatabaseSync(ticketStoreFile);
+
+    const migrationRow = db
+      .prepare('select count(*) as count from schema_migrations where version = 5')
+      .get() as { count: number };
+    const legacyEvents = db
+      .prepare('select count(*) as count from ticket_events where ticket_id = ?')
+      .get(ticket.id) as { count: number };
+    const domainEvents = db
+      .prepare('select count(*) as count from domain_events where ticket_id = ?')
+      .get(ticket.id) as { count: number };
+    const evidenceRows = db
+      .prepare('select count(*) as count from event_evidence where ticket_id = ?')
+      .get(ticket.id) as { count: number };
+
+    db.close();
+
+    assert.equal(migrationRow.count, 1);
+    assert.ok(legacyEvents.count >= 2);
+    assert.equal(domainEvents.count, legacyEvents.count);
+    assert.ok(evidenceRows.count > 0);
 
     await repository.stop();
   });
@@ -505,6 +561,15 @@ describe('TicketStoreRepository', () => {
 
     const persisted = await repository.listTaskSideEffects(ticket.id);
     const events = await repository.listEvents(ticket.id);
+    const enqueuedEvent = events.find(
+      (event) => event.type === 'side-effect-enqueued' && event.correlationId === 'corr_demo'
+    );
+    const completedEvent = events.find(
+      (event) => event.type === 'side-effect-completed' && event.correlationId === 'corr_demo'
+    );
+    const failedEvent = events.find(
+      (event) => event.type === 'side-effect-failed' && event.correlationId === 'corr_demo'
+    );
 
     assert.equal(sideEffects.length, 2);
     assert.equal(duplicate.length, 1);
@@ -515,6 +580,10 @@ describe('TicketStoreRepository', () => {
     assert.ok(events.some((event) => event.type === 'side-effect-enqueued' && event.correlationId === 'corr_demo'));
     assert.ok(events.some((event) => event.type === 'side-effect-completed' && event.correlationId === 'corr_demo'));
     assert.ok(events.some((event) => event.type === 'side-effect-failed' && event.correlationId === 'corr_demo'));
+    assert.equal(enqueuedEvent?.evidence?.status, 'pending');
+    assert.equal(completedEvent?.evidence?.status, 'completed');
+    assert.equal(failedEvent?.evidence?.status, 'failed');
+    assert.equal(failedEvent?.evidence?.error, 'disk full');
 
     await repository.stop();
   });

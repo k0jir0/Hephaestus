@@ -50,6 +50,10 @@ export function buildApprovedResumeToolCalls(candidate: ApprovalResumeCandidate)
     return null;
   }
 
+  if (!candidate.toolCalls) {
+    return null;
+  }
+
   const approvalId = candidate.approval?.approvalId;
   let appliedApproval = false;
   const resumedToolCalls = candidate.toolCalls.map((toolCall) => {

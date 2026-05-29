@@ -7,6 +7,8 @@ import { exportPatchBundle } from './delivery.js';
 import { exportCodexHandoffBundles } from './codex-handoff.js';
 import { parseOption, parsePositiveInteger } from './cli-utils.js';
 import { assessTicketTemplate, formatTicketTemplateAssessment } from './ticket-template.js';
+import { computeSourceGroundingMetrics, formatSourceGroundingMetrics } from './source-grounding-metrics.js';
+import { buildSourceGroundingDriftAudit } from './source-grounding-report.js';
 import type { TaskStatus } from './types.js';
 
 const validStatuses: TaskStatus[] = [
@@ -33,7 +35,7 @@ Usage:
   npm run tickets -- list [--status <status>]
   npm run tickets -- show <ticket-id>
   npm run tickets -- retry <ticket-id> [--amend <description>]
-  npm run tickets -- autopilot [--include-cancelled] [--no-self-audit] [--self-audit-limit <count>] [--max-attempts <count>] [--wave-size <count>] [--max-active <count>] [--min-completion-rate <ratio>] [--max-superseded-rate <ratio>] [--max-blocked <count>] [--max-allowlist-denial-rate <ratio>] [--dry-run]
+  npm run tickets -- autopilot [--include-cancelled] [--no-self-audit] [--self-audit-limit <count>] [--max-attempts <count>] [--wave-size <count>] [--max-active <count>] [--min-completion-rate <ratio>] [--max-superseded-rate <ratio>] [--max-blocked <count>] [--max-allowlist-denial-rate <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>] [--dry-run]
   npm run tickets -- approve <ticket-id> <reviewer> [reason]
   npm run tickets -- reject <ticket-id> <reviewer> [reason]
   npm run tickets -- resume <ticket-id>
@@ -43,8 +45,9 @@ Usage:
   npm run tickets -- codex-handoff [--status <status[,status...]>] [--out <directory>]
   npm run tickets -- attempts <ticket-id>
   npm run tickets -- self-audit [--limit <count>] [--dry-run]
-  npm run tickets -- metrics
-  npm run tickets -- review-wave [--min-efficiency-score <score>] [--max-blocked <count>] [--max-p95-ms <milliseconds>] [--max-allowlist-denial-rate <ratio>] [--min-backend-success-ratio <ratio>]
+  npm run tickets -- metrics [--source-grounding]
+  npm run tickets -- audit-source-evidence [--max-drifted <count>] [--max-missing-evidence <count>]
+  npm run tickets -- review-wave [--min-efficiency-score <score>] [--max-blocked <count>] [--max-p95-ms <milliseconds>] [--max-allowlist-denial-rate <ratio>] [--min-backend-success-ratio <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>]
   npm run tickets -- render-board
   npm run tickets -- sync-board
 
@@ -120,6 +123,19 @@ function parseNumberOption(value: string | undefined, name: string): number | un
   return parsed;
 }
 
+function parseNonNegativeIntegerOption(value: string | undefined, name: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${name} must be a non-negative integer.`);
+  }
+
+  return parsed;
+}
+
 interface EfficiencyLatestSnapshot {
   efficiencyIndex?: {
     score?: number;
@@ -134,6 +150,20 @@ interface EfficiencyLatestSnapshot {
   };
   policy?: {
     allowlistDenialRate?: number;
+  };
+}
+
+interface SourceGroundingLatestSnapshot {
+  timestamp?: string;
+  groundingCoverage?: number;
+  requiredTickets?: number;
+  groundedTickets?: number;
+  eventEvidence?: {
+    auditableTickets?: number;
+    ticketsWithEventEvidence?: number;
+    eventEvidenceCoverage?: number;
+    driftedTickets?: string[];
+    missingEvidenceTickets?: string[];
   };
 }
 
@@ -285,6 +315,36 @@ async function main(): Promise<void> {
         const minCompletionRate = parseRatioOption(parseOption(args, '--min-completion-rate'), '--min-completion-rate');
         const maxSupersededRate = parseRatioOption(parseOption(args, '--max-superseded-rate'), '--max-superseded-rate');
         const maxAllowlistDenialRate = parseRatioOption(parseOption(args, '--max-allowlist-denial-rate'), '--max-allowlist-denial-rate');
+        const minSourceGroundingCoverage = parseRatioOption(
+          parseOption(args, '--min-source-grounding-coverage'),
+          '--min-source-grounding-coverage'
+        );
+        const minSourceEvidenceCoverage = parseRatioOption(
+          parseOption(args, '--min-source-evidence-coverage'),
+          '--min-source-evidence-coverage'
+        );
+        const maxSourceDriftedTickets = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-source-drifted'),
+          '--max-source-drifted'
+        );
+        const maxSourceSnapshotAgeHours = parseNumberOption(
+          parseOption(args, '--max-source-snapshot-age-hours'),
+          '--max-source-snapshot-age-hours'
+        );
+        const enforceSourceSnapshot =
+          minSourceGroundingCoverage !== undefined ||
+          minSourceEvidenceCoverage !== undefined ||
+          maxSourceDriftedTickets !== undefined ||
+          maxSourceSnapshotAgeHours !== undefined;
+
+        let sourceGroundingSnapshot: SourceGroundingLatestSnapshot | undefined;
+        try {
+          const sourceGroundingRaw = await fs.readFile('docs/metrics/source-grounding-latest.json', 'utf-8');
+          sourceGroundingSnapshot = JSON.parse(sourceGroundingRaw) as SourceGroundingLatestSnapshot;
+        } catch {
+          sourceGroundingSnapshot = undefined;
+        }
+
         const result = await runTicketAutopilot(
           {
             repository,
@@ -302,6 +362,12 @@ async function main(): Promise<void> {
             minCompletionRate,
             maxSupersededRate,
             maxAllowlistDenialRate,
+            minSourceGroundingCoverage,
+            minSourceEvidenceCoverage,
+            maxSourceDriftedTickets,
+            sourceGroundingSnapshot,
+            enforceSourceSnapshot,
+            maxSourceSnapshotAgeHours,
           }
         );
 
@@ -505,6 +571,58 @@ async function main(): Promise<void> {
         const lastBoardSyncAt = await repository.getLatestEventTimestamp('board-synced');
         const metrics = computeOperationalSLOMetrics({ tickets, attemptsByTicket, lastBoardSyncAt });
         console.log(formatOperationalSLOMetrics(metrics));
+        if (args.includes('--source-grounding')) {
+          const groundingMetrics = computeSourceGroundingMetrics(tickets);
+          console.log('');
+          console.log(formatSourceGroundingMetrics(groundingMetrics));
+        }
+        break;
+      }
+
+      case 'audit-source-evidence': {
+        const maxDrifted = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-drifted'),
+          '--max-drifted'
+        ) ?? 0;
+        const maxMissingEvidence = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-missing-evidence'),
+          '--max-missing-evidence'
+        ) ?? 0;
+
+        const tickets = await repository.listTickets('all');
+        const events = await repository.listEvents();
+        const audit = buildSourceGroundingDriftAudit(tickets, events);
+
+        const failures: string[] = [];
+        if (audit.driftedTickets.length > maxDrifted) {
+          failures.push(`drifted-tickets-high:${audit.driftedTickets.length}>${maxDrifted}`);
+        }
+        if (audit.missingEvidenceTickets.length > maxMissingEvidence) {
+          failures.push(
+            `missing-evidence-tickets-high:${audit.missingEvidenceTickets.length}>${maxMissingEvidence}`
+          );
+        }
+
+        console.log('Hephaestus source evidence audit');
+        console.log(`Decision: ${failures.length === 0 ? 'PASS' : 'FAIL'}`);
+        console.log(`Auditable tickets: ${audit.auditableTickets}`);
+        console.log(`Tickets with event evidence: ${audit.ticketsWithEventEvidence}`);
+        console.log(`Event evidence coverage: ${audit.eventEvidenceCoverage.toFixed(3)}`);
+        console.log(`Drifted tickets: ${audit.driftedTickets.length} (threshold ${maxDrifted})`);
+        console.log(
+          `Missing evidence tickets: ${audit.missingEvidenceTickets.length} (threshold ${maxMissingEvidence})`
+        );
+
+        if (audit.driftedTickets.length > 0) {
+          console.log(`Drifted ticket IDs: ${audit.driftedTickets.join(', ')}`);
+        }
+        if (audit.missingEvidenceTickets.length > 0) {
+          console.log(`Missing evidence ticket IDs: ${audit.missingEvidenceTickets.join(', ')}`);
+        }
+
+        if (failures.length > 0) {
+          throw new Error(`source evidence audit failed: ${failures.join(', ')}`);
+        }
         break;
       }
 
@@ -514,9 +632,27 @@ async function main(): Promise<void> {
         const maxP95AdmissionToCompleteMs = parseNumberOption(parseOption(args, '--max-p95-ms'), '--max-p95-ms') ?? 5_500_000;
         const maxAllowlistDenialRate = parseRatioOption(parseOption(args, '--max-allowlist-denial-rate'), '--max-allowlist-denial-rate') ?? 0.08;
         const minBackendSuccessRatio = parseRatioOption(parseOption(args, '--min-backend-success-ratio'), '--min-backend-success-ratio') ?? 0.7;
+        const minSourceGroundingCoverage = parseRatioOption(
+          parseOption(args, '--min-source-grounding-coverage'),
+          '--min-source-grounding-coverage'
+        ) ?? 0.9;
+        const minSourceEvidenceCoverage = parseRatioOption(
+          parseOption(args, '--min-source-evidence-coverage'),
+          '--min-source-evidence-coverage'
+        ) ?? 0.95;
+        const maxSourceDrifted = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-source-drifted'),
+          '--max-source-drifted'
+        ) ?? 0;
+        const maxSourceSnapshotAgeHours = parseNumberOption(
+          parseOption(args, '--max-source-snapshot-age-hours'),
+          '--max-source-snapshot-age-hours'
+        ) ?? 24;
 
         const efficiencyRaw = await fs.readFile('docs/metrics/efficiency-latest.json', 'utf-8');
         const efficiency = JSON.parse(efficiencyRaw) as EfficiencyLatestSnapshot;
+        const sourceGroundingRaw = await fs.readFile('docs/metrics/source-grounding-latest.json', 'utf-8');
+        const sourceGrounding = JSON.parse(sourceGroundingRaw) as SourceGroundingLatestSnapshot;
 
         const tickets = await repository.listTickets('all');
         const attemptsByTicket = await repository.listAttemptsForTickets(tickets.map((ticket) => ticket.id));
@@ -545,6 +681,42 @@ async function main(): Promise<void> {
           failures.push(`allowlist-denial-rate-high:${allowlistDenialRate.toFixed(3)}>${maxAllowlistDenialRate}`);
         }
 
+        const sourceGroundingCoverage = Number(sourceGrounding.groundingCoverage ?? 1);
+        if (sourceGroundingCoverage < minSourceGroundingCoverage) {
+          failures.push(
+            `source-grounding-coverage-low:${sourceGroundingCoverage.toFixed(3)}<${minSourceGroundingCoverage}`
+          );
+        }
+
+        const sourceEvidenceAuditableTickets = Number(sourceGrounding.eventEvidence?.auditableTickets ?? 0);
+        const sourceEvidenceCoverage = Number(sourceGrounding.eventEvidence?.eventEvidenceCoverage ?? 1);
+        const sourceDriftedTickets = sourceGrounding.eventEvidence?.driftedTickets ?? [];
+        const sourceSnapshotTimestamp = sourceGrounding.timestamp;
+        const sourceSnapshotMs = sourceSnapshotTimestamp ? Date.parse(sourceSnapshotTimestamp) : Number.NaN;
+        const sourceSnapshotAgeHours = Number.isFinite(sourceSnapshotMs)
+          ? (Date.now() - sourceSnapshotMs) / (60 * 60 * 1000)
+          : Number.POSITIVE_INFINITY;
+
+        if (!sourceSnapshotTimestamp || !Number.isFinite(sourceSnapshotMs)) {
+          failures.push('source-grounding-snapshot-invalid');
+        } else if (sourceSnapshotAgeHours > maxSourceSnapshotAgeHours) {
+          failures.push(
+            `source-grounding-snapshot-stale:${sourceSnapshotAgeHours.toFixed(2)}h>${maxSourceSnapshotAgeHours}`
+          );
+        }
+
+        if (sourceEvidenceAuditableTickets > 0 && sourceEvidenceCoverage < minSourceEvidenceCoverage) {
+          failures.push(
+            `source-evidence-coverage-low:${sourceEvidenceCoverage.toFixed(3)}<${minSourceEvidenceCoverage}`
+          );
+        }
+
+        if (sourceDriftedTickets.length > maxSourceDrifted) {
+          failures.push(
+            `source-evidence-drifted-high:${sourceDriftedTickets.length}>${maxSourceDrifted}`
+          );
+        }
+
         const backendReliabilityEntries = Object.entries(sloMetrics.backendReliability);
         for (const [backend, metrics] of backendReliabilityEntries) {
           if (metrics.totalAttempts < 10) {
@@ -564,6 +736,28 @@ async function main(): Promise<void> {
         console.log(`Blocked tickets: ${blockedCount} (threshold ${maxBlockedTickets})`);
         console.log(`Admission->complete p95 (ms): ${p95AdmissionToCompleteMs} (threshold ${maxP95AdmissionToCompleteMs})`);
         console.log(`Allowlist denial rate: ${allowlistDenialRate.toFixed(3)} (threshold ${maxAllowlistDenialRate})`);
+        console.log(
+          `Source grounding coverage: ${sourceGroundingCoverage.toFixed(3)} (threshold ${minSourceGroundingCoverage})`
+        );
+        console.log(
+          `Source grounding tickets: ${Number(sourceGrounding.groundedTickets ?? 0)}/${Number(sourceGrounding.requiredTickets ?? 0)}`
+        );
+        if (sourceSnapshotTimestamp && Number.isFinite(sourceSnapshotMs)) {
+          console.log(
+            `Source snapshot age (h): ${sourceSnapshotAgeHours.toFixed(2)} (threshold ${maxSourceSnapshotAgeHours})`
+          );
+        } else {
+          console.log(`Source snapshot age (h): invalid (threshold ${maxSourceSnapshotAgeHours})`);
+        }
+        console.log(
+          `Source event evidence coverage: ${sourceEvidenceCoverage.toFixed(3)} (threshold ${minSourceEvidenceCoverage})`
+        );
+        console.log(
+          `Source event evidence tickets: ${Number(sourceGrounding.eventEvidence?.ticketsWithEventEvidence ?? 0)}/${sourceEvidenceAuditableTickets}`
+        );
+        console.log(
+          `Source drifted tickets: ${sourceDriftedTickets.length} (threshold ${maxSourceDrifted})`
+        );
         if (backendReliabilityEntries.length === 0) {
           console.log('Backend reliability: unavailable (no attributed attempts)');
         } else {

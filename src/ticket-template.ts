@@ -5,6 +5,8 @@ export interface TicketTemplateAssessment {
   recommendation: string;
 }
 
+import { assessSourceGrounding, sourceGroundingIssueMessage } from './domain/policy/source-grounding-policy.js';
+
 const broadPatterns = [
   /\bdeploy\b/i,
   /\bproduction\b/i,
@@ -76,22 +78,29 @@ export function assessTicketTemplate(description: string): TicketTemplateAssessm
     issues.push(`Description references ${fileScopeCount} file scopes; split into smaller tickets with <=2 scoped files.`);
   }
 
+  const sourceGrounding = assessSourceGrounding(normalized);
+  if (!sourceGrounding.requiresGrounding || sourceGrounding.grounded) {
+    score += 1;
+  } else {
+    issues.push(sourceGroundingIssueMessage());
+  }
+
   return {
     valid: issues.length === 0,
     score,
     issues,
     recommendation:
-      'Use: <action> <single scope/file> with one accepted verification command and an expected signal. Example: "Optimize src/runtime.ts queue scheduling, verify with npm run build, expected signal: build exits 0 with no TypeScript errors."',
+      'Use: <action> <single scope/file> with one accepted verification command and an expected signal. For blueprint or D2+ work, include one source grounding key (for example ChandyLamport1985 or sources/notes/ChandyLamport1985.md). Example: "Implement D2 replay guard in src/task-store.ts using ChandyLamport1985, verify with npm run test, expected signal: replay test exits 0."',
   };
 }
 
 export function formatTicketTemplateAssessment(assessment: TicketTemplateAssessment): string {
   if (assessment.valid && assessment.issues.length === 0) {
-    return `Ticket template quality score=${assessment.score}/5.`;
+    return `Ticket template quality score=${assessment.score}/8.`;
   }
 
   return [
-    `Ticket template quality score=${assessment.score}/5.`,
+    `Ticket template quality score=${assessment.score}/8.`,
     ...assessment.issues.map((issue) => `Issue: ${issue}`),
     `Recommendation: ${assessment.recommendation}`,
   ].join(' ');

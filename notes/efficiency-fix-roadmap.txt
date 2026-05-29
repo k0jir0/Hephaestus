@@ -115,3 +115,4 @@ Hephaestus is back to efficiency-increase mode when, over a rolling 7-day window
 
 Conclusion
 Hephaestus should be treated as a governed execution multiplier, not a high-volume ticket sink. The fastest route back to net efficiency gains is to reduce active ticket volume, tighten admission quality, eliminate policy-command mismatch, and use strict wave gating. Under these controls, the system can recover completion reliability and translate orchestration into real delivered code velocity.
+nch landing page** $(openai) 

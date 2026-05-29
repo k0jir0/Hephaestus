@@ -96,6 +96,107 @@ describe('ticket autopilot policy', () => {
     assert.ok(failures.some((failure) => failure.startsWith('allowlist-denial-rate-high:')));
   });
 
+  it('reports source-grounding and source-evidence gate failures when thresholds are violated', () => {
+    const failures = evaluateTicketAutopilotGateFailures(
+      [
+        makeTicket('ticket_1', 'completed'),
+      ],
+      {
+        minSourceGroundingCoverage: 0.9,
+        minSourceEvidenceCoverage: 0.95,
+        maxSourceDriftedTickets: 0,
+        sourceGroundingSnapshot: {
+          groundingCoverage: 0.5,
+          eventEvidence: {
+            auditableTickets: 4,
+            eventEvidenceCoverage: 0.5,
+            driftedTickets: ['ticket_a'],
+          },
+        },
+      }
+    );
+
+    assert.ok(failures.some((failure) => failure.startsWith('source-grounding-coverage-low:')));
+    assert.ok(failures.some((failure) => failure.startsWith('source-evidence-coverage-low:')));
+    assert.ok(failures.some((failure) => failure.startsWith('source-evidence-drifted-high:')));
+  });
+
+  it('fails closed when source-grounding snapshot is unavailable', () => {
+    const failures = evaluateTicketAutopilotGateFailures([
+      makeTicket('ticket_1', 'completed'),
+    ], {
+      enforceSourceSnapshot: true,
+    });
+
+    assert.ok(failures.includes('source-grounding-snapshot-missing'));
+  });
+
+  it('fails closed when source snapshot timestamp is invalid under enforcement mode', () => {
+    const failures = evaluateTicketAutopilotGateFailures(
+      [makeTicket('ticket_1', 'completed')],
+      {
+        enforceSourceSnapshot: true,
+        sourceGroundingSnapshot: {
+          timestamp: 'not-a-timestamp',
+          groundingCoverage: 1,
+          eventEvidence: {
+            auditableTickets: 0,
+            eventEvidenceCoverage: 1,
+            driftedTickets: [],
+          },
+        },
+      }
+    );
+
+    assert.ok(failures.includes('source-grounding-snapshot-invalid'));
+  });
+
+  it('fails closed when source snapshot is stale under enforcement mode', () => {
+    const failures = evaluateTicketAutopilotGateFailures(
+      [makeTicket('ticket_1', 'completed')],
+      {
+        enforceSourceSnapshot: true,
+        maxSourceSnapshotAgeHours: 24,
+        nowMs: Date.parse('2026-05-29T12:00:00.000Z'),
+        sourceGroundingSnapshot: {
+          timestamp: '2026-05-27T00:00:00.000Z',
+          groundingCoverage: 1,
+          eventEvidence: {
+            auditableTickets: 0,
+            eventEvidenceCoverage: 1,
+            driftedTickets: [],
+          },
+        },
+      }
+    );
+
+    assert.ok(failures.some((failure) => failure.startsWith('source-grounding-snapshot-stale:')));
+  });
+
+  it('does not fail source-evidence coverage when no auditable source tickets exist', () => {
+    const failures = evaluateTicketAutopilotGateFailures(
+      [
+        makeTicket('ticket_1', 'completed'),
+      ],
+      {
+        minSourceEvidenceCoverage: 0.95,
+        sourceGroundingSnapshot: {
+          groundingCoverage: 1,
+          eventEvidence: {
+            auditableTickets: 0,
+            eventEvidenceCoverage: 0,
+            driftedTickets: [],
+          },
+        },
+      }
+    );
+
+    assert.equal(
+      failures.some((failure) => failure.startsWith('source-evidence-coverage-low:')),
+      false
+    );
+  });
+
   it('decides when idle autopilot should seed self-audit work', () => {
     assert.equal(
       shouldSeedSelfAuditFromAutopilot({

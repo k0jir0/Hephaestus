@@ -9,8 +9,9 @@ import type {
   TaskRepository,
   TaskSideEffectRepository,
 } from './repositories.js';
-import { assertValidTaskAttemptTransition, resolveTaskAttemptStatusTransition } from './domain/attempts/attempt-lifecycle.js';
+import { resolveTaskAttemptStatusTransition } from './domain/attempts/attempt-lifecycle.js';
 import { resolveApprovedResumeEligibility } from './domain/tickets/approval-resume-policy.js';
+import { extractSourceGroundingKeys } from './domain/policy/source-grounding-policy.js';
 import { assertAmendedRetryDescription, assertRetryableTicketStatus } from './domain/tickets/retry-policy.js';
 import { assertValidTaskTransition } from './domain/tickets/ticket-lifecycle.js';
 import {
@@ -127,7 +128,27 @@ interface TicketEventRow {
   ticket_id: string;
   event_type: TaskEvent['type'];
   details: string | null;
+  evidence_json: string | null;
   correlation_id: string | null;
+  created_at: string;
+}
+
+interface DomainEventRow {
+  id: string;
+  ticket_id: string;
+  event_type: TaskEvent['type'];
+  details: string | null;
+  evidence_json: string | null;
+  correlation_id: string | null;
+  legacy_event_id: number | null;
+  created_at: string;
+}
+
+interface EventEvidenceRow {
+  domain_event_id: string;
+  ticket_id: string;
+  evidence_key: string;
+  evidence_value_json: string;
   created_at: string;
 }
 
@@ -700,7 +721,7 @@ export class TicketStoreRepository
       ticketId
         ? this.getDatabase()
             .prepare(
-              `select ticket_id, event_type, details, correlation_id, created_at
+              `select ticket_id, event_type, details, evidence_json, correlation_id, created_at
                from ticket_events
                where ticket_id = ?
                order by created_at asc, id asc`
@@ -708,7 +729,7 @@ export class TicketStoreRepository
             .all(ticketId)
         : this.getDatabase()
             .prepare(
-              `select ticket_id, event_type, details, correlation_id, created_at
+              `select ticket_id, event_type, details, evidence_json, correlation_id, created_at
                from ticket_events
                order by created_at asc, id asc`
             )
@@ -730,7 +751,7 @@ export class TicketStoreRepository
       options.ticketId
         ? this.getDatabase()
             .prepare(
-              `select ticket_id, event_type, details, correlation_id, created_at
+              `select ticket_id, event_type, details, evidence_json, correlation_id, created_at
                from ticket_events
                where ticket_id = ?
                order by created_at desc, id desc
@@ -739,7 +760,7 @@ export class TicketStoreRepository
             .all(options.ticketId, limit)
         : this.getDatabase()
             .prepare(
-              `select ticket_id, event_type, details, correlation_id, created_at
+              `select ticket_id, event_type, details, evidence_json, correlation_id, created_at
                from ticket_events
                order by created_at desc, id desc
                limit ?`
@@ -796,6 +817,9 @@ export class TicketStoreRepository
       ? undefined
       : normalizeTaskDescription(options.amendedDescription);
     assertAmendedRetryDescription(amendedDescription, 'Amended retry description');
+    const sourceGroundingKeysBefore = extractSourceGroundingKeys(ticket.description);
+    const effectiveDescription = amendedDescription ?? ticket.description;
+    const sourceGroundingKeysAfter = extractSourceGroundingKeys(effectiveDescription);
 
     this.getDatabase()
       .prepare(
@@ -828,6 +852,10 @@ export class TicketStoreRepository
         type: 'amended',
         createdAt: new Date(now),
         details: `Retry amended from "${ticket.description}" to "${amendedDescription}".`,
+        evidence: {
+          sourceGroundingKeysBefore,
+          sourceGroundingKeysAfter,
+        },
       });
     }
 
@@ -838,6 +866,10 @@ export class TicketStoreRepository
       details: amendedDescription
         ? 'Retry requested with an amended task description.'
         : 'Retry requested through the operator interface.',
+      evidence: {
+        sourceGroundingKeys: sourceGroundingKeysAfter,
+        sourceGroundingCount: sourceGroundingKeysAfter.length,
+      },
     });
 
     await this.writeProjectionSafely();
@@ -1409,6 +1441,12 @@ export class TicketStoreRepository
           type: 'side-effect-enqueued',
           createdAt: new Date(createdAt),
           details: `${sideEffect.type}:${sideEffect.idempotencyKey}`,
+          evidence: {
+            sideEffectType: sideEffect.type,
+            idempotencyKey: sideEffect.idempotencyKey,
+            attemptId,
+            status: 'pending',
+          },
           correlationId: sideEffect.correlationId,
         });
       }
@@ -1448,6 +1486,11 @@ export class TicketStoreRepository
       type: 'side-effect-completed',
       createdAt: new Date(processedAt),
       details: `${row.effect_type}:${row.idempotency_key}`,
+      evidence: {
+        sideEffectType: row.effect_type,
+        idempotencyKey: row.idempotency_key,
+        status: 'completed',
+      },
       correlationId: row.correlation_id ?? undefined,
     });
   }
@@ -1481,6 +1524,12 @@ export class TicketStoreRepository
       type: 'side-effect-failed',
       createdAt: new Date(processedAt),
       details: `${row.effect_type}:${error}`,
+      evidence: {
+        sideEffectType: row.effect_type,
+        idempotencyKey: row.idempotency_key,
+        status: 'failed',
+        error,
+      },
       correlationId: row.correlation_id ?? undefined,
     });
   }
@@ -1658,12 +1707,45 @@ export class TicketStoreRepository
           ticket_id text not null,
           event_type text not null,
           details text,
+          evidence_json text,
           correlation_id text,
           created_at text not null
         );
 
         create index if not exists idx_ticket_events_ticket_created
           on ticket_events(ticket_id, created_at);
+
+        create table if not exists domain_events (
+          id text primary key,
+          ticket_id text not null,
+          event_type text not null,
+          details text,
+          evidence_json text,
+          correlation_id text,
+          legacy_event_id integer,
+          created_at text not null
+        );
+
+        create index if not exists idx_domain_events_ticket_created
+          on domain_events(ticket_id, created_at);
+
+        create index if not exists idx_domain_events_type_created
+          on domain_events(event_type, created_at);
+
+        create table if not exists event_evidence (
+          id integer primary key autoincrement,
+          domain_event_id text not null,
+          ticket_id text not null,
+          evidence_key text not null,
+          evidence_value_json text not null,
+          created_at text not null
+        );
+
+        create index if not exists idx_event_evidence_event
+          on event_evidence(domain_event_id);
+
+        create index if not exists idx_event_evidence_ticket_created
+          on event_evidence(ticket_id, created_at);
 
         create table if not exists ticket_attempts (
           id text primary key,
@@ -1785,6 +1867,44 @@ export class TicketStoreRepository
       db.exec('alter table ticket_events add column correlation_id text;');
     }
 
+    if (!ticketEventColumnNames.has('evidence_json')) {
+      db.exec('alter table ticket_events add column evidence_json text;');
+    }
+
+    db.exec(`
+      create table if not exists domain_events (
+        id text primary key,
+        ticket_id text not null,
+        event_type text not null,
+        details text,
+        evidence_json text,
+        correlation_id text,
+        legacy_event_id integer,
+        created_at text not null
+      );
+
+      create index if not exists idx_domain_events_ticket_created
+        on domain_events(ticket_id, created_at);
+
+      create index if not exists idx_domain_events_type_created
+        on domain_events(event_type, created_at);
+
+      create table if not exists event_evidence (
+        id integer primary key autoincrement,
+        domain_event_id text not null,
+        ticket_id text not null,
+        evidence_key text not null,
+        evidence_value_json text not null,
+        created_at text not null
+      );
+
+      create index if not exists idx_event_evidence_event
+        on event_evidence(domain_event_id);
+
+      create index if not exists idx_event_evidence_ticket_created
+        on event_evidence(ticket_id, created_at);
+    `);
+
     const attemptColumns = db.prepare('pragma table_info(ticket_attempts)').all() as Array<{ name: string }>;
     const attemptColumnNames = new Set(attemptColumns.map((column) => column.name));
     if (!attemptColumnNames.has('tool_calls_json')) {
@@ -1819,6 +1939,24 @@ export class TicketStoreRepository
     ).run(
       3,
       'persist approval state and pending tool calls for resume workflows',
+      new Date().toISOString()
+    );
+
+    db.prepare(
+      `insert or ignore into schema_migrations (version, description, applied_at)
+       values (?, ?, ?)`
+    ).run(
+      4,
+      'add structured event evidence payloads to ticket_events',
+      new Date().toISOString()
+    );
+
+    db.prepare(
+      `insert or ignore into schema_migrations (version, description, applied_at)
+       values (?, ?, ?)`
+    ).run(
+      5,
+      'add canonical domain_events stream and event_evidence rows',
       new Date().toISOString()
     );
   }
@@ -2038,6 +2176,7 @@ export class TicketStoreRepository
     sourceOrder: number;
   }): void {
     const now = new Date().toISOString();
+    const sourceGroundingKeys = extractSourceGroundingKeys(input.description);
     this.getDatabase()
       .prepare(
         `insert into tickets (
@@ -2065,6 +2204,16 @@ export class TicketStoreRepository
       type: 'created',
       createdAt: new Date(now),
       details: input.description,
+      evidence: {
+        sourceOrder: input.sourceOrder,
+        descriptionKey: createDescriptionKey(input.description),
+        ...(sourceGroundingKeys.length > 0
+          ? {
+              sourceGroundingKeys,
+              sourceGroundingCount: sourceGroundingKeys.length,
+            }
+          : {}),
+      },
     });
   }
 
@@ -2313,6 +2462,7 @@ export class TicketStoreRepository
       ticketId: row.ticket_id,
       type: row.event_type,
       details: row.details ?? undefined,
+      evidence: parseEventEvidence(row.evidence_json),
       correlationId: row.correlation_id ?? undefined,
       createdAt: new Date(row.created_at),
     };
@@ -2335,18 +2485,91 @@ export class TicketStoreRepository
   }
 
   private recordEvent(event: TaskEvent): void {
-    this.getDatabase()
+    const db = this.getDatabase();
+    const createdAt = event.createdAt.toISOString();
+    const serializedEvidence = serializeEventEvidence(event.evidence);
+    const legacyInsert = db
       .prepare(
-        `insert into ticket_events (ticket_id, event_type, details, correlation_id, created_at)
-         values (?, ?, ?, ?, ?)`
+        `insert into ticket_events (ticket_id, event_type, details, evidence_json, correlation_id, created_at)
+         values (?, ?, ?, ?, ?, ?)`
       )
       .run(
         event.ticketId,
         event.type,
         event.details ?? null,
+        serializedEvidence,
         event.correlationId ?? null,
-        event.createdAt.toISOString()
+        createdAt
+      ) as { lastInsertRowid?: number | bigint };
+
+    const domainEventId = this.generateDomainEventId();
+    const legacyEventId =
+      typeof legacyInsert.lastInsertRowid === 'bigint'
+        ? Number(legacyInsert.lastInsertRowid)
+        : legacyInsert.lastInsertRowid;
+    const legacyEventIdNumber =
+      typeof legacyEventId === 'number' && Number.isFinite(legacyEventId)
+        ? legacyEventId
+        : null;
+
+    db.prepare(
+      `insert into domain_events (
+        id,
+        ticket_id,
+        event_type,
+        details,
+        evidence_json,
+        correlation_id,
+        legacy_event_id,
+        created_at
+      )
+      values (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      domainEventId,
+      event.ticketId,
+      event.type,
+      event.details ?? null,
+      serializedEvidence,
+      event.correlationId ?? null,
+      legacyEventIdNumber,
+      createdAt
+    );
+
+    const evidenceRows = toEventEvidenceRows({
+      id: domainEventId,
+      ticket_id: event.ticketId,
+      event_type: event.type,
+      details: event.details ?? null,
+      evidence_json: serializedEvidence,
+      correlation_id: event.correlationId ?? null,
+      legacy_event_id: legacyEventIdNumber,
+      created_at: createdAt,
+    });
+
+    if (evidenceRows.length === 0) {
+      return;
+    }
+
+    const insertEvidence = db.prepare(
+      `insert into event_evidence (
+        domain_event_id,
+        ticket_id,
+        evidence_key,
+        evidence_value_json,
+        created_at
+      )
+      values (?, ?, ?, ?, ?)`
+    );
+
+    for (const row of evidenceRows) {
+      insertEvidence.run(
+        row.domain_event_id,
+        row.ticket_id,
+        row.evidence_key,
+        row.evidence_value_json,
+        row.created_at
       );
+    }
   }
 
   private async readTaskBoard(): Promise<string> {
@@ -2499,6 +2722,10 @@ export class TicketStoreRepository
   private generateSideEffectId(): string {
     return `effect_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
   }
+
+  private generateDomainEventId(): string {
+    return `event_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+  }
 }
 
 function createDescriptionKey(description: string): string {
@@ -2537,6 +2764,60 @@ function buildTicketCounts(tickets: TaskTicket[]): Record<string, number> {
 
 function serializeToolCalls(toolCalls: ToolCall[] | undefined): string | null {
   return toolCalls && toolCalls.length > 0 ? JSON.stringify(toolCalls) : null;
+}
+
+function serializeEventEvidence(evidence: Record<string, unknown> | undefined): string | null {
+  if (!evidence || Object.keys(evidence).length === 0) {
+    return null;
+  }
+
+  return JSON.stringify(evidence);
+}
+
+function parseEventEvidence(raw: string | null): Record<string, unknown> | undefined {
+  if (!raw) {
+    return undefined;
+  }
+
+  const parsed = JSON.parse(raw) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return undefined;
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
+function toEventEvidenceRows(event: DomainEventRow): EventEvidenceRow[] {
+  const evidence = parseEventEvidence(event.evidence_json);
+  if (!evidence) {
+    return [];
+  }
+
+  const rows: EventEvidenceRow[] = [];
+  for (const [key, value] of Object.entries(evidence)) {
+    const serialized = serializeEvidenceValue(value);
+    if (!serialized) {
+      continue;
+    }
+
+    rows.push({
+      domain_event_id: event.id,
+      ticket_id: event.ticket_id,
+      evidence_key: key,
+      evidence_value_json: serialized,
+      created_at: event.created_at,
+    });
+  }
+
+  return rows;
+}
+
+function serializeEvidenceValue(value: unknown): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return JSON.stringify(value);
 }
 
 function parseToolCalls(raw: string | null): ToolCall[] | undefined {

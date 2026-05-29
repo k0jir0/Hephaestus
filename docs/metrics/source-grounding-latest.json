@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-05-29T20:34:39.331Z",
+  "totalTickets": 316,
+  "requiredTickets": 0,
+  "groundedTickets": 0,
+  "groundingCoverage": 1,
+  "missingGroundingTickets": [],
+  "groundingKeyCounts": [],
+  "eventEvidence": {
+    "auditableTickets": 0,
+    "ticketsWithEventEvidence": 0,
+    "eventEvidenceCoverage": 1,
+    "driftedTickets": [],
+    "missingEvidenceTickets": []
+  }
+}

@@ -1,3 +1,5 @@
+import { assessSourceGrounding, sourceGroundingIssueMessage } from './domain/policy/source-grounding-policy.js';
+
 export type SupportedTaskClass =
   | 'focused-code-change'
   | 'test-repair'
@@ -93,6 +95,11 @@ export function classifyTaskEnvelope(description: string): TaskEnvelopeDecision 
     );
   }
 
+  const sourceGrounding = assessSourceGrounding(normalizedDescription);
+  if (sourceGrounding.requiresGrounding && !sourceGrounding.grounded) {
+    return unsupported(sourceGroundingIssueMessage());
+  }
+
   for (const candidate of classPatterns) {
     if (candidate.patterns.some((pattern) => pattern.test(normalizedDescription))) {
       return {
@@ -117,6 +124,7 @@ export function formatTaskEnvelopeDecision(decision: TaskEnvelopeDecision): stri
 export function supportedTaskEnvelopeSummary(): string {
   return [
     'Supported task classes: focused-code-change, test-repair, configuration-repair, documentation-update, ci-repair, repository-inspection.',
+    'Blueprint/D2+ tickets must include source grounding (source key or sources/notes/... path).',
     'Defer deployment, merge, PR-opening, broad rewrite, production-operation, and unclear unbounded tasks to an operator.',
   ].join(' ');
 }
@@ -154,6 +162,11 @@ export function lintTaskEnvelopeQuality(description: string): TaskEnvelopeQualit
     score += 1;
   } else {
     issues.push('Description should include a verification command or expected signal.');
+  }
+
+  const sourceGrounding = assessSourceGrounding(normalized);
+  if (sourceGrounding.requiresGrounding && !sourceGrounding.grounded) {
+    issues.push(sourceGroundingIssueMessage());
   }
 
   return {

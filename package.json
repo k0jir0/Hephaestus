@@ -26,6 +26,8 @@
     "autopilot": "tsx src/tickets.ts autopilot",
     "metrics:efficiency": "tsx src/efficiency-metrics.ts",
     "metrics:efficiency:weekly": "tsx src/efficiency-weekly-report.ts",
+    "metrics:source-grounding": "tsx src/source-grounding-report.ts",
+    "metrics:source-grounding:audit": "tsx src/tickets.ts audit-source-evidence --max-drifted 0 --max-missing-evidence 0",
     "metrics:upgrade-telemetry": "tsx src/upgrade-telemetry.ts",
     "context:clean": "powershell -ExecutionPolicy Bypass -File scripts/context-clean.ps1",
     "fault-harness": "tsx src/reliability-harness.ts --mode fault",

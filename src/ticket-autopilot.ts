@@ -28,6 +28,20 @@ export interface TicketAutopilotOptions {
   maxSupersededRate?: number;
   maxBlockedTickets?: number;
   maxAllowlistDenialRate?: number;
+  minSourceGroundingCoverage?: number;
+  minSourceEvidenceCoverage?: number;
+  maxSourceDriftedTickets?: number;
+  sourceGroundingSnapshot?: {
+    timestamp?: string;
+    groundingCoverage?: number;
+    eventEvidence?: {
+      auditableTickets?: number;
+      eventEvidenceCoverage?: number;
+      driftedTickets?: string[];
+    };
+  };
+  enforceSourceSnapshot?: boolean;
+  maxSourceSnapshotAgeHours?: number;
 }
 
 export interface TicketAutopilotResult {

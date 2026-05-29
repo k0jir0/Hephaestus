@@ -21,4 +21,22 @@ describe('ticket template quality gate', () => {
     assert.ok(assessment.issues.some((issue) => issue.includes('expected signal')));
     assert.ok(assessment.issues.some((issue) => issue.includes('<=2 scoped files')));
   });
+
+  it('rejects blueprint D2+ tickets missing source grounding', () => {
+    const assessment = assessTicketTemplate(
+      'Implement D2 replay evidence in src/task-store.ts and verify with npm run test; expected signal: replay tests exit 0.'
+    );
+
+    assert.equal(assessment.valid, false);
+    assert.ok(assessment.issues.some((issue) => issue.includes('source grounding')));
+  });
+
+  it('accepts blueprint D2+ tickets with source grounding', () => {
+    const assessment = assessTicketTemplate(
+      'Implement D2 replay evidence in src/task-store.ts using ChandyLamport1985 and verify with npm run test; expected signal: replay tests exit 0.'
+    );
+
+    assert.equal(assessment.valid, true);
+    assert.equal(assessment.issues.length, 0);
+  });
 });

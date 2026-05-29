@@ -27,6 +27,35 @@ export interface TicketAutopilotGateOptions {
   maxSupersededRate?: number;
   maxBlockedTickets?: number;
   maxAllowlistDenialRate?: number;
+  minSourceGroundingCoverage?: number;
+  minSourceEvidenceCoverage?: number;
+  maxSourceDriftedTickets?: number;
+  sourceGroundingSnapshot?: {
+    timestamp?: string;
+    groundingCoverage?: number;
+    eventEvidence?: {
+      auditableTickets?: number;
+      eventEvidenceCoverage?: number;
+      driftedTickets?: string[];
+    };
+  };
+  enforceSourceSnapshot?: boolean;
+  maxSourceSnapshotAgeHours?: number;
+  nowMs?: number;
+}
+
+interface ResolvedTicketAutopilotGateOptions {
+  minCompletionRate: number;
+  maxSupersededRate: number;
+  maxBlockedTickets: number;
+  maxAllowlistDenialRate: number;
+  minSourceGroundingCoverage: number;
+  minSourceEvidenceCoverage: number;
+  maxSourceDriftedTickets: number;
+  sourceGroundingSnapshot?: TicketAutopilotGateOptions['sourceGroundingSnapshot'];
+  enforceSourceSnapshot: boolean;
+  maxSourceSnapshotAgeHours: number;
+  nowMs: number;
 }
 
 export interface TicketAutopilotSchedulingOptions extends TicketAutopilotGateOptions {
@@ -59,12 +88,19 @@ export interface TicketAutopilotSelfAuditSeedInput {
 
 function resolveGateOptions(
   options: TicketAutopilotGateOptions
-): Required<TicketAutopilotGateOptions> {
+): ResolvedTicketAutopilotGateOptions {
   return {
     minCompletionRate: options.minCompletionRate ?? 0.7,
     maxSupersededRate: options.maxSupersededRate ?? 0.2,
     maxBlockedTickets: options.maxBlockedTickets ?? 5,
     maxAllowlistDenialRate: options.maxAllowlistDenialRate ?? 0.08,
+    minSourceGroundingCoverage: options.minSourceGroundingCoverage ?? 0.9,
+    minSourceEvidenceCoverage: options.minSourceEvidenceCoverage ?? 0.95,
+    maxSourceDriftedTickets: options.maxSourceDriftedTickets ?? 0,
+    sourceGroundingSnapshot: options.sourceGroundingSnapshot,
+    enforceSourceSnapshot: options.enforceSourceSnapshot ?? false,
+    maxSourceSnapshotAgeHours: options.maxSourceSnapshotAgeHours ?? 24,
+    nowMs: options.nowMs ?? Date.now(),
   };
 }
 
@@ -127,6 +163,63 @@ export function evaluateTicketAutopilotGateFailures(
     if (allowlistDenialRate > resolvedOptions.maxAllowlistDenialRate) {
       failures.push(`allowlist-denial-rate-high:${allowlistDenialRate.toFixed(3)}>${resolvedOptions.maxAllowlistDenialRate}`);
     }
+  }
+
+  if (resolvedOptions.enforceSourceSnapshot && !resolvedOptions.sourceGroundingSnapshot) {
+    failures.push('source-grounding-snapshot-missing');
+    return failures;
+  }
+
+  if (!resolvedOptions.sourceGroundingSnapshot) {
+    return failures;
+  }
+
+  if (resolvedOptions.enforceSourceSnapshot) {
+    const snapshotTimestamp = resolvedOptions.sourceGroundingSnapshot.timestamp;
+    if (!snapshotTimestamp) {
+      failures.push('source-grounding-snapshot-invalid');
+      return failures;
+    }
+
+    const snapshotMs = Date.parse(snapshotTimestamp);
+    if (!Number.isFinite(snapshotMs)) {
+      failures.push('source-grounding-snapshot-invalid');
+      return failures;
+    }
+
+    const snapshotAgeHours = (resolvedOptions.nowMs - snapshotMs) / (60 * 60 * 1000);
+    if (snapshotAgeHours > resolvedOptions.maxSourceSnapshotAgeHours) {
+      failures.push(
+        `source-grounding-snapshot-stale:${snapshotAgeHours.toFixed(2)}h>${resolvedOptions.maxSourceSnapshotAgeHours}`
+      );
+    }
+  }
+
+  const sourceGroundingCoverage = Number(resolvedOptions.sourceGroundingSnapshot.groundingCoverage ?? 1);
+  if (sourceGroundingCoverage < resolvedOptions.minSourceGroundingCoverage) {
+    failures.push(
+      `source-grounding-coverage-low:${sourceGroundingCoverage.toFixed(3)}<${resolvedOptions.minSourceGroundingCoverage}`
+    );
+  }
+
+  const sourceEvidenceAuditableTickets = Number(
+    resolvedOptions.sourceGroundingSnapshot.eventEvidence?.auditableTickets ?? 0
+  );
+  const sourceEvidenceCoverage = Number(
+    resolvedOptions.sourceGroundingSnapshot.eventEvidence?.eventEvidenceCoverage ?? 1
+  );
+  const sourceDriftedTickets = resolvedOptions.sourceGroundingSnapshot.eventEvidence?.driftedTickets ?? [];
+
+  if (sourceEvidenceAuditableTickets > 0 && sourceEvidenceCoverage < resolvedOptions.minSourceEvidenceCoverage) {
+    failures.push(
+      `source-evidence-coverage-low:${sourceEvidenceCoverage.toFixed(3)}<${resolvedOptions.minSourceEvidenceCoverage}`
+    );
+  }
+
+  if (sourceDriftedTickets.length > resolvedOptions.maxSourceDriftedTickets) {
+    failures.push(
+      `source-evidence-drifted-high:${sourceDriftedTickets.length}>${resolvedOptions.maxSourceDriftedTickets}`
+    );
   }
 
   return failures;

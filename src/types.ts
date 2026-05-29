@@ -84,6 +84,7 @@ export interface TaskEvent {
     | 'side-effect-failed';
   createdAt: Date;
   details?: string;
+  evidence?: Record<string, unknown>;
   correlationId?: string;
 }
 
