@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { parseTaskBoard, renderTaskBoard } from '../src/task-board.js';
-import { canTransitionTaskStatus, transitionTask } from '../src/task-lifecycle.js';
+import { canTransitionTaskStatus, transitionTask } from '../src/domain/tickets/ticket-lifecycle.js';
 import type { Task, TaskStatus, TaskTicket } from '../src/types.js';
 
 const taskStatuses: TaskStatus[] = [

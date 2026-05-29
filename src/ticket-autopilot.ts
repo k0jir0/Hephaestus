@@ -1,27 +1,10 @@
 import type { SelfAuditSeedOptions, SelfAuditSeedResult } from './self-audit.js';
+import {
+  planTicketAutopilotSchedule,
+  resolveSelfAuditSeedLimit,
+  shouldSeedSelfAuditFromAutopilot,
+} from './domain/scheduling/ticket-autopilot-policy.js';
 import type { TaskStatus, TaskTicket } from './types.js';
-
-const runnableStatuses = new Set<TaskStatus>([
-  'pending',
-  'in_progress',
-  'planned',
-  'applying',
-  'verifying',
-]);
-
-const retryableStatuses = new Set<TaskStatus>(['blocked', 'failed', 'stale']);
-const activeStatuses = new Set<TaskStatus>([
-  'pending',
-  'in_progress',
-  'planned',
-  'applying',
-  'verifying',
-  'awaiting_approval',
-  'blocked',
-  'failed',
-  'stale',
-]);
-const terminalStatuses = new Set<TaskStatus>(['completed', 'superseded', 'cancelled']);
 
 export interface TicketAutopilotRepository {
   listTickets(status?: TaskStatus | 'all'): Promise<TaskTicket[]>;
@@ -61,18 +44,6 @@ export interface TicketAutopilotResult {
   queueReady: boolean;
 }
 
-function isRunnableTicket(ticket: TaskTicket): boolean {
-  return runnableStatuses.has(ticket.status);
-}
-
-function isApprovedAwaitingApproval(ticket: TaskTicket): boolean {
-  return ticket.status === 'awaiting_approval' && ticket.approval?.status === 'approved';
-}
-
-function isPendingOperatorApproval(ticket: TaskTicket): boolean {
-  return ticket.status === 'awaiting_approval' && ticket.approval?.status !== 'approved';
-}
-
 function cloneAsPending(ticket: TaskTicket): TaskTicket {
   const now = new Date();
   return {
@@ -86,49 +57,6 @@ function cloneAsPending(ticket: TaskTicket): TaskTicket {
   };
 }
 
-function evaluateGateFailures(
-  tickets: TaskTicket[],
-  options: Required<Pick<TicketAutopilotOptions,
-    'minCompletionRate' |
-    'maxSupersededRate' |
-    'maxBlockedTickets' |
-    'maxAllowlistDenialRate'>>
-): string[] {
-  const failures: string[] = [];
-
-  const terminalTickets = tickets.filter((ticket) => terminalStatuses.has(ticket.status));
-  if (terminalTickets.length >= 10) {
-    const completed = terminalTickets.filter((ticket) => ticket.status === 'completed').length;
-    const superseded = terminalTickets.filter((ticket) => ticket.status === 'superseded').length;
-    const completionRate = completed / Math.max(1, terminalTickets.length);
-    const supersededRate = superseded / Math.max(1, terminalTickets.length);
-
-    if (completionRate < options.minCompletionRate) {
-      failures.push(`completion-rate-low:${completionRate.toFixed(3)}<${options.minCompletionRate}`);
-    }
-
-    if (supersededRate > options.maxSupersededRate) {
-      failures.push(`superseded-rate-high:${supersededRate.toFixed(3)}>${options.maxSupersededRate}`);
-    }
-  }
-
-  const blockedCount = tickets.filter((ticket) => ticket.status === 'blocked').length;
-  if (blockedCount > options.maxBlockedTickets) {
-    failures.push(`blocked-count-high:${blockedCount}>${options.maxBlockedTickets}`);
-  }
-
-  const erroredTickets = tickets.filter((ticket) => typeof ticket.error === 'string' && ticket.error.trim().length > 0);
-  if (erroredTickets.length >= 5) {
-    const allowlistDenials = erroredTickets.filter((ticket) => /allowlist|allowlisted/i.test(ticket.error ?? '')).length;
-    const allowlistDenialRate = allowlistDenials / Math.max(1, erroredTickets.length);
-    if (allowlistDenialRate > options.maxAllowlistDenialRate) {
-      failures.push(`allowlist-denial-rate-high:${allowlistDenialRate.toFixed(3)}>${options.maxAllowlistDenialRate}`);
-    }
-  }
-
-  return failures;
-}
-
 export async function runTicketAutopilot(
   dependencies: {
     repository: TicketAutopilotRepository;
@@ -137,27 +65,18 @@ export async function runTicketAutopilot(
   options: TicketAutopilotOptions = {}
 ): Promise<TicketAutopilotResult> {
   const tickets = await dependencies.repository.listTickets('all');
-  const waveSize = Math.max(1, Math.min(options.waveSize ?? 5, 10));
-  const maxActiveTickets = Math.max(1, options.maxActiveTickets ?? 40);
-  const gateFailures = evaluateGateFailures(tickets, {
-    minCompletionRate: options.minCompletionRate ?? 0.7,
-    maxSupersededRate: options.maxSupersededRate ?? 0.2,
-    maxBlockedTickets: options.maxBlockedTickets ?? 5,
-    maxAllowlistDenialRate: options.maxAllowlistDenialRate ?? 0.08,
-  });
-  const blockedByGates = gateFailures.length > 0;
-  const runnableTicketCount = tickets.filter(isRunnableTicket).length;
-  const awaitingApprovalCount = tickets.filter(isPendingOperatorApproval).length;
-  const activeTicketCount = tickets.filter((ticket) => activeStatuses.has(ticket.status)).length;
-  const queueCapacity = Math.max(0, maxActiveTickets - activeTicketCount);
-  const availableWaveSlots = blockedByGates ? 0 : Math.min(waveSize, queueCapacity);
-  const resumableTickets = tickets.filter(isApprovedAwaitingApproval);
-  const retryAttemptLimit = options.maxAttempts ?? 3;
-  const retryCandidates = tickets.filter(
-    (ticket) => retryableStatuses.has(ticket.status) || (options.includeCancelled && ticket.status === 'cancelled')
-  );
-  const retryableTickets = retryCandidates.filter((ticket) => ticket.attemptCount < retryAttemptLimit);
-  const skippedRetryCap = retryCandidates.filter((ticket) => ticket.attemptCount >= retryAttemptLimit);
+  const schedule = planTicketAutopilotSchedule(tickets, options);
+  const {
+    runnableTicketCount,
+    awaitingApprovalCount,
+    activeTicketCount,
+    availableWaveSlots,
+    blockedByGates,
+    gateFailures,
+    resumableTickets,
+    retryableTickets,
+    skippedRetryCap,
+  } = schedule;
 
   const resumed: TaskTicket[] = [];
   const requeued: TaskTicket[] = [];
@@ -182,17 +101,18 @@ export async function runTicketAutopilot(
 
   let selfAudit: SelfAuditSeedResult | null = null;
   const queueReady = runnableTicketCount > 0 || resumed.length > 0 || requeued.length > 0;
+  const selfAuditSeeder = dependencies.selfAuditSeeder ?? null;
 
-  if (
-    !blockedByGates &&
-    availableWaveSlots > 0 &&
-    !queueReady &&
-    awaitingApprovalCount === 0 &&
-    options.seedSelfAuditWhenIdle !== false &&
-    dependencies.selfAuditSeeder
-  ) {
-    selfAudit = await dependencies.selfAuditSeeder.seedTickets({
-      limit: Math.min(options.selfAuditLimit ?? availableWaveSlots, availableWaveSlots),
+  if (shouldSeedSelfAuditFromAutopilot({
+    blockedByGates,
+    availableWaveSlots,
+    queueReady,
+    awaitingApprovalCount,
+    seedSelfAuditWhenIdle: options.seedSelfAuditWhenIdle,
+    hasSelfAuditSeeder: selfAuditSeeder !== null,
+  }) && selfAuditSeeder) {
+    selfAudit = await selfAuditSeeder.seedTickets({
+      limit: resolveSelfAuditSeedLimit(options.selfAuditLimit, availableWaveSlots),
       dryRun: options.dryRun,
     });
   }

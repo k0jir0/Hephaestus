@@ -28,7 +28,36 @@ import type {
 } from './repositories.js';
 import { SafetySystem } from './safety.js';
 import { SelfAuditSeeder, type SelfAuditSeedResult } from './self-audit.js';
-import { canTransitionTaskStatus, transitionTask } from './task-lifecycle.js';
+import {
+  buildApprovalRequestState,
+  describePatchSubject,
+  formatApprovalResumeArtifact,
+  formatBackendEvidenceArtifact,
+  formatDeferredMutationArtifact,
+  formatDeniedToolArtifact,
+  formatPatchDeltaArtifact,
+  formatPolicySnapshotArtifact,
+  formatToolExecutionArtifact,
+  formatToolFailureReason,
+} from './domain/evidence/execution-artifacts.js';
+import {
+  buildCommandRepairArtifacts,
+  validateCommandCallAgainstPlan,
+  validatePatchCallAgainstPlan,
+  validateReadCallAgainstPlan,
+} from './domain/policy/plan-binding-policy.js';
+import { formatCommandInvocation, parseCommandPlan } from './domain/plans/command-plan.js';
+import { buildApprovedResumeToolCalls } from './domain/tickets/approval-resume-policy.js';
+import { decideTaskCompletion } from './domain/tickets/completion-policy.js';
+import {
+  decideTaskFailure,
+  resolveMemoryFailureStatus,
+  resolveRuntimeFailureStatus,
+  resolveTaskFailureStatus,
+  resolveTransientFailureAttemptCap,
+  shouldReturnToIdleAfterFailure,
+} from './domain/tickets/failure-policy.js';
+import { canTransitionTaskStatus, settleTaskStatus, transitionTask } from './domain/tickets/ticket-lifecycle.js';
 import { classifyTaskEnvelope, formatTaskEnvelopeDecision, lintTaskEnvelopeQuality } from './task-envelope.js';
 import { TicketStoreRepository } from './task-store.js';
 import { EngineeringToolRuntime, type EngineeringToolRequest } from './tool-runtime.js';
@@ -43,30 +72,9 @@ import type {
   ToolPolicySnapshot,
 } from './types.js';
 
-const defaultTransientFailureAttemptCap = Number.parseInt(
-  process.env.TRANSIENT_FAILURE_ATTEMPT_CAP ?? '2',
-  10
+const transientFailureAttemptCap = resolveTransientFailureAttemptCap(
+  Number.parseInt(process.env.TRANSIENT_FAILURE_ATTEMPT_CAP ?? '2', 10)
 );
-
-const likelyTransientFailurePatterns = [
-  /\btimeout\b/i,
-  /\betimedout\b/i,
-  /\beconnreset\b/i,
-  /\bebusy\b/i,
-  /\btemporar(il)?y\b/i,
-  /\btransient\b/i,
-  /\brate\s*limit\b/i,
-  /\bbackend\s+unavailable\b/i,
-  /\bwarmup\b/i,
-];
-
-const hardBlockFailurePatterns = [
-  /unsupported task envelope/i,
-  /allowlisted/i,
-  /denied/i,
-  /invalid\s+task\s+transition/i,
-  /approval\s+required/i,
-];
 
 export interface RuntimeOptions {
   runOnce?: boolean;
@@ -538,7 +546,7 @@ export class HephaestusRuntime {
       }
 
       const context = await this.contextProvider(task);
-      const resumedToolCalls = this.getResumableApprovedToolCalls(task);
+      const resumedToolCalls = buildApprovedResumeToolCalls(task);
       const result = resumedToolCalls
         ? {
             success: true,
@@ -569,43 +577,39 @@ export class HephaestusRuntime {
             skipPlanPrelude: resumedToolCalls !== null,
           }
         );
-        toolExecution.artifacts.push(this.formatBackendArtifact(admission.correlationId));
+        toolExecution.artifacts.push(formatBackendEvidenceArtifact({
+          correlationId: admission.correlationId,
+          backend: this.runtimeConfig.aiBackend,
+          model: this.runtimeConfig.aiModel,
+        }));
         await this.appendTaskArtifacts(task.id, toolExecution.artifacts);
 
-        if (toolExecution.awaitingApprovalReason) {
-          task.error = toolExecution.awaitingApprovalReason;
-          task.toolCalls = toolExecution.pendingToolCalls ?? result.toolCalls ?? [];
-          task.approval = toolExecution.approvalState;
-          await this.handleAwaitingApprovalTask(task, toolExecution.awaitingApprovalReason, taskMarkedInProgress);
+        const completionDecision = decideTaskCompletion({
+          plan: result.plan,
+          observedMutatedPaths: toolExecution.observedMutatedPaths ?? [],
+          failureReason: toolExecution.failureReason,
+          awaitingApprovalReason: toolExecution.awaitingApprovalReason,
+          pendingToolCalls: toolExecution.pendingToolCalls,
+          approvalState: toolExecution.approvalState,
+        });
+        if (completionDecision.action === 'awaiting_approval') {
+          task.error = completionDecision.reason;
+          task.toolCalls = completionDecision.pendingToolCalls ?? result.toolCalls ?? [];
+          task.approval = completionDecision.approvalState;
+          await this.handleAwaitingApprovalTask(task, completionDecision.reason, taskMarkedInProgress);
           return 'awaiting_approval';
         }
 
-        if (toolExecution.failureReason) {
-          task.error = toolExecution.failureReason;
-          await this.handleBlockedTask(task, toolExecution.failureReason, taskMarkedInProgress);
-          return 'failed';
-        }
-
-        const mutationEvidenceFailure = this.validateCompletionMutationEvidence(
-          result.plan,
-          toolExecution.observedMutatedPaths ?? []
-        );
-        if (mutationEvidenceFailure) {
-          task.error = mutationEvidenceFailure;
-          await this.handleBlockedTask(task, mutationEvidenceFailure, taskMarkedInProgress, {
-            forceBlocked: true,
+        if (completionDecision.action === 'block') {
+          task.error = completionDecision.reason;
+          await this.handleBlockedTask(task, completionDecision.reason, taskMarkedInProgress, {
+            forceBlocked: completionDecision.forceBlocked,
           });
           return 'failed';
         }
 
         await this.tasks.markTaskCompleted(task);
-        if (canTransitionTaskStatus(task.status, 'completed')) {
-          Object.assign(task, transitionTask(task, 'completed'));
-        } else {
-          task.status = 'completed';
-          task.updatedAt = new Date();
-          task.completedAt = task.completedAt ?? new Date();
-        }
+        Object.assign(task, settleTaskStatus(task, 'completed'));
         this.recordSuccessfulTask(task, result);
         await this.recordCompletionSideEffects(task, taskSummary, admission.correlationId);
 
@@ -766,12 +770,12 @@ export class HephaestusRuntime {
 
     const policySnapshot = this.toolRuntime.getPolicySnapshot?.();
     if (policySnapshot) {
-      artifacts.push(this.formatPolicySnapshotArtifact(correlationId, policySnapshot));
+      artifacts.push(formatPolicySnapshotArtifact(correlationId, policySnapshot));
     }
 
     if (options.skipPlanPrelude && task.approval?.approvalId) {
       artifacts.push(
-        `[${correlationId}] approval.resume ${task.approval.requestId} -> ${task.approval.approvalId}`
+        formatApprovalResumeArtifact(correlationId, task.approval.requestId, task.approval.approvalId)
       );
     }
 
@@ -779,7 +783,7 @@ export class HephaestusRuntime {
       for (const file of plan.intendedFiles) {
         if (file.changeType !== 'inspect') {
           artifacts.push(
-            `[${correlationId}] deferred-mutation ${file.changeType} ${file.path}: mutating file plans require governed tool calls.`
+            formatDeferredMutationArtifact(correlationId, file.changeType, file.path)
           );
           continue;
         }
@@ -789,14 +793,23 @@ export class HephaestusRuntime {
           path: file.path,
           maxBytes: 8 * 1024,
         });
-        artifacts.push(this.formatToolArtifact(correlationId, 'file.read', file.path, result));
+        artifacts.push(formatToolExecutionArtifact({
+          correlationId,
+          tool: 'file.read',
+          subject: file.path,
+          result,
+        }));
       }
 
       for (const commandPlan of plan.commands) {
-        const parsedCommand = this.parseCommandPlan(commandPlan.command);
+        const parsedCommand = parseCommandPlan(commandPlan.command);
         if (!parsedCommand) {
           artifacts.push(
-            `[${correlationId}] denied command.parse for "${commandPlan.command}": command string could not be tokenized safely.`
+            formatDeniedToolArtifact(
+              correlationId,
+              `command.parse for "${commandPlan.command}"`,
+              'command string could not be tokenized safely.'
+            )
           );
           continue;
         }
@@ -807,13 +820,18 @@ export class HephaestusRuntime {
           args: parsedCommand.args,
         });
         artifacts.push(
-          this.formatToolArtifact(correlationId, 'command.run', commandPlan.command, result)
+          formatToolExecutionArtifact({
+            correlationId,
+            tool: 'command.run',
+            subject: commandPlan.command,
+            result,
+          })
         );
 
         if (result.status === 'failure' || result.status === 'denied') {
           return {
             artifacts,
-            failureReason: `${result.summary}${result.error ? `: ${result.error}` : ''}`,
+            failureReason: formatToolFailureReason(result),
           };
         }
       }
@@ -850,39 +868,6 @@ export class HephaestusRuntime {
     };
   }
 
-  private normalizePlanPath(candidate: string): string {
-    return candidate.replace(/\\/g, '/').trim().toLowerCase();
-  }
-
-  private validateCompletionMutationEvidence(
-    plan: TaskPlan | undefined,
-    observedMutatedPaths: string[]
-  ): string | null {
-    if (!plan) {
-      return null;
-    }
-
-    const plannedMutablePaths = plan.intendedFiles
-      .filter((file) => file.changeType !== 'inspect')
-      .map((file) => this.normalizePlanPath(file.path));
-
-    if (plannedMutablePaths.length === 0) {
-      return null;
-    }
-
-    const observedSet = new Set(observedMutatedPaths.map((candidate) => this.normalizePlanPath(candidate)));
-    if (observedSet.size === 0) {
-      return `No governed mutation evidence was recorded for mutable intended files (${plannedMutablePaths.join(', ')}). Completion requires at least one applied mutation in declared targets.`;
-    }
-
-    const hasPlannedMutation = plannedMutablePaths.some((candidate) => observedSet.has(candidate));
-    if (!hasPlannedMutation) {
-      return `Observed mutations (${Array.from(observedSet).join(', ')}) do not intersect mutable intended files (${plannedMutablePaths.join(', ')}). Completion requires declared-target mutations.`;
-    }
-
-    return null;
-  }
-
   private async executeGovernedToolCall(
     plan: TaskPlan | undefined,
     toolCall: ToolCall,
@@ -899,7 +884,9 @@ export class HephaestusRuntime {
           : null;
         if (!query) {
           return {
-            artifacts: [`[${correlationId}] denied repo.search: tool call is missing a query string.`],
+            artifacts: [
+              formatDeniedToolArtifact(correlationId, 'repo.search', 'tool call is missing a query string.'),
+            ],
             failureReason: 'Tool call repo.search must provide a query string.',
           };
         }
@@ -909,11 +896,16 @@ export class HephaestusRuntime {
           query,
           maxResults: typeof toolCall.arguments.maxResults === 'number' ? toolCall.arguments.maxResults : undefined,
         });
-        const artifacts = [this.formatToolArtifact(correlationId, 'repo.search', query, result)];
+        const artifacts = [formatToolExecutionArtifact({
+          correlationId,
+          tool: 'repo.search',
+          subject: query,
+          result,
+        })];
         return result.status === 'failure' || result.status === 'denied'
           ? {
               artifacts,
-              failureReason: `${result.summary}${result.error ? `: ${result.error}` : ''}`,
+              failureReason: formatToolFailureReason(result),
             }
             : { artifacts, observedMutatedPaths: [] };
       }
@@ -926,7 +918,7 @@ export class HephaestusRuntime {
         if (!patch) {
           return {
             artifacts: [
-              `[${correlationId}] denied patch.apply: tool call is missing a string patch argument.`
+              formatDeniedToolArtifact(correlationId, 'patch.apply', 'tool call is missing a string patch argument.')
             ],
             failureReason: 'Tool call patch.apply must provide a string patch argument.',
           };
@@ -937,21 +929,26 @@ export class HephaestusRuntime {
           patch,
           dryRun: true,
         });
-        const patchSubject = this.describePatchSubject(dryRunResult.mutatedPaths);
+        const patchSubject = describePatchSubject(dryRunResult.mutatedPaths);
         const artifacts = [
-          this.formatToolArtifact(correlationId, 'patch.apply', `${patchSubject} [dry-run]`, dryRunResult),
+          formatToolExecutionArtifact({
+            correlationId,
+            tool: 'patch.apply',
+            subject: `${patchSubject} [dry-run]`,
+            result: dryRunResult,
+          }),
         ];
 
         if (dryRunResult.status !== 'dry_run') {
           return {
             artifacts,
-            failureReason: `${dryRunResult.summary}${dryRunResult.error ? `: ${dryRunResult.error}` : ''}`,
+            failureReason: formatToolFailureReason(dryRunResult),
           };
         }
 
-        const bindingError = this.validatePatchCallAgainstPlan(plan, dryRunResult.mutatedPaths);
+        const bindingError = validatePatchCallAgainstPlan(plan, dryRunResult.mutatedPaths);
         if (bindingError) {
-          artifacts.push(`[${correlationId}] denied patch.binding ${patchSubject}: ${bindingError}`);
+          artifacts.push(formatDeniedToolArtifact(correlationId, `patch.binding ${patchSubject}`, bindingError));
           return {
             artifacts,
             failureReason: bindingError,
@@ -964,16 +961,26 @@ export class HephaestusRuntime {
           approvalId,
         });
         artifacts.push(
-          this.formatToolArtifact(correlationId, 'patch.apply', `${patchSubject} [apply]`, applyResult)
+          formatToolExecutionArtifact({
+            correlationId,
+            tool: 'patch.apply',
+            subject: `${patchSubject} [apply]`,
+            result: applyResult,
+          })
         );
-        artifacts.push(this.formatPatchDeltaArtifact(correlationId, patchSubject, dryRunResult, applyResult));
+        artifacts.push(formatPatchDeltaArtifact({
+          correlationId,
+          subject: patchSubject,
+          dryRunResult,
+          applyResult,
+        }));
 
         if (applyResult.status === 'denied' && applyResult.reasonCode === 'approval-required') {
           return {
             artifacts,
             observedMutatedPaths: [],
             awaitingApprovalReason: applyResult.summary,
-            approvalState: this.buildApprovalState(correlationId, applyResult),
+            approvalState: buildApprovalRequestState(correlationId, applyResult),
           };
         }
 
@@ -981,7 +988,7 @@ export class HephaestusRuntime {
           return {
             artifacts,
             observedMutatedPaths: [],
-            failureReason: `${applyResult.summary}${applyResult.error ? `: ${applyResult.error}` : ''}`,
+            failureReason: formatToolFailureReason(applyResult),
           };
         }
 
@@ -997,15 +1004,17 @@ export class HephaestusRuntime {
           : [];
         if (!command) {
           return {
-            artifacts: [`[${correlationId}] denied command.run: tool call is missing a command string.`],
+            artifacts: [
+              formatDeniedToolArtifact(correlationId, 'command.run', 'tool call is missing a command string.'),
+            ],
             failureReason: 'Tool call command.run must provide a command string.',
           };
         }
 
-        const bindingError = this.validateCommandCallAgainstPlan(plan, command, args);
+        const bindingError = validateCommandCallAgainstPlan(plan, command, args);
         if (bindingError) {
           return {
-            artifacts: [`[${correlationId}] denied command.binding ${command}: ${bindingError}`],
+            artifacts: [formatDeniedToolArtifact(correlationId, `command.binding ${command}`, bindingError)],
             failureReason: bindingError,
           };
         }
@@ -1015,15 +1024,26 @@ export class HephaestusRuntime {
           command,
           args,
         });
-        const subject = [command, ...args].join(' ');
-        const artifacts = [this.formatToolArtifact(correlationId, 'command.run', subject, result)];
+        const subject = formatCommandInvocation(command, args);
+        const artifacts = [formatToolExecutionArtifact({
+          correlationId,
+          tool: 'command.run',
+          subject,
+          result,
+        })];
         if (result.status === 'failure' || result.status === 'denied') {
-          artifacts.push(...this.buildCommandRepairArtifacts(correlationId, subject, result, plan));
+          artifacts.push(...buildCommandRepairArtifacts({
+            correlationId,
+            command: subject,
+            result,
+            plan,
+            policySnapshot: this.toolRuntime.getPolicySnapshot?.(),
+          }));
         }
         return result.status === 'failure' || result.status === 'denied'
           ? {
               artifacts,
-              failureReason: `${result.summary}${result.error ? `: ${result.error}` : ''}`,
+              failureReason: formatToolFailureReason(result),
             }
             : { artifacts, observedMutatedPaths: [] };
       }
@@ -1034,15 +1054,17 @@ export class HephaestusRuntime {
           : null;
         if (!targetPath) {
           return {
-            artifacts: [`[${correlationId}] denied file.read: tool call is missing a path string.`],
+            artifacts: [
+              formatDeniedToolArtifact(correlationId, 'file.read', 'tool call is missing a path string.'),
+            ],
             failureReason: 'Tool call file.read must provide a path string.',
           };
         }
 
-        const bindingError = this.validateReadCallAgainstPlan(plan, targetPath);
+        const bindingError = validateReadCallAgainstPlan(plan, targetPath);
         if (bindingError) {
           return {
-            artifacts: [`[${correlationId}] denied file.binding ${targetPath}: ${bindingError}`],
+            artifacts: [formatDeniedToolArtifact(correlationId, `file.binding ${targetPath}`, bindingError)],
             failureReason: bindingError,
           };
         }
@@ -1054,11 +1076,16 @@ export class HephaestusRuntime {
           endLine: typeof toolCall.arguments.endLine === 'number' ? toolCall.arguments.endLine : undefined,
           maxBytes: typeof toolCall.arguments.maxBytes === 'number' ? toolCall.arguments.maxBytes : undefined,
         });
-        const artifacts = [this.formatToolArtifact(correlationId, 'file.read', targetPath, result)];
+        const artifacts = [formatToolExecutionArtifact({
+          correlationId,
+          tool: 'file.read',
+          subject: targetPath,
+          result,
+        })];
         return result.status === 'failure' || result.status === 'denied'
           ? {
               artifacts,
-              failureReason: `${result.summary}${result.error ? `: ${result.error}` : ''}`,
+              failureReason: formatToolFailureReason(result),
             }
             : { artifacts, observedMutatedPaths: [] };
       }
@@ -1066,7 +1093,11 @@ export class HephaestusRuntime {
       default:
         return {
           artifacts: [
-            `[${correlationId}] denied ${toolCall.name}: governed runtime does not yet bind this tool call to the plan.`
+            formatDeniedToolArtifact(
+              correlationId,
+              toolCall.name,
+              'governed runtime does not yet bind this tool call to the plan.'
+            )
           ],
           observedMutatedPaths: [],
           failureReason: `Tool call ${toolCall.name} is not yet supported by the governed runtime.`,
@@ -1090,230 +1121,6 @@ export class HephaestusRuntime {
     }
   }
 
-  private formatToolArtifact(
-    correlationId: string,
-    tool: EngineeringToolRequest['tool'],
-    subject: string,
-    result: EngineeringToolResult
-  ): string {
-    const reasonCodeSuffix = result.reasonCode ? ` [${result.reasonCode}]` : '';
-    return `[${correlationId}] ${tool} ${subject} -> ${result.status}${reasonCodeSuffix}: ${result.summary}`;
-  }
-
-  private formatBackendArtifact(correlationId: string): string {
-    const model = this.runtimeConfig.aiModel || 'default';
-    return `[${correlationId}] backend.${this.runtimeConfig.aiBackend} model=${model}`;
-  }
-
-  private formatPolicySnapshotArtifact(
-    correlationId: string,
-    snapshot: ToolPolicySnapshot
-  ): string {
-    return `[${correlationId}] policy.snapshot [${snapshot.signature}] ${JSON.stringify({
-      ...snapshot,
-      generatedAt: snapshot.generatedAt.toISOString(),
-    })}`;
-  }
-
-  private formatPatchDeltaArtifact(
-    correlationId: string,
-    subject: string,
-    dryRunResult: EngineeringToolResult,
-    applyResult: EngineeringToolResult
-  ): string {
-    const dryRunCode = dryRunResult.reasonCode ? `${dryRunResult.status}/${dryRunResult.reasonCode}` : dryRunResult.status;
-    const applyCode = applyResult.reasonCode ? `${applyResult.status}/${applyResult.reasonCode}` : applyResult.status;
-    return `[${correlationId}] patch.delta ${subject}: dry-run=${dryRunCode}; apply=${applyCode}; mutatedPaths=${applyResult.mutatedPaths.join(',') || dryRunResult.mutatedPaths.join(',') || '-'}`;
-  }
-
-  private describePatchSubject(mutatedPaths: string[]): string {
-    if (mutatedPaths.length === 0) {
-      return 'patch';
-    }
-
-    return mutatedPaths.join(', ');
-  }
-
-  private validatePatchCallAgainstPlan(
-    plan: TaskPlan | undefined,
-    mutatedPaths: string[]
-  ): string | null {
-    if (!plan) {
-      return 'Patch tool calls require a validated plan.';
-    }
-
-    const allowedPaths = new Set(
-      plan.intendedFiles
-        .filter((file) => file.changeType !== 'inspect')
-        .map((file) => this.normalizePlanPath(file.path))
-    );
-
-    if (allowedPaths.size === 0) {
-      return 'Patch tool calls require at least one non-inspect intended file in the plan.';
-    }
-
-    for (const mutatedPath of mutatedPaths.map((candidate) => this.normalizePlanPath(candidate))) {
-      if (!allowedPaths.has(mutatedPath)) {
-        return `Patch touches ${mutatedPath}, which is not declared as a mutable intended file.`;
-      }
-    }
-
-    return null;
-  }
-
-  private validateCommandCallAgainstPlan(
-    plan: TaskPlan | undefined,
-    command: string,
-    args: string[]
-  ): string | null {
-    if (!plan) {
-      return 'Command tool calls require a validated plan.';
-    }
-
-    const fullCommand = [command, ...args].join(' ');
-    return plan.commands.some((candidate) => candidate.command === fullCommand)
-      ? null
-      : `Command ${fullCommand} is not declared in the validated plan commands.`;
-  }
-
-  private validateReadCallAgainstPlan(plan: TaskPlan | undefined, targetPath: string): string | null {
-    if (!plan) {
-      return 'File read tool calls require a validated plan.';
-    }
-
-    const normalizedTargetPath = this.normalizePlanPath(targetPath);
-    const declaredPaths = plan.intendedFiles.map((candidate) => candidate.path);
-    const isDeclared = plan.intendedFiles
-      .map((candidate) => this.normalizePlanPath(candidate.path))
-      .includes(normalizedTargetPath);
-
-    if (isDeclared) {
-      return null;
-    }
-
-    const preview = declaredPaths.length > 0
-      ? declaredPaths.slice(0, 6).join(', ')
-      : 'none';
-    return `File read target ${targetPath} is not declared in the validated plan. Declared plan files: ${preview}.`;
-  }
-
-  private shouldCountAgainstGlobalErrorBudget(reason: string): boolean {
-    return ![
-      /is not declared in the validated plan/i,
-      /is not declared in the validated plan commands/i,
-      /no governed mutation evidence/i,
-      /do not intersect mutable intended files/i,
-      /requires at least one non-inspect intended file/i,
-      /patch touches .* not declared/i,
-    ].some((pattern) => pattern.test(reason));
-  }
-
-  private buildCommandRepairArtifacts(
-    correlationId: string,
-    command: string,
-    result: EngineeringToolResult,
-    plan: TaskPlan | undefined
-  ): string[] {
-    const artifacts: string[] = [];
-
-    if (result.reasonCode === 'command-not-allowlisted') {
-      const allowlisted = this.toolRuntime
-        .getPolicySnapshot?.()
-        .commandAllowlist
-        .slice(0, 8)
-        .join(', ') ?? 'none';
-      const plannedCommands = plan?.commands.map((entry) => entry.command).join(', ') ?? 'none';
-      artifacts.push(
-        `[${correlationId}] command.repair ${command}: denied by allowlist. Allowed commands include: ${allowlisted}. Planned commands: ${plannedCommands}. Rewrite with an allowlisted verification command or escalate.`
-      );
-      return artifacts;
-    }
-
-    if (result.status === 'failure') {
-      artifacts.push(
-        `[${correlationId}] command.repair ${command}: command failed. Inspect stderr/output artifacts, narrow command scope, and retry with one explicit expected outcome.`
-      );
-    }
-
-    return artifacts;
-  }
-
-  private getResumableApprovedToolCalls(task: Task): ToolCall[] | null {
-    if (!task.plan || !task.toolCalls || task.toolCalls.length === 0) {
-      return null;
-    }
-
-    if (task.approval?.status !== 'approved' || !task.approval.approvalId) {
-      return null;
-    }
-
-    let appliedApproval = false;
-    const resumedToolCalls = task.toolCalls.map((toolCall) => {
-      if (!appliedApproval && toolCall.name === 'patch.apply') {
-        appliedApproval = true;
-        return {
-          ...toolCall,
-          arguments: {
-            ...toolCall.arguments,
-            approvalId: task.approval?.approvalId,
-          },
-        };
-      }
-
-      return toolCall;
-    });
-
-    return appliedApproval ? resumedToolCalls : null;
-  }
-
-  private buildApprovalState(
-    correlationId: string,
-    result: EngineeringToolResult
-  ): TaskApprovalState {
-    let touchedPaths: string[] | undefined;
-    let changedLines: number | undefined;
-
-    if (result.output) {
-      try {
-        const parsed = JSON.parse(result.output) as {
-          touchedPaths?: unknown;
-          changedLines?: unknown;
-        };
-        touchedPaths = Array.isArray(parsed.touchedPaths)
-          ? parsed.touchedPaths.filter((candidate): candidate is string => typeof candidate === 'string')
-          : undefined;
-        changedLines = typeof parsed.changedLines === 'number' ? parsed.changedLines : undefined;
-      } catch {
-        touchedPaths = undefined;
-        changedLines = undefined;
-      }
-    }
-
-    return {
-      requestId: correlationId,
-      status: 'requested',
-      requestedAt: new Date(),
-      requestedReason: result.summary,
-      touchedPaths,
-      changedLines,
-    };
-  }
-
-  private parseCommandPlan(command: string): { command: string; args: string[] } | null {
-    const tokens = command.match(/(?:"[^"]*"|'[^']*'|\S)+/g);
-    if (!tokens || tokens.length === 0) {
-      return null;
-    }
-
-    const normalizeToken = (token: string) => token.replace(/^['"]|['"]$/g, '');
-    const [binary, ...args] = tokens.map(normalizeToken);
-    if (!binary) {
-      return null;
-    }
-
-    return { command: binary, args };
-  }
-
   private async markIdle(): Promise<void> {
     this.state.status = 'idle';
     this.state.currentTask = undefined;
@@ -1327,7 +1134,14 @@ export class HephaestusRuntime {
     taskMarkedInProgress: boolean,
     options: { forceBlocked?: boolean } = {}
   ): Promise<void> {
-    if (this.shouldCountAgainstGlobalErrorBudget(reason)) {
+    const failureDecision = decideTaskFailure({
+      reason,
+      attemptCount: task.attemptCount,
+      forceBlocked: options.forceBlocked === true,
+      maxTransientFailures: transientFailureAttemptCap,
+    });
+
+    if (failureDecision.countAgainstGlobalErrorBudget) {
       this.safety.recordError(reason);
     } else {
       logger.info('Blocked task excluded from global safety error threshold', {
@@ -1335,9 +1149,12 @@ export class HephaestusRuntime {
         reason,
       });
     }
-    const hardBlocked = this.shouldEscalateToBlocked(task, reason, options.forceBlocked === true);
+    const hardBlocked = failureDecision.hardBlocked;
+    const taskFailureStatus = resolveTaskFailureStatus(hardBlocked);
+    const runtimeFailureStatus = resolveRuntimeFailureStatus(hardBlocked);
+    const memoryFailureStatus = resolveMemoryFailureStatus(hardBlocked);
 
-    this.state.status = hardBlocked ? 'blocked' : 'error';
+    this.state.status = runtimeFailureStatus;
     this.state.currentTask = task;
     this.state.lastActivity = new Date();
 
@@ -1364,25 +1181,17 @@ export class HephaestusRuntime {
         execute: () => this.memory.addSessionSummary(`Blocked: ${task.description}`),
       },
     ]);
-    await this.memory.updateStatus(hardBlocked ? 'Blocked' : 'Failed', task.description);
+    await this.memory.updateStatus(memoryFailureStatus, task.description);
 
     if (taskMarkedInProgress) {
       try {
-        if (hardBlocked) {
+        if (taskFailureStatus === 'blocked') {
           await this.tasks.markTaskBlocked(task);
         } else {
           await this.tasks.markTaskFailed(task);
         }
 
-        if (canTransitionTaskStatus(task.status, hardBlocked ? 'blocked' : 'failed')) {
-          Object.assign(task, transitionTask(task, hardBlocked ? 'blocked' : 'failed'));
-        } else {
-          task.status = hardBlocked ? 'blocked' : 'failed';
-          task.updatedAt = new Date();
-          if (hardBlocked) {
-            task.blockedAt = task.blockedAt ?? new Date();
-          }
-        }
+        Object.assign(task, settleTaskStatus(task, taskFailureStatus));
       } catch (error) {
         logger.warn('Could not persist blocked state transition; continuing shutdown-safe path', {
           ticketId: task.id,
@@ -1391,29 +1200,9 @@ export class HephaestusRuntime {
       }
     }
 
-    if (!hardBlocked) {
+    if (shouldReturnToIdleAfterFailure(hardBlocked)) {
       await this.markIdle();
     }
-  }
-
-  private shouldEscalateToBlocked(task: Task, reason: string, forceBlocked: boolean): boolean {
-    if (forceBlocked) {
-      return true;
-    }
-
-    if (hardBlockFailurePatterns.some((pattern) => pattern.test(reason))) {
-      return true;
-    }
-
-    const maxTransientFailures = Number.isInteger(defaultTransientFailureAttemptCap)
-      ? Math.max(1, defaultTransientFailureAttemptCap)
-      : 2;
-    const attemptsUsed = task.attemptCount ?? 0;
-    if (attemptsUsed >= maxTransientFailures) {
-      return true;
-    }
-
-    return !likelyTransientFailurePatterns.some((pattern) => pattern.test(reason));
   }
 
   private async handleAwaitingApprovalTask(
@@ -1432,12 +1221,7 @@ export class HephaestusRuntime {
     if (taskMarkedInProgress) {
       try {
         await this.tasks.markTaskAwaitingApproval(task);
-        if (canTransitionTaskStatus(task.status, 'awaiting_approval')) {
-          Object.assign(task, transitionTask(task, 'awaiting_approval'));
-        } else {
-          task.status = 'awaiting_approval';
-          task.updatedAt = new Date();
-        }
+        Object.assign(task, settleTaskStatus(task, 'awaiting_approval'));
       } catch (error) {
         logger.warn('Could not persist awaiting-approval state transition; continuing without daemon crash', {
           ticketId: task.id,

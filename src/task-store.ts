@@ -9,7 +9,10 @@ import type {
   TaskRepository,
   TaskSideEffectRepository,
 } from './repositories.js';
-import { assertValidTaskTransition } from './task-lifecycle.js';
+import { assertValidTaskAttemptTransition, resolveTaskAttemptStatusTransition } from './domain/attempts/attempt-lifecycle.js';
+import { resolveApprovedResumeEligibility } from './domain/tickets/approval-resume-policy.js';
+import { assertAmendedRetryDescription, assertRetryableTicketStatus } from './domain/tickets/retry-policy.js';
+import { assertValidTaskTransition } from './domain/tickets/ticket-lifecycle.js';
 import {
   formatTaskBoardTicketComment,
   normalizeTaskDescription,
@@ -784,14 +787,7 @@ export class TicketStoreRepository
       throw new Error(`Ticket not found: ${ticketId}`);
     }
 
-    if (
-      ticket.status !== 'blocked' &&
-      ticket.status !== 'failed' &&
-      ticket.status !== 'stale' &&
-      ticket.status !== 'cancelled'
-    ) {
-      throw new Error(`Only blocked, failed, stale, or cancelled tickets can be retried. Current status: ${ticket.status}`);
-    }
+    assertRetryableTicketStatus(ticket.status, `ticket ${ticket.id}`);
 
     assertValidTaskTransition(ticket.status, 'pending', `ticket ${ticket.id}`);
 
@@ -799,9 +795,7 @@ export class TicketStoreRepository
     const amendedDescription = options.amendedDescription === undefined
       ? undefined
       : normalizeTaskDescription(options.amendedDescription);
-    if (options.amendedDescription !== undefined && !amendedDescription) {
-      throw new Error('Amended retry description must be a non-empty string.');
-    }
+    assertAmendedRetryDescription(amendedDescription, 'Amended retry description');
 
     this.getDatabase()
       .prepare(
@@ -1146,16 +1140,21 @@ export class TicketStoreRepository
       throw new Error(`Ticket ${ticket.id} does not have an approval token and cannot be resumed.`);
     }
 
-    if (!ticket.plan) {
-      throw new Error(`Ticket ${ticket.id} does not have a persisted plan to resume.`);
-    }
+    const eligibility = resolveApprovedResumeEligibility(ticket);
+    if (!eligibility.resumable) {
+      if (eligibility.reason === 'missing_plan') {
+        throw new Error(`Ticket ${ticket.id} does not have a persisted plan to resume.`);
+      }
 
-    if (!ticket.toolCalls || ticket.toolCalls.length === 0) {
-      throw new Error(`Ticket ${ticket.id} does not have persisted tool calls to resume.`);
-    }
+      if (eligibility.reason === 'missing_tool_calls') {
+        throw new Error(`Ticket ${ticket.id} does not have persisted tool calls to resume.`);
+      }
 
-    if (!ticket.toolCalls.some((toolCall) => toolCall.name === 'patch.apply')) {
-      throw new Error(`Ticket ${ticket.id} does not contain a resumable patch.apply tool call.`);
+      if (eligibility.reason === 'missing_patch_apply') {
+        throw new Error(`Ticket ${ticket.id} does not contain a resumable patch.apply tool call.`);
+      }
+
+      throw new Error(`Ticket ${ticket.id} cannot be resumed in its current state.`);
     }
 
     assertValidTaskTransition(ticket.status, 'pending', `ticket ${ticket.id}`);
@@ -2114,6 +2113,13 @@ export class TicketStoreRepository
       return;
     }
 
+    const currentAttempt = this.getDatabase()
+      .prepare('select status from ticket_attempts where id = ?')
+      .get(attemptId) as { status: TaskAttemptStatus } | undefined;
+    if (currentAttempt) {
+      resolveTaskAttemptStatusTransition(currentAttempt.status, update.status, `attempt ${attemptId}`);
+    }
+
     this.getDatabase()
       .prepare(
         `update ticket_attempts
@@ -2146,15 +2152,16 @@ export class TicketStoreRepository
   ): string[] {
     const rows = this.getDatabase()
       .prepare(
-        `select id
+        `select id, status
          from ticket_attempts
          where ticket_id = ?
            and ended_at is null
          order by attempt_number asc`
       )
-      .all(ticketId) as unknown as Array<{ id: string }>;
+      .all(ticketId) as unknown as Array<{ id: string; status: TaskAttemptStatus }>;
 
     for (const row of rows) {
+      const settledStatus = resolveTaskAttemptStatusTransition(row.status, status, `attempt ${row.id}`);
       this.getDatabase()
         .prepare(
           `update ticket_attempts
@@ -2163,7 +2170,7 @@ export class TicketStoreRepository
                error = coalesce(error, ?)
            where id = ?`
         )
-        .run(status, endedAt, error, row.id);
+        .run(settledStatus, endedAt, error, row.id);
     }
 
     return rows.map((row) => row.id);

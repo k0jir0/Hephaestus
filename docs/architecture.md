@@ -4,6 +4,10 @@
 
 Hephaestus is intentionally small: it is a local-first AI engineering control plane for durable, policy-bounded software work. The architecture is designed to keep workflow state visible while moving safety, validation, and approval earlier in the lifecycle. The runtime now separates canonical ticket state from the human-readable markdown projection so queue transitions are not coupled to whole-file rewrites.
 
+The next target architecture is captured in `docs/blueprint-v2.md`. That
+blueprint is the D0 architecture-freeze document for the event-led store,
+command catalog, isolated workspace, and promotion-boundary work.
+
 ## Current Runtime Shape
 
 The runtime currently follows this sequence:

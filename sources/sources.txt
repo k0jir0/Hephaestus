@@ -1,0 +1,101 @@
+24. Sources
+
+[Bainbridge1983] Bainbridge, L. (1983). "Ironies of Automation." Automatica,
+19(6), 775-779. https://doi.org/10.1016/0005-1098(83)90046-8
+
+[Cheng2009] Cheng, B. H. C., de Lemos, R., Giese, H., Inverardi, P., Magee, J.,
+et al. (2009). "Software Engineering for Self-Adaptive Systems: A Research
+Roadmap." LNCS 5525, 1-26. https://doi.org/10.1007/978-3-642-02161-9_1
+
+[FooteYoder1997] Foote, B., and Yoder, J. (1997). "Big Ball of Mud." Pattern
+Languages of Program Design. https://www.laputan.org/pub/foote/mud.pdf
+
+[GarciaMolina1987] Garcia-Molina, H., and Salem, K. (1987). "Sagas."
+Proceedings of ACM SIGMOD 1987, 249-259. https://doi.org/10.1145/38713.38742
+
+[Garlan2004] Garlan, D., Cheng, S.-W., Huang, A.-C., Schmerl, B., and
+Steenkiste, P. (2004). "Rainbow: Architecture-Based Self-Adaptation with
+Reusable Infrastructure." IEEE Computer, 37(10), 46-54.
+https://www.cs.cmu.edu/~able/publications/computer04/
+
+[Harel1987] Harel, D. (1987). "Statecharts: A Visual Formalism for Complex
+Systems." Science of Computer Programming, 8(3), 231-274.
+https://doi.org/10.1016/0167-6423(87)90035-9
+
+[Helland2007] Helland, P. (2007). "Life beyond Distributed Transactions: An
+Apostate's Opinion." CIDR 2007, 132-141.
+https://www.cidrdb.org/cidr2007/papers/cidr07p15.pdf
+
+[Jimenez2024] Jimenez, C. E., Yang, J., Wettig, A., Yao, S., Pei, K.,
+Press, O., and Narasimhan, K. (2024). "SWE-bench: Can Language Models Resolve
+Real-World GitHub Issues?" ICLR 2024. https://arxiv.org/abs/2310.06770
+
+[Kazman1998] Kazman, R., Klein, M. H., Barbacci, M., Longstaff, T., Lipson, H.,
+and Carriere, J. (1998). "The Architecture Tradeoff Analysis Method."
+Software Engineering Institute white paper.
+https://www.sei.cmu.edu/library/the-architecture-tradeoff-analysis-method-2/
+
+[KephartChess2003] Kephart, J. O., and Chess, D. M. (2003). "The Vision of
+Autonomic Computing." IEEE Computer, 36(1), 41-50.
+https://doi.org/10.1109/MC.2003.1160055
+
+[Klein2004] Klein, G., Woods, D. D., Bradshaw, J. M., Hoffman, R. R., and
+Feltovich, P. J. (2004). "Ten Challenges for Making Automation a Team Player in
+Joint Human-Agent Activity." IEEE Intelligent Systems, 19(6), 91-95.
+https://doi.org/10.1109/MIS.2004.74
+
+[KramerMagee2007] Kramer, J., and Magee, J. (2007). "Self-Managed Systems: An
+Architectural Challenge." Future of Software Engineering 2007.
+https://doi.org/10.1109/FOSE.2007.19
+
+[Lamport1978] Lamport, L. (1978). "Time, Clocks, and the Ordering of Events in
+a Distributed System." Communications of the ACM, 21(7), 558-565.
+https://doi.org/10.1145/359545.359563
+
+[Leveson2004] Leveson, N. (2004). "A New Accident Model for Engineering Safer
+Systems." Safety Science, 42(4), 237-270.
+https://doi.org/10.1016/S0925-7535(03)00047-X
+
+[LevesonThomas2018] Leveson, N., and Thomas, J. (2018). "STPA Handbook."
+MIT Partnership for Systems Approaches to Safety and Security.
+https://psas.scripts.mit.edu/home/get_file.php?name=STPA_handbook.pdf
+
+[Mohan1992] Mohan, C., Haderle, D., Lindsay, B., Pirahesh, H., and Schwarz, P.
+(1992). "ARIES: A Transaction Recovery Method Supporting Fine-Granularity
+Locking and Partial Rollbacks Using Write-Ahead Logging." ACM Transactions on
+Database Systems, 17(1), 94-162. https://doi.org/10.1145/128765.128770
+
+[Oreizy1999] Oreizy, P., Gorlick, M. M., Taylor, R. N., Heimbigner, D.,
+Johnson, G., Medvidovic, N., Quilici, A., Rosenblum, D. S., and Wolf, A. L.
+(1999). "An Architecture-Based Approach to Self-Adaptive Software." IEEE
+Intelligent Systems, 14(3), 54-62. https://doi.org/10.1109/5254.769885
+
+[Parasuraman2000] Parasuraman, R., Sheridan, T. B., and Wickens, C. D. (2000).
+"A Model for Types and Levels of Human Interaction with Automation." IEEE
+Transactions on Systems, Man, and Cybernetics - Part A: Systems and Humans,
+30(3), 286-297. https://doi.org/10.1109/3468.844354
+
+[Parnas1972] Parnas, D. L. (1972). "On the Criteria To Be Used in Decomposing
+Systems into Modules." Communications of the ACM, 15(12), 1053-1058.
+https://doi.org/10.1145/361598.361623
+
+[PerryWolf1992] Perry, D. E., and Wolf, A. L. (1992). "Foundations for the
+Study of Software Architecture." ACM SIGSOFT Software Engineering Notes, 17(4),
+40-52. https://doi.org/10.1145/141874.141884
+
+[SaltzerSchroeder1975] Saltzer, J. H., and Schroeder, M. D. (1975). "The
+Protection of Information in Computer Systems." Proceedings of the IEEE, 63(9),
+1278-1308. https://doi.org/10.1109/PROC.1975.9939
+
+[ShawGarlan1996] Shaw, M., and Garlan, D. (1996). Software Architecture:
+Perspectives on an Emerging Discipline. Prentice Hall.
+https://books.google.com/books/about/Software_Architecture.html?id=5KlQAAAAMAAJ
+
+[WorkflowPatterns2003] van der Aalst, W. M. P., ter Hofstede, A. H. M.,
+Kiepuszewski, B., and Barros, A. P. (2003). "Workflow Patterns." Distributed
+and Parallel Databases, 14(1), 5-51.
+https://doi.org/10.1023/A:1022883727209
+
+[Yao2023] Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan, K., and
+Cao, Y. (2023). "ReAct: Synergizing Reasoning and Acting in Language Models."
+ICLR 2023. https://arxiv.org/abs/2210.03629

@@ -1,0 +1,1353 @@
+Hephaestus Design Critique and Research-Grounded Blueprint
+Date: 2026-05-29
+Scope: McGillSoftware/Hephaestus
+Mode: design-stage audit, no source implementation
+
+Research boundary: the request asks for "all known research papers relevant to
+the paper known to mankind." That is not literally enumerable. This version
+therefore cites the canonical and directly relevant research lineage for this
+project: software architecture, modular decomposition, workflow/state machines,
+distributed event ordering, transaction recovery, long-running compensating
+workflows, autonomic/self-adaptive systems, human supervisory control, system
+safety, protection principles, LLM tool use, and real-world software engineering
+benchmarks.
+
+1. Executive Verdict
+
+Hephaestus should not be thrown away. It has crossed the line from an
+interesting automation sketch into a real local-first engineering control plane:
+durable tickets, a SQLite-backed canonical store, markdown projection,
+structured plans, governed tools, approval checkpoints, a browser UI, a CLI,
+reliability metrics, model diagnostics, and a meaningful test suite.
+
+The research-grounded conclusion is sharper than the original draft:
+
+Hephaestus should become a supervised, evidence-led, self-adaptive engineering
+control plane. The planner may be probabilistic. The system boundary must not
+be. The runtime should be built around explicit state machines, append-only
+events, isolated execution workspaces, policy as data, human-supervisory
+automation levels, and a promotion boundary between "a patch exists" and "a new
+worker version is active."
+
+That conclusion follows from several old ideas that are still doing real work:
+
+- Parnas says decompose by information hiding and likely change, not by the
+  accidental sequence of processing steps [Parnas1972].
+- Perry, Wolf, Shaw, Garlan, and ATAM say architecture is about components,
+  connectors, constraints, rationale, and quality-attribute tradeoffs, not just
+  folder layout [PerryWolf1992; ShawGarlan1996; Kazman1998].
+- Harel and the workflow-patterns literature say complex behavior needs explicit
+  state and transition semantics [Harel1987; WorkflowPatterns2003].
+- Lamport, ARIES, sagas, and Helland say trustworthy systems need durable
+  ordering, recovery records, idempotent side effects, and compensating actions
+  when all-or-nothing global transactions are the wrong abstraction
+  [Lamport1978; Mohan1992; GarciaMolina1987; Helland2007].
+- Kephart and Chess, Rainbow, Kramer and Magee, and the self-adaptive systems
+  roadmap say self-management is a control-loop architecture with monitoring,
+  analysis, planning, execution, knowledge, and assurance, not an agent loop
+  hidden in one module [KephartChess2003; Oreizy1999; Garlan2004;
+  KramerMagee2007; Cheng2009].
+- Parasuraman, Sheridan, Wickens, Bainbridge, Klein, Woods, Bradshaw, Hoffman,
+  and Feltovich say automation succeeds when the human operator can understand,
+  predict, intervene, and recover; otherwise automation can increase brittleness
+  while seeming to reduce labor [Parasuraman2000; Bainbridge1983; Klein2004].
+- Leveson's STAMP/STPA work says safety is a control problem across a
+  socio-technical system, not only a component-failure problem [Leveson2004;
+  LevesonThomas2018].
+- Saltzer and Schroeder say least privilege, fail-safe defaults, complete
+  mediation, and psychological acceptability are core security design principles
+  [SaltzerSchroeder1975].
+- ReAct and SWE-bench say language models can combine reasoning and action, but
+  real software repair remains an empirical, evidence-bound task; the model
+  should propose actions and the system should verify effects [Yao2023;
+  Jimenez2024].
+
+The strongest design is therefore not "more agent." It is a smaller, stricter
+factory:
+
+Hephaestus should turn bounded tickets into auditable plans, isolated changes,
+verification evidence, approval decisions, patch bundles, and optionally
+promoted worker versions.
+
+2. Current Evidence
+
+Fresh verification from this audit:
+
+- npm.cmd run lint completed successfully.
+- npm.cmd test completed successfully: 31 suites, 106 tests, 106 passing, 0
+  failing.
+- npm.cmd run tickets -- metrics completed successfully.
+
+Important live metrics from the metrics run:
+
+- Total tickets: 316.
+- Total attempts: 208.
+- Completed tickets: 83.
+- Blocked tickets: 38.
+- Awaiting approval tickets: 0.
+- State consistency lag: 0 ms.
+- Average admission-to-start latency: 2260559.22 ms.
+- Blocked-retry success ratio: 0.08.
+- Execution failure taxonomy stability: 0.26.
+- Backend reliability: ollama 55/99 success, ratio 0.56.
+- Last board sync: 2026-05-29T14:46:55.167Z.
+
+The current failure taxonomy still includes:
+
+- command is not allowlisted: 37.
+- unsupported task envelope: 33.
+- structured plan validation failed: 16.
+- file.read failed: 11.
+- recovered stale active ticket after a previous daemon exited before finishing:
+  11.
+- command failed: 9.
+- mutation-evidence completion blocks.
+- undeclared file-read target denials.
+
+Module-size evidence also supports the original critique:
+
+- src/runtime.ts: 58039 bytes.
+- src/task-store.ts: 79066 bytes.
+- src/ui-server.ts: 33776 bytes.
+- src/ui.ts: 73055 bytes.
+
+The test/lint health says the codebase is not broken. The metrics and module
+shape say the design is carrying too much semantic load in a few gravity wells.
+That is exactly the situation Parnas warns about: if policy, persistence,
+workflow, scheduling, evidence, and presentation all change for different
+reasons but live in the same modules, future changes become harder to localize
+[Parnas1972].
+
+3. What Hephaestus Already Has Right
+
+The strongest parts of the current design should be preserved.
+
+Durable local-first state:
+
+The move from TASKS.md as source of truth to SQLite as canonical ticket state
+was correct. Markdown should remain a projection, not workflow truth. This is
+also consistent with the architecture literature's distinction between
+implementation artifacts and architectural state/rationale [PerryWolf1992;
+ShawGarlan1996].
+
+Structured plans:
+
+The runtime asks for JSON plans with intended files, commands, verification,
+risks, and tool calls. This is the right direction because the model's output is
+treated as data, not magic prose. ReAct supports interleaving reasoning and
+actions, but Hephaestus correctly adds a stricter layer: model actions are
+proposals whose effects must be mediated and recorded [Yao2023].
+
+Governed tool runtime:
+
+repo.search, file.read, patch.apply, and command.run establish a membrane
+between model intent and machine effects. Delivery tools fail closed. That is
+the right security posture under fail-safe defaults and complete mediation
+[SaltzerSchroeder1975].
+
+Approval checkpoints:
+
+Risky patches pause instead of being silently applied. Approval state persists
+on tickets and attempts. This maps cleanly to supervisory automation levels:
+the system can recommend and execute low-risk actions, but certain classes must
+remain human-approved [Parasuraman2000].
+
+Evidence-based completion:
+
+Recent behavior blocks mutable intended-file plans that do not produce governed
+mutation evidence. That closes one of the most dangerous semantic gaps:
+"completed" no longer casually means "the model wrote a plausible plan."
+SWE-bench makes the same lesson uncomfortable: software engineering success is
+not a plausible patch, but a patch that resolves the task under executable
+validation [Jimenez2024].
+
+Projection health and drift repair:
+
+TASKS.md projection failures are visible and retried. State consistency lag is
+measurable. This is a real control-plane improvement.
+
+Tests and reliability harnesses:
+
+The test suite is broad for a young project: admission, runtime, task store,
+tool runtime, UI server, telemetry, reliability harness, model diagnostics, and
+property checks. This gives a safe runway for architectural extraction.
+
+Operator UI:
+
+The UI is not just decorative. It exposes tickets, approvals, artifacts,
+reliability, model status, and live refresh. It proves the product shape. The
+next improvement is not visual polish; it is a cleaner API and evidence model
+behind the UI.
+
+4. Research Translation Into Design Rules
+
+The research does not just provide citations. It implies concrete design rules
+for this project.
+
+Rule 1: Decompose by likely change.
+
+Ticket lifecycle, attempt lifecycle, planning, policy, scheduling, persistence,
+workspace execution, artifact storage, approval review, model diagnostics,
+promotion, and UI transport all change for different reasons. They should not
+be concentrated in runtime.ts, task-store.ts, ui-server.ts, and ui.ts
+[Parnas1972].
+
+Rule 2: Model the architecture as components, connectors, constraints, and
+quality tradeoffs.
+
+The next design document should describe not only modules, but what each module
+is allowed to know, what it may call, what data it owns, and which quality
+attributes it optimizes: safety, modifiability, auditability, local-first
+operation, latency, cost, and operator control [PerryWolf1992; ShawGarlan1996;
+Kazman1998].
+
+Rule 3: Make state transitions formal.
+
+Hephaestus is a workflow system. Workflows need explicit state, transition
+guards, exception paths, cancellation, retries, compensation, and concurrent
+resource constraints [Harel1987; WorkflowPatterns2003].
+
+Rule 4: Treat events and evidence as the audit spine.
+
+The durable question is not "what string did we print?" It is "what event
+happened, what caused it, what policy snapshot applied, what command ran, what
+changed, and what verification proved it?" Logical clocks and transaction logs
+exist because ordering and recovery become impossible when evidence is scattered
+across incidental outputs [Lamport1978; Mohan1992].
+
+Rule 5: Use compensating workflows for long-running automation.
+
+An AI engineering attempt is not a single database transaction. It includes
+planning, file reads, patch generation, patch dry run, patch application,
+verification, approval, export, and maybe promotion. Sagas are the better mental
+model: each step is durable, and failed later steps need compensation or review
+instead of pretending there was one global rollback [GarciaMolina1987;
+Helland2007].
+
+Rule 6: Separate manager and managed system.
+
+A self-adaptive system needs a managing subsystem and a managed subsystem. If
+Hephaestus edits the source of the worker currently running the loop, it has
+not cleanly separated manager from managed target. A versioned supervisor and
+promotion boundary are required before "self-improving worker" is a defensible
+claim [KephartChess2003; Garlan2004; KramerMagee2007; Cheng2009].
+
+Rule 7: Design automation as a teammate, not a hidden servant.
+
+Operators need common ground: current intent, plan, action status, uncertainty,
+failure reason, next action, and intervention points. Automation that hides its
+state leaves humans responsible for abnormal conditions while depriving them of
+the context needed to recover [Bainbridge1983; Parasuraman2000; Klein2004].
+
+Rule 8: Analyze hazards as control failures.
+
+The main hazards are not only "the tool crashes." They include unsafe control
+actions: applying a patch outside the intended workspace, marking work complete
+without evidence, retrying a bad plan until the queue churns, promoting an
+unhealthy worker, or giving the operator a misleading UI [Leveson2004;
+LevesonThomas2018].
+
+Rule 9: Let the LLM plan, but let the system decide.
+
+LLM agent research supports reasoning/action loops, but SWE-bench shows that
+real code repair is still brittle enough to demand independent validation. The
+planner should emit a typed action graph. The runtime should admit, deny,
+execute, verify, and record [Yao2023; Jimenez2024].
+
+5. Core Diagnosis
+
+The core design problem is that Hephaestus has implemented many good concepts,
+but has not yet promoted them into first-class domains.
+
+Right now, the product domains are implicit:
+
+- ticket lifecycle.
+- attempt lifecycle.
+- planner contract.
+- action execution.
+- policy decisioning.
+- approval review.
+- verification evidence.
+- artifact storage.
+- side-effect outbox.
+- projection health.
+- scheduler behavior.
+- self-audit seeding.
+- model diagnostics.
+- promotion and restart.
+
+Those concepts exist, but they are scattered across runtime orchestration,
+repository methods, UI extraction helpers, string artifacts, and metric readers.
+That makes the system work, but it makes the system difficult to reason about
+as autonomy increases.
+
+The design target is simple:
+
+Every important noun becomes a domain object. Every important verb becomes a
+small application service. Every important transition emits an event. Every
+effect has evidence. Every risky effect has policy. Every promotion has a
+supervisor.
+
+6. Product Contract
+
+Hephaestus should stop sounding like a general autonomous programmer. The
+strongest identity is:
+
+"A local-first, policy-governed engineering control plane that turns bounded
+tickets into auditable plans, isolated changes, verification evidence,
+reviewable patch bundles, and optionally promoted worker versions."
+
+That contract is narrower, more honest, and stronger.
+
+It also prevents a common agent-product failure: the system quietly expands its
+claims faster than its assurance case. The architecture literature would treat
+that as an untested quality-attribute claim. The safety literature would treat
+it as a control hazard. The human-automation literature would treat it as a
+mode-confusion risk [Kazman1998; Leveson2004; Bainbridge1983].
+
+7. Target Architecture
+
+The ideal design keeps TypeScript, local-first operation, SQLite for now, the
+CLI/UI, existing tests, and the governed tool idea.
+
+It changes the shape around them.
+
+Recommended repo layout:
+
+src/
+  domain/
+    tickets/
+      ticket.ts
+      ticket-state-machine.ts
+      ticket-events.ts
+      ticket-invariants.ts
+    attempts/
+      attempt.ts
+      attempt-state-machine.ts
+    plans/
+      plan-contract.ts
+      action-contract.ts
+      plan-validation.ts
+    policy/
+      policy-schema.ts
+      policy-evaluator.ts
+      command-catalog.ts
+      risk-classifier.ts
+    evidence/
+      tool-run.ts
+      verification-run.ts
+      patch-evidence.ts
+      promotion-evidence.ts
+    scheduling/
+      scheduler-policy.ts
+      wave-gates.ts
+      retry-policy.ts
+
+  application/
+    intake-service.ts
+    planning-service.ts
+    admission-service.ts
+    execution-service.ts
+    verification-service.ts
+    approval-service.ts
+    promotion-service.ts
+    projection-service.ts
+    telemetry-service.ts
+    self-audit-service.ts
+
+  adapters/
+    sqlite/
+      sqlite-event-store.ts
+      sqlite-ticket-projection.ts
+      sqlite-migrations.ts
+    filesystem/
+      markdown-board-projection.ts
+      memory-ledger.ts
+    model/
+      openai-client.ts
+      claude-client.ts
+      ollama-client.ts
+      copilot-client.ts
+    tools/
+      workspace-tool-runtime.ts
+      command-runner.ts
+      patch-runner.ts
+      git-worktree.ts
+    http/
+      ui-server.ts
+      routes.ts
+      dto.ts
+    cli/
+      tickets-cli.ts
+      operator-cli.ts
+
+  supervisor/
+    process-supervisor.ts
+    worker-version.ts
+    promotion-runner.ts
+    rollback.ts
+
+  ui/
+    index.html.ts
+    styles.css.ts
+    client.ts
+    renderers.ts
+
+  main/
+    agent.ts
+    ui.ts
+    cli.ts
+
+This is not folder aesthetics. It is change isolation. If a future patch changes
+policy semantics, it should not accidentally change scheduler behavior. If a UI
+change modifies DTO shaping, it should not alter ticket state. If a migration
+changes SQLite tables, it should not redefine completion semantics.
+
+8. Domain Model
+
+The core entities should be explicit.
+
+Ticket:
+
+- id.
+- description.
+- intentClass.
+- priority.
+- status.
+- acceptanceCriteria.
+- expectedSignal.
+- createdAt.
+- updatedAt.
+- source.
+- activeAttemptId.
+
+Attempt:
+
+- id.
+- ticketId.
+- attemptNumber.
+- workerVersion.
+- status.
+- startedAt.
+- endedAt.
+- planId.
+- policySnapshotId.
+- workspaceId.
+- terminalReason.
+
+Plan:
+
+- id.
+- ticketId.
+- attemptId.
+- modelRunId.
+- summary.
+- intent.
+- intendedFiles.
+- actionGraph.
+- verificationPlan.
+- risks.
+
+Action:
+
+- id.
+- planId.
+- kind.
+- arguments.
+- dependsOn.
+- policyDecision.
+- status.
+
+ToolRun:
+
+- id.
+- actionId.
+- tool.
+- status.
+- startedAt.
+- endedAt.
+- resultSummary.
+- reasonCode.
+- outputRef.
+- mutatedPaths.
+
+VerificationRun:
+
+- id.
+- attemptId.
+- commandId.
+- argv.
+- exitCode.
+- outputSummary.
+- passed.
+- startedAt.
+- endedAt.
+
+PatchEvidence:
+
+- id.
+- attemptId.
+- patchHash.
+- touchedPaths.
+- changedLines.
+- dryRunStatus.
+- applyStatus.
+- diffRef.
+
+Approval:
+
+- id.
+- ticketId.
+- attemptId.
+- requestReason.
+- requestedAt.
+- reviewer.
+- decision.
+- decisionAt.
+- rationale.
+
+Promotion:
+
+- id.
+- attemptId.
+- fromVersion.
+- toVersion.
+- status.
+- verificationSummary.
+- healthCheckSummary.
+- rollbackRef.
+
+DomainEvent:
+
+- id.
+- aggregateType.
+- aggregateId.
+- type.
+- payload.
+- correlationId.
+- causationId.
+- logicalSequence.
+- createdAt.
+
+SideEffect:
+
+- id.
+- eventId.
+- type.
+- payload.
+- status.
+- idempotencyKey.
+- lastError.
+
+This model lets the system answer the questions that matter:
+
+- What did the model intend?
+- What was allowed?
+- What actually ran?
+- What changed?
+- What verified it?
+- Who approved it?
+- Which worker version did it?
+- Did the new version become active?
+
+9. State Machine Invariants
+
+Hephaestus already has a seed in src/task-lifecycle.ts. The next step is to make
+state ownership complete.
+
+The following invariants should be non-negotiable:
+
+1. A ticket may have at most one active attempt.
+2. An attempt must end exactly once.
+3. A completed mutation-intended ticket must have patch evidence touching at
+   least one declared mutable path.
+4. A completed verification-required ticket must have at least one passing
+   verification run or an explicit "verification not required" policy decision.
+5. A blocked ticket must have a machine-readable reason code.
+6. A policy denial must store the policy snapshot that produced it.
+7. No tool run may mutate outside its attempt workspace.
+8. No promotion may occur without a passing startup and health check.
+9. Markdown projection must be derivable from canonical state.
+10. UI state must be derivable from API DTOs, not filesystem side channels.
+11. Retrying a ticket creates a new attempt; it never reopens old evidence.
+12. Self-audit may create tickets only within active queue caps.
+13. Every state transition emits a domain event in the same transaction as the
+    state change.
+14. Every side effect has an idempotency key and a causation event.
+
+These should live in tests and runtime assertions, not just documentation.
+Harel statecharts and the workflow-patterns catalog are useful here because
+they force the design to name concurrency, cancellation, compensation,
+synchronization, and exceptional paths explicitly [Harel1987;
+WorkflowPatterns2003].
+
+10. Data Architecture
+
+SQLite can remain the local database, but the design should treat it as an
+adapter, not as the domain.
+
+Recommended persistence style:
+
+- current-state tables for fast queries.
+- append-only domain_events for audit and replay.
+- outbox table for side effects.
+- artifact table for large or structured evidence references.
+- projection metadata table for TASKS.md, UI snapshots, and metric snapshots.
+- policy_snapshots table keyed by signature.
+- model_runs table keyed by prompt/response hash.
+- workspaces table keyed by attempt.
+
+Important tables:
+
+- tickets.
+- attempts.
+- plans.
+- actions.
+- tool_runs.
+- verification_runs.
+- patch_evidence.
+- approvals.
+- promotions.
+- domain_events.
+- side_effects.
+- policy_snapshots.
+- model_runs.
+- workspaces.
+- projections.
+
+This looks heavier than the current schema, but it is simpler operationally.
+Evidence no longer has to be reconstructed from JSON blobs and artifact strings.
+The event stream becomes the audit spine. Current-state tables can be rebuilt
+or compared against it.
+
+ARIES is not being copied literally, but its lesson applies: recovery requires a
+stable log of intent, effects, undo/redo relationships, and completion state
+[Mohan1992]. Lamport's lesson also applies: once independent components
+interact, event order and causation are design concepts, not incidental
+timestamps [Lamport1978].
+
+11. Execution Architecture
+
+The ideal execution loop:
+
+1. Scheduler selects one eligible ticket.
+2. Admission service checks safety, backend, repository, policy, queue gates,
+   and workspace capacity.
+3. Attempt service creates an attempt and leases the ticket.
+4. Planning service asks the model for a typed action graph.
+5. Plan validator checks schema, policy compatibility, file scope, command IDs,
+   and verification requirements.
+6. Workspace service creates or resets an isolated attempt worktree.
+7. Execution service runs approved actions through the tool runtime inside that
+   worktree.
+8. Verification service runs command IDs from the command catalog.
+9. Evidence service stores patch, tool, verification, model, and policy
+   evidence.
+10. Completion policy decides completed, blocked, awaiting approval, failed, or
+    promotable.
+11. Projection service updates TASKS.md and UI projections through the outbox.
+12. Promotion service optionally exports a bundle, opens review, or promotes the
+    verified worker.
+
+The model is not the executor. The model proposes an action graph. The runtime
+executes or denies it.
+
+That is the design line between an agent demo and an engineering control plane.
+
+12. Policy and Command Catalog
+
+Policy should be declarative.
+
+Example policy concepts:
+
+- path classes: source, tests, docs, config, secrets, generated,
+  repository-control.
+- command catalog: named commands with platform-specific argv.
+- risk thresholds: max files, max lines, create/delete rules.
+- approval rules: when requested, who can decide, expiry.
+- model rules: max prompt bytes, allowed backends, fallback behavior.
+- scheduler rules: wave size, active cap, retry caps, idle self-audit limits.
+- promotion rules: required verification by path class.
+
+The same policy should drive:
+
+- prompt instructions.
+- plan validation.
+- runtime enforcement.
+- UI explanations.
+- CLI repair hints.
+- tests.
+
+The current Windows signal is a useful example. Direct npm commands through
+PowerShell can hit script execution policy, while npm.cmd works. The model
+should not need to know that. The command catalog should.
+
+The planner should not emit:
+
+  npm test -- test/runtime.test.ts
+
+The planner should emit:
+
+  {
+    "name": "command.run",
+    "arguments": {
+      "commandId": "test_runtime",
+      "scope": "runtime"
+    }
+  }
+
+Then the command catalog maps it:
+
+- Windows: ["npm.cmd", "test", "--", "test/runtime.test.ts"].
+- POSIX: ["npm", "test", "--", "test/runtime.test.ts"].
+
+Free-form commands can still exist, but they should require higher risk
+classification or approval.
+
+This closes the loop that currently causes command allowlist churn and planner
+/ runtime mismatch.
+
+13. Worktree and Promotion Boundary
+
+This is the most important architectural upgrade.
+
+Current behavior can apply patches in TARGET_PROJECT. That is acceptable for a
+local demo, but not for a trustworthy self-improving system.
+
+Recommended flow:
+
+- active repo remains clean.
+- Hephaestus creates .hephaestus/workspaces/<ticket-id>/<attempt-id>.
+- workspace is a git worktree or clean copy.
+- patch.apply operates there.
+- verification runs there.
+- bundle export reads from there.
+- approval references its diff.
+- promotion applies or merges only after gates pass.
+
+Promotion events:
+
+- promotion.requested.
+- promotion.verified.
+- promotion.started.
+- promotion.health_check_passed.
+- promotion.completed.
+- promotion.failed.
+- promotion.rolled_back.
+
+Worker version metadata:
+
+- git commit SHA.
+- dirty state hash.
+- package lock hash.
+- policy signature.
+- model profile.
+- runtime build ID.
+
+Editing source is not self-improvement. Running the next task with the improved
+source is self-improvement.
+
+Hephaestus needs a supervisor that can:
+
+- identify a verified self-edit.
+- rebuild or validate it.
+- start version N+1.
+- health-check version N+1.
+- record promotion metadata.
+- roll back if version N+1 fails.
+
+Without this, Hephaestus is self-targeting, not recursively self-improving. In
+self-adaptive-systems terms, the manager and managed target have not yet been
+made distinct enough [KephartChess2003; KramerMagee2007; Cheng2009].
+
+14. Scheduler Design
+
+The scheduler should be a separate application service.
+
+Responsibilities:
+
+- active ticket cap.
+- wave size.
+- fairness.
+- retry backoff.
+- retry exhaustion.
+- remediation-only mode.
+- approval queue blocking.
+- backend degraded mode.
+- model warmup windows.
+- self-audit seeding.
+- stale attempt recovery requests.
+
+The repository should not poll itself into being a scheduler. It should expose
+queries and state changes. The scheduler should decide when to call them.
+
+Recommended defaults:
+
+- active cap: 10.
+- wave size: 3 to 5.
+- max attempts: 3.
+- no new self-audit work while blocked count > 5.
+- no new work while allowlist denial rate > 0.08.
+- no new broad wave while completion rate < 0.70.
+- remediation-only mode when gates fail.
+
+The current metrics already argue for this. The system does not need more ticket
+volume. It needs controlled flow.
+
+Workflow-pattern research helps here because scheduling is not just "pick the
+next task." It includes synchronization, cancellation, multiple-instance
+patterns, deferred choice, exception handling, and resource constraints
+[WorkflowPatterns2003].
+
+15. Evidence Model
+
+String artifacts are useful for humans. They should not be the only record of
+truth.
+
+Structured evidence should include:
+
+- toolRunId.
+- actionId.
+- commandId.
+- argv.
+- exitCode.
+- stdout/stderr summary.
+- mutated paths.
+- patch hash.
+- verification status.
+- policy snapshot signature.
+- model name.
+- prompt version.
+- workspaceId.
+- workerVersion.
+- causation event.
+
+The UI can render strings. The database should store queryable facts.
+
+This also enables better operator questions:
+
+- Show me all failed attempts caused by command catalog mismatch.
+- Show me all completed tickets with mutation evidence.
+- Show me all policy-denied actions by path class.
+- Show me all tickets verified by test_runtime.
+- Show me all changes produced by worker version X.
+- Show me all promotions rolled back within one health check.
+
+16. Human Oversight and UI
+
+The UI should be understood as an automation-supervision surface.
+
+The operator should be able to answer these questions in one CLI command or one
+UI view:
+
+- What is the ticket trying to do?
+- What plan did the model produce?
+- What policy was active?
+- What did the runtime allow or deny?
+- What files changed?
+- What patch was applied?
+- What verification ran?
+- What failed?
+- What should I do next?
+- Is this promotable?
+- Which worker version produced it?
+
+Recommended CLI commands:
+
+- tickets show <id>.
+- tickets timeline <id>.
+- tickets diff <id>.
+- tickets evidence <id>.
+- tickets policy <id>.
+- tickets verify <id>.
+- tickets promote <id>.
+- tickets recover <id>.
+- tickets gates.
+- tickets doctor.
+
+The UI's current concept is good. Its implementation should eventually split:
+
+- API returns stable DTOs.
+- UI client renders those DTOs.
+- All HTML insertion goes through escaping or DOM construction helpers.
+- Token storage is documented as local-only.
+- API route declarations are centralized.
+- Permission checks are table-driven.
+- The frontend is testable without starting the full server.
+
+Do not overbuild this yet. The current inline UI is acceptable for a local
+prototype, but it should not absorb more product logic.
+
+The human-factors point is important: if Hephaestus keeps the operator
+responsible for abnormal decisions, it must give the operator enough context to
+make those decisions well [Bainbridge1983; Klein2004].
+
+17. Safety Case and STPA Hazards
+
+The architecture should include a small safety case. Not because this is an
+aircraft, but because local autonomous code modification has real control
+hazards.
+
+Candidate unacceptable losses:
+
+- L1: Hephaestus corrupts or overwrites source outside the intended scope.
+- L2: Hephaestus marks work complete without evidence.
+- L3: Hephaestus promotes an unhealthy worker.
+- L4: Hephaestus hides a policy denial or approval requirement from the
+  operator.
+- L5: Hephaestus creates runaway queue churn that blocks useful work.
+- L6: Hephaestus leaks secrets or protected repository data through model
+  context or artifacts.
+
+Candidate hazards:
+
+- H1: A patch is applied outside the attempt workspace.
+- H2: Completion policy ignores missing mutation or verification evidence.
+- H3: Scheduler starts broad work while gates indicate remediation-only mode.
+- H4: UI presents stale or partial evidence as current.
+- H5: Promotion occurs without independent health check.
+- H6: Model context includes protected files.
+- H7: Retry policy repeats a denied action without changing the plan or policy.
+
+Candidate unsafe control actions:
+
+- UCA1: execution-service applies patch.apply when policy requires approval.
+- UCA2: completion-policy emits completed without patch_evidence.
+- UCA3: scheduler leases ticket while backend degraded mode is active.
+- UCA4: promotion-service switches active worker before verification.
+- UCA5: projection-service rewrites TASKS.md from stale state.
+- UCA6: model-context-service reads protected path into prompt context.
+
+Controls:
+
+- C1: workspace boundary enforced by path canonicalization and tests.
+- C2: completion invariants enforced in domain policy.
+- C3: scheduler gates stored as policy and exposed in CLI/UI.
+- C4: promotion requires health-check event.
+- C5: projection outbox includes source revision and drift checks.
+- C6: protected path classes are denied by complete mediation.
+- C7: retry requires new attempt, changed plan, or explicit operator action.
+
+This is an STPA-shaped analysis: treat safety as control over interactions, not
+just prevention of component crashes [Leveson2004; LevesonThomas2018].
+
+18. Model Architecture
+
+The model layer should produce model runs as first-class records:
+
+- backend.
+- model.
+- profile.
+- prompt version.
+- prompt hash.
+- response hash.
+- token counts.
+- latency.
+- parse result.
+- failure family.
+
+The planner should be a replaceable service. It should not know about process
+lifecycle, ticket persistence, promotion, or UI concerns.
+
+A high-quality local model can improve throughput by reducing retries, but
+model quality does not remove the need for policy/runtime alignment. The
+architecture should assume models will sometimes emit invalid plans and make
+those failures cheap.
+
+The ReAct paper supports tool-using reasoning loops, but it also reinforces the
+need for interpretable trajectories. Hephaestus should store those trajectories
+as typed plan/action/evidence records, not as unstructured chat transcript
+fragments [Yao2023].
+
+SWE-bench supports the product direction while also warning against overclaiming:
+real repository repair is hard, context-sensitive, and must be validated by
+tests or equivalent evidence [Jimenez2024].
+
+19. What Not To Do
+
+Do not seed another 60 or 120 broad tickets right now.
+
+The existing history already proved that large ticket batches can inflate
+activity while creating supersede churn, blocked backlog, and metric confusion.
+
+Do not keep adding special cases to runtime.ts.
+
+Every new runtime branch increases the cost of understanding completion
+semantics.
+
+Do not solve planner/runtime mismatch only by expanding the allowlist.
+
+Some allowlist additions are necessary, but the deeper fix is a command catalog
+and policy-generated prompt.
+
+Do not make TASKS.md canonical again.
+
+Markdown is a human projection. Keep it that way.
+
+Do not claim recursive self-improvement until promotion exists.
+
+Self-targeting plus patching is not enough. The improved worker has to become
+the active worker.
+
+Do not chase UI polish before evidence semantics.
+
+The UI is only as trustworthy as the underlying event/evidence model.
+
+Do not let "local-first" become "single-process everything."
+
+Local-first is a deployment philosophy. It is not an excuse to collapse policy,
+state, scheduling, and presentation into the same modules.
+
+20. Design-First Roadmap
+
+Phase D0: Architecture Freeze
+
+Goal: stop adding capability until the target blueprint is explicit.
+
+Artifacts to write:
+
+- docs/blueprint-v2.md.
+- docs/domain-model.md.
+- docs/state-machine.md.
+- docs/policy-spec.md.
+- docs/execution-workspace.md.
+- docs/promotion-boundary.md.
+- docs/telemetry-definitions.md.
+- docs/safety-case.md.
+- docs/adr/0001-product-contract.md.
+- docs/adr/0002-sqlite-event-led-store.md.
+- docs/adr/0003-worktree-execution.md.
+- docs/adr/0004-command-catalog.md.
+- docs/adr/0005-promotion-boundary.md.
+
+Exit criteria:
+
+- All major domains named.
+- All non-goals stated.
+- One golden demo selected.
+- Existing code mapped to target modules.
+- Quality attributes and tradeoffs documented ATAM-style [Kazman1998].
+
+Phase D1: Extract Pure Domain
+
+Goal: move semantics out of runtime and task store without changing behavior.
+
+Design moves:
+
+- extract ticket state machine.
+- extract attempt state machine.
+- extract completion policy.
+- extract retry policy.
+- extract policy decision types.
+- extract evidence types.
+- extract scheduler gate calculations.
+
+Exit criteria:
+
+- runtime.ts gets smaller because it delegates decisions.
+- task-store.ts gets smaller because it stores decisions.
+- tests still pass.
+
+Phase D2: Event and Evidence Spine
+
+Goal: make audit and reconstruction first-class.
+
+Design moves:
+
+- add domain_events as canonical audit stream.
+- add structured evidence tables.
+- keep current ticket tables as projections.
+- route markdown and memory writes through an outbox.
+- add replay/drift checks.
+
+Exit criteria:
+
+- a ticket timeline can be reconstructed without reading AGENT.md.
+- "what changed and why" is queryable.
+
+Phase D3: Policy and Command Catalog
+
+Goal: remove planner/runtime command mismatch.
+
+Design moves:
+
+- create policy schema.
+- define command IDs and platform mappings.
+- generate prompt instructions from policy.
+- store policy snapshot per attempt.
+- reject unknown command IDs before execution.
+
+Exit criteria:
+
+- models select command IDs, not arbitrary shell strings.
+- allowlist denial rate drops because the planner sees the catalog.
+
+Phase D4: Isolated Execution Workspaces
+
+Goal: stop applying mutations directly to the active project root.
+
+Design moves:
+
+- introduce worktree manager.
+- bind attempts to workspace IDs.
+- run patch and verification inside workspace.
+- export diff from workspace.
+- clean up or archive workspace by policy.
+
+Exit criteria:
+
+- low-risk self-edit can be attempted without dirtying active root.
+- patch bundle and verification evidence point to the same workspace.
+
+Phase D5: Promotion and Rollback
+
+Goal: cross from self-targeting to self-improvement.
+
+Design moves:
+
+- define worker version.
+- define promotable attempt.
+- implement promotion request/approval.
+- rebuild and restart through supervisor.
+- health check new worker.
+- rollback failed promotion.
+
+Exit criteria:
+
+- version N creates a verified change.
+- version N+1 starts and processes the next ticket.
+- failed N+1 does not corrupt the loop.
+
+Phase D6: Control Plane Refinement
+
+Goal: make operation obvious.
+
+Design moves:
+
+- API DTOs for timeline, diff, evidence, policy, gates, promotion.
+- terminal-first ticket evidence commands.
+- UI split into manageable modules.
+- metric payloads include population/window/schema metadata.
+
+Exit criteria:
+
+- operator can inspect any change quickly.
+- metrics are comparable across reports.
+
+21. Decisions Needed
+
+If I were taking Hephaestus back to design stage with you, I would need these
+decisions before implementation.
+
+1. Desired autonomy level.
+
+Pick one default:
+
+- Level 0: inspect and plan only.
+- Level 1: create patch bundles only.
+- Level 2: auto-apply low-risk patches in isolated worktrees.
+- Level 3: auto-promote verified patches after passing gates.
+- Level 4: unattended self-replacement with rollback.
+
+Recommended default: Level 2 for now, Level 3 only for documentation/test-only
+work after promotion exists, Level 4 as a research milestone.
+
+2. Primary operating environment.
+
+Is the canonical target Windows-native, WSL/Linux, or cross-platform equally?
+This matters for command policy, process supervision, file locks, shell
+behavior, and service management.
+
+Recommended default: Windows-native support as first-class because this repo is
+being operated on Windows, with POSIX parity through the command adapter.
+
+3. Source-control strategy.
+
+Choose whether Hephaestus works in:
+
+- the live working tree.
+- one git worktree per attempt.
+- one persistent staging worktree.
+- branches in the same checkout.
+
+Recommended default: one persistent staging worktree per target repo, with
+per-attempt branches or patch bundles.
+
+4. Promotion policy.
+
+Decide who can promote improved Hephaestus code into the active worker:
+
+- human only.
+- human by default, auto for docs/tests.
+- auto after strict verification.
+
+Recommended default: human approval for runtime/tool/policy changes; auto for
+docs/tests only after promotion machinery is implemented and proven.
+
+5. Risk appetite.
+
+Define hard thresholds:
+
+- max files per auto-apply.
+- max changed lines per auto-apply.
+- protected path classes.
+- commands that always require approval.
+- commands that are never allowed.
+- model budget.
+- retry caps.
+
+6. Golden demo.
+
+Recommended golden demo:
+
+"Hephaestus receives a bounded ticket to improve one documentation or test file,
+plans it, creates an isolated worktree, applies a patch, runs an allowlisted
+verification command, records structured evidence, exposes the diff in CLI/UI,
+requests approval when needed, and exports or promotes the result without
+corrupting the live worker."
+
+7. Product boundary.
+
+Decide whether Hephaestus is only for itself, for all local repos, or for team
+use. The first blueprint should optimize one.
+
+Recommended default: self-hosting plus one external local project, not
+team/cloud yet.
+
+22. Immediate Defaults
+
+If no other constraints are given, use these defaults:
+
+- Product identity: local-first supervised engineering control plane.
+- Autonomy: auto-apply low-risk patches only in isolated worktrees.
+- Promotion: manual for runtime/tool/policy changes.
+- Source control: git worktree per attempt or per active staging lane.
+- Store: SQLite now, event-led schema, adapter boundary for future Postgres.
+- Policy: declarative policy file plus command catalog.
+- Commands: model emits command IDs, adapter maps to Windows/POSIX argv.
+- UI: keep current UI functional, but stop adding business logic there.
+- Scheduler: wave size 3 to 5, active cap 10, remediation-only mode when gates
+  fail.
+- Completion: mutation requires mutation evidence; verification requires
+  verification evidence.
+- Self-improvement claim: do not use the strong claim until promotion and
+  rollback exist.
+
+23. Bottom Line
+
+Hephaestus is not failing. It is entering the stage where prototypes either
+become architecture or become a pile of clever exceptions.
+
+The perfect move now is to pause feature growth, name the real domains, split
+the gravitational modules, isolate mutation, and define promotion. After that,
+implementation can accelerate again because every new feature will have a place
+to live.
+
+The best end-state is not a giant autonomous coding blob. It is a local
+engineering forge with a durable queue, strict intake, typed planning, policy
+evaluation, isolated execution, evidence records, human approval, verification
+gates, promotion, rollback, and operator-visible telemetry.
+
+That design is boring in the best way. It is durable, legible, and hard to fool.
+
+24. Sources
+
+[Bainbridge1983] Bainbridge, L. (1983). "Ironies of Automation." Automatica,
+19(6), 775-779. https://doi.org/10.1016/0005-1098(83)90046-8
+
+[Cheng2009] Cheng, B. H. C., de Lemos, R., Giese, H., Inverardi, P., Magee, J.,
+et al. (2009). "Software Engineering for Self-Adaptive Systems: A Research
+Roadmap." LNCS 5525, 1-26. https://doi.org/10.1007/978-3-642-02161-9_1
+
+[FooteYoder1997] Foote, B., and Yoder, J. (1997). "Big Ball of Mud." Pattern
+Languages of Program Design. https://www.laputan.org/pub/foote/mud.pdf
+
+[GarciaMolina1987] Garcia-Molina, H., and Salem, K. (1987). "Sagas."
+Proceedings of ACM SIGMOD 1987, 249-259. https://doi.org/10.1145/38713.38742
+
+[Garlan2004] Garlan, D., Cheng, S.-W., Huang, A.-C., Schmerl, B., and
+Steenkiste, P. (2004). "Rainbow: Architecture-Based Self-Adaptation with
+Reusable Infrastructure." IEEE Computer, 37(10), 46-54.
+https://www.cs.cmu.edu/~able/publications/computer04/
+
+[Harel1987] Harel, D. (1987). "Statecharts: A Visual Formalism for Complex
+Systems." Science of Computer Programming, 8(3), 231-274.
+https://doi.org/10.1016/0167-6423(87)90035-9
+
+[Helland2007] Helland, P. (2007). "Life beyond Distributed Transactions: An
+Apostate's Opinion." CIDR 2007, 132-141.
+https://www.cidrdb.org/cidr2007/papers/cidr07p15.pdf
+
+[Jimenez2024] Jimenez, C. E., Yang, J., Wettig, A., Yao, S., Pei, K.,
+Press, O., and Narasimhan, K. (2024). "SWE-bench: Can Language Models Resolve
+Real-World GitHub Issues?" ICLR 2024. https://arxiv.org/abs/2310.06770
+
+[Kazman1998] Kazman, R., Klein, M. H., Barbacci, M., Longstaff, T., Lipson, H.,
+and Carriere, J. (1998). "The Architecture Tradeoff Analysis Method."
+Software Engineering Institute white paper.
+https://www.sei.cmu.edu/library/the-architecture-tradeoff-analysis-method-2/
+
+[KephartChess2003] Kephart, J. O., and Chess, D. M. (2003). "The Vision of
+Autonomic Computing." IEEE Computer, 36(1), 41-50.
+https://doi.org/10.1109/MC.2003.1160055
+
+[Klein2004] Klein, G., Woods, D. D., Bradshaw, J. M., Hoffman, R. R., and
+Feltovich, P. J. (2004). "Ten Challenges for Making Automation a Team Player in
+Joint Human-Agent Activity." IEEE Intelligent Systems, 19(6), 91-95.
+https://doi.org/10.1109/MIS.2004.74
+
+[KramerMagee2007] Kramer, J., and Magee, J. (2007). "Self-Managed Systems: An
+Architectural Challenge." Future of Software Engineering 2007.
+https://doi.org/10.1109/FOSE.2007.19
+
+[Lamport1978] Lamport, L. (1978). "Time, Clocks, and the Ordering of Events in
+a Distributed System." Communications of the ACM, 21(7), 558-565.
+https://doi.org/10.1145/359545.359563
+
+[Leveson2004] Leveson, N. (2004). "A New Accident Model for Engineering Safer
+Systems." Safety Science, 42(4), 237-270.
+https://doi.org/10.1016/S0925-7535(03)00047-X
+
+[LevesonThomas2018] Leveson, N., and Thomas, J. (2018). "STPA Handbook."
+MIT Partnership for Systems Approaches to Safety and Security.
+https://psas.scripts.mit.edu/home/get_file.php?name=STPA_handbook.pdf
+
+[Mohan1992] Mohan, C., Haderle, D., Lindsay, B., Pirahesh, H., and Schwarz, P.
+(1992). "ARIES: A Transaction Recovery Method Supporting Fine-Granularity
+Locking and Partial Rollbacks Using Write-Ahead Logging." ACM Transactions on
+Database Systems, 17(1), 94-162. https://doi.org/10.1145/128765.128770
+
+[Oreizy1999] Oreizy, P., Gorlick, M. M., Taylor, R. N., Heimbigner, D.,
+Johnson, G., Medvidovic, N., Quilici, A., Rosenblum, D. S., and Wolf, A. L.
+(1999). "An Architecture-Based Approach to Self-Adaptive Software." IEEE
+Intelligent Systems, 14(3), 54-62. https://doi.org/10.1109/5254.769885
+
+[Parasuraman2000] Parasuraman, R., Sheridan, T. B., and Wickens, C. D. (2000).
+"A Model for Types and Levels of Human Interaction with Automation." IEEE
+Transactions on Systems, Man, and Cybernetics - Part A: Systems and Humans,
+30(3), 286-297. https://doi.org/10.1109/3468.844354
+
+[Parnas1972] Parnas, D. L. (1972). "On the Criteria To Be Used in Decomposing
+Systems into Modules." Communications of the ACM, 15(12), 1053-1058.
+https://doi.org/10.1145/361598.361623
+
+[PerryWolf1992] Perry, D. E., and Wolf, A. L. (1992). "Foundations for the
+Study of Software Architecture." ACM SIGSOFT Software Engineering Notes, 17(4),
+40-52. https://doi.org/10.1145/141874.141884
+
+[SaltzerSchroeder1975] Saltzer, J. H., and Schroeder, M. D. (1975). "The
+Protection of Information in Computer Systems." Proceedings of the IEEE, 63(9),
+1278-1308. https://doi.org/10.1109/PROC.1975.9939
+
+[ShawGarlan1996] Shaw, M., and Garlan, D. (1996). Software Architecture:
+Perspectives on an Emerging Discipline. Prentice Hall.
+https://books.google.com/books/about/Software_Architecture.html?id=5KlQAAAAMAAJ
+
+[WorkflowPatterns2003] van der Aalst, W. M. P., ter Hofstede, A. H. M.,
+Kiepuszewski, B., and Barros, A. P. (2003). "Workflow Patterns." Distributed
+and Parallel Databases, 14(1), 5-51.
+https://doi.org/10.1023/A:1022883727209
+
+[Yao2023] Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan, K., and
+Cao, Y. (2023). "ReAct: Synergizing Reasoning and Acting in Language Models."
+ICLR 2023. https://arxiv.org/abs/2210.03629
