@@ -1,0 +1,76 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-29T02:15:22.524Z",
+  "lane": "fast",
+  "laneReason": "status=blocked",
+  "ticket": {
+    "id": "ticket_2e4b2b042e83",
+    "description": "Upgrade Roadmap 1 P0: add model profiles for codellama, qwen3-coder, and gpt-oss with capability metadata and config visibility",
+    "status": "blocked",
+    "attemptCount": 1,
+    "updatedAt": "2026-05-28T21:58:16.181Z"
+  },
+  "codexContext": {
+    "prompt": "Use a minimal-change fast lane: prioritize the smallest safe patch and one narrow verification command.\nTicket: Upgrade Roadmap 1 P0: add model profiles for codellama, qwen3-coder, and gpt-oss with capability metadata and config visibility\nCurrent status: blocked\nAttempt count: 1",
+    "recentArtifacts": [
+      "[admission_a4a81693b00a] policy.snapshot [265ae181a51b44e7] {\"version\":\"hephaestus-tool-policy/v1\",\"workspaceRoot\":\"c:\\\\Users\\\\ryanv\\\\Desktop\\\\MCGILL\\\\McGillSoftware\\\\Hephaestus\",\"dryRunByDefault\":false,\"maxReadBytes\":131072,\"maxOutputBytes\":65536,\"maxSearchResults\":50,\"commandTimeoutMs\":60000,\"commandAllowlist\":[\"npm test\",\"npm run test\",\"npm run lint\",\"npm run build\",\"npm run validate:config\",\"npm run preflight\",\"npm run start:once\",\"npm run tickets\",\"node scripts/run-tests.mjs\",\"node_modules/.bin/tsc --noEmit\",\"node_modules\\\\.bin\\\\tsc.cmd --noEmit\"],\"protectedPathPrefixes\":[\".git\",\"node_modules\",\"dist\",\".env\",\".env.local\",\".hephaestus-tickets.db\",\".hephaestus-tickets.db-shm\",\".hephaestus-tickets.db-wal\"],\"patchRiskThresholds\":{\"maxSafeTouchedPaths\":1,\"maxSafeChangedLines\":20},\"generatedAt\":\"2026-05-28T21:58:13.952Z\",\"signature\":\"265ae181a51b44e7\"}",
+      "[admission_a4a81693b00a] deferred-mutation update src/config.ts: mutating file plans require governed tool calls.",
+      "[admission_a4a81693b00a] deferred-mutation create src/codellama.ts: mutating file plans require governed tool calls.",
+      "[admission_a4a81693b00a] deferred-mutation create src/qwen3-coder.ts: mutating file plans require governed tool calls.",
+      "[admission_a4a81693b00a] deferred-mutation create src/gpt-oss.ts: mutating file plans require governed tool calls.",
+      "[admission_a4a81693b00a] command.run npm run validate:config -> success: Command succeeded: npm run validate:config",
+      "[admission_a4a81693b00a] file.read src/config.ts -> success: Read src/config.ts:1-262.",
+      "[admission_a4a81693b00a] file.read src/codellama.ts -> failure [tool-execution-failed]: file.read failed.",
+      "[admission_a4a81693b00a] backend.ollama model=codellama",
+      "[blocked_ticket_2e4b2b042e83_1780005496148] failure.classification environment; retryable=true; recommendation=Restore the missing local service, file, or lock condition, then retry the same ticket."
+    ],
+    "recentEvents": [
+      {
+        "type": "attempt-started",
+        "createdAt": "2026-05-28T21:57:56.547Z",
+        "details": "attempt_d7e4dca05000"
+      },
+      {
+        "type": "claimed",
+        "createdAt": "2026-05-28T21:57:56.547Z",
+        "details": "Upgrade Roadmap 1 P0: add model profiles for codellama, qwen3-coder, and gpt-oss with capability metadata and config visibility (attempt_d7e4dca05000)"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T21:58:16.149Z",
+        "details": "memory.record-blocker:blocked_ticket_2e4b2b042e83_1780005496148:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T21:58:16.151Z",
+        "details": "memory.add-session-summary:blocked_ticket_2e4b2b042e83_1780005496148:memory.add-session-summary"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T21:58:16.162Z",
+        "details": "memory.record-blocker:blocked_ticket_2e4b2b042e83_1780005496148:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T21:58:16.171Z",
+        "details": "memory.add-session-summary:blocked_ticket_2e4b2b042e83_1780005496148:memory.add-session-summary"
+      },
+      {
+        "type": "attempt-finished",
+        "createdAt": "2026-05-28T21:58:16.181Z",
+        "details": "attempt_d7e4dca05000"
+      },
+      {
+        "type": "blocked",
+        "createdAt": "2026-05-28T21:58:16.181Z",
+        "details": "file.read failed.: ENOENT: no such file or directory, open 'c:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\src\\codellama.ts'"
+      }
+    ],
+    "pendingToolCalls": [
+      "file.read",
+      "file.read",
+      "file.read",
+      "file.read"
+    ]
+  }
+}

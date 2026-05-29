@@ -1,0 +1,35 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-29T02:15:22.524Z",
+  "lane": "fast",
+  "laneReason": "low-complexity ticket with limited risk signals",
+  "ticket": {
+    "id": "ticket_c7b1678b8697",
+    "description": "Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context",
+    "status": "in_progress",
+    "attemptCount": 1,
+    "updatedAt": "2026-05-29T02:15:07.145Z"
+  },
+  "codexContext": {
+    "prompt": "Use a minimal-change fast lane: prioritize the smallest safe patch and one narrow verification command.\nTicket: Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context\nCurrent status: in_progress\nAttempt count: 1",
+    "recentArtifacts": [],
+    "recentEvents": [
+      {
+        "type": "created",
+        "createdAt": "2026-05-29T02:14:51.026Z",
+        "details": "Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context"
+      },
+      {
+        "type": "attempt-started",
+        "createdAt": "2026-05-29T02:15:07.145Z",
+        "details": "attempt_6e7260ad590c"
+      },
+      {
+        "type": "claimed",
+        "createdAt": "2026-05-29T02:15:07.145Z",
+        "details": "Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context (attempt_6e7260ad590c)"
+      }
+    ],
+    "pendingToolCalls": []
+  }
+}

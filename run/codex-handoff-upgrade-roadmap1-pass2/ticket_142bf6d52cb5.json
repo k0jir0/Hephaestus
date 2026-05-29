@@ -1,0 +1,69 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-29T02:15:22.524Z",
+  "lane": "fast",
+  "laneReason": "status=blocked",
+  "ticket": {
+    "id": "ticket_142bf6d52cb5",
+    "description": "Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking",
+    "status": "blocked",
+    "attemptCount": 1,
+    "updatedAt": "2026-05-28T21:59:43.199Z"
+  },
+  "codexContext": {
+    "prompt": "Use a minimal-change fast lane: prioritize the smallest safe patch and one narrow verification command.\nTicket: Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking\nCurrent status: blocked\nAttempt count: 1",
+    "recentArtifacts": [
+      "[admission_df52a2906b5f] policy.snapshot [265ae181a51b44e7] {\"version\":\"hephaestus-tool-policy/v1\",\"workspaceRoot\":\"c:\\\\Users\\\\ryanv\\\\Desktop\\\\MCGILL\\\\McGillSoftware\\\\Hephaestus\",\"dryRunByDefault\":false,\"maxReadBytes\":131072,\"maxOutputBytes\":65536,\"maxSearchResults\":50,\"commandTimeoutMs\":60000,\"commandAllowlist\":[\"npm test\",\"npm run test\",\"npm run lint\",\"npm run build\",\"npm run validate:config\",\"npm run preflight\",\"npm run start:once\",\"npm run tickets\",\"node scripts/run-tests.mjs\",\"node_modules/.bin/tsc --noEmit\",\"node_modules\\\\.bin\\\\tsc.cmd --noEmit\"],\"protectedPathPrefixes\":[\".git\",\"node_modules\",\"dist\",\".env\",\".env.local\",\".hephaestus-tickets.db\",\".hephaestus-tickets.db-shm\",\".hephaestus-tickets.db-wal\"],\"patchRiskThresholds\":{\"maxSafeTouchedPaths\":1,\"maxSafeChangedLines\":20},\"generatedAt\":\"2026-05-28T21:59:24.462Z\",\"signature\":\"265ae181a51b44e7\"}",
+      "[admission_df52a2906b5f] deferred-mutation update src/example.ts: mutating file plans require governed tool calls.",
+      "[admission_df52a2906b5f] command.run npm test -> success: Command succeeded: npm test",
+      "[admission_df52a2906b5f] file.read src/example.ts -> failure [tool-execution-failed]: file.read failed.",
+      "[admission_df52a2906b5f] backend.ollama model=codellama",
+      "[blocked_ticket_142bf6d52cb5_1780005583164] failure.classification environment; retryable=true; recommendation=Restore the missing local service, file, or lock condition, then retry the same ticket."
+    ],
+    "recentEvents": [
+      {
+        "type": "attempt-started",
+        "createdAt": "2026-05-28T21:59:18.160Z",
+        "details": "attempt_02a7bf3095c8"
+      },
+      {
+        "type": "claimed",
+        "createdAt": "2026-05-28T21:59:18.160Z",
+        "details": "Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking (attempt_02a7bf3095c8)"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T21:59:43.165Z",
+        "details": "memory.record-blocker:blocked_ticket_142bf6d52cb5_1780005583164:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T21:59:43.166Z",
+        "details": "memory.add-session-summary:blocked_ticket_142bf6d52cb5_1780005583164:memory.add-session-summary"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T21:59:43.177Z",
+        "details": "memory.record-blocker:blocked_ticket_142bf6d52cb5_1780005583164:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T21:59:43.186Z",
+        "details": "memory.add-session-summary:blocked_ticket_142bf6d52cb5_1780005583164:memory.add-session-summary"
+      },
+      {
+        "type": "attempt-finished",
+        "createdAt": "2026-05-28T21:59:43.199Z",
+        "details": "attempt_02a7bf3095c8"
+      },
+      {
+        "type": "blocked",
+        "createdAt": "2026-05-28T21:59:43.199Z",
+        "details": "file.read failed.: ENOENT: no such file or directory, open 'c:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\src\\example.ts'"
+      }
+    ],
+    "pendingToolCalls": [
+      "file.read"
+    ]
+  }
+}

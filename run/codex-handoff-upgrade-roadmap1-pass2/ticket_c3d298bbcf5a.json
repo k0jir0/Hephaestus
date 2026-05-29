@@ -1,0 +1,73 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-29T02:15:22.524Z",
+  "lane": "fast",
+  "laneReason": "status=blocked",
+  "ticket": {
+    "id": "ticket_c3d298bbcf5a",
+    "description": "Upgrade Roadmap 1 P1: add Ollama model inventory, smoke test, and benchmark CLI so local models are promoted by evidence",
+    "status": "blocked",
+    "attemptCount": 1,
+    "updatedAt": "2026-05-28T21:59:28.224Z"
+  },
+  "codexContext": {
+    "prompt": "Use a minimal-change fast lane: prioritize the smallest safe patch and one narrow verification command.\nTicket: Upgrade Roadmap 1 P1: add Ollama model inventory, smoke test, and benchmark CLI so local models are promoted by evidence\nCurrent status: blocked\nAttempt count: 1",
+    "recentArtifacts": [
+      "[admission_e60907a8bd22] policy.snapshot [265ae181a51b44e7] {\"version\":\"hephaestus-tool-policy/v1\",\"workspaceRoot\":\"c:\\\\Users\\\\ryanv\\\\Desktop\\\\MCGILL\\\\McGillSoftware\\\\Hephaestus\",\"dryRunByDefault\":false,\"maxReadBytes\":131072,\"maxOutputBytes\":65536,\"maxSearchResults\":50,\"commandTimeoutMs\":60000,\"commandAllowlist\":[\"npm test\",\"npm run test\",\"npm run lint\",\"npm run build\",\"npm run validate:config\",\"npm run preflight\",\"npm run start:once\",\"npm run tickets\",\"node scripts/run-tests.mjs\",\"node_modules/.bin/tsc --noEmit\",\"node_modules\\\\.bin\\\\tsc.cmd --noEmit\"],\"protectedPathPrefixes\":[\".git\",\"node_modules\",\"dist\",\".env\",\".env.local\",\".hephaestus-tickets.db\",\".hephaestus-tickets.db-shm\",\".hephaestus-tickets.db-wal\"],\"patchRiskThresholds\":{\"maxSafeTouchedPaths\":1,\"maxSafeChangedLines\":20},\"generatedAt\":\"2026-05-28T21:58:28.143Z\",\"signature\":\"265ae181a51b44e7\"}",
+      "[admission_e60907a8bd22] deferred-mutation create src/ollama-model-inventory.ts: mutating file plans require governed tool calls.",
+      "[admission_e60907a8bd22] deferred-mutation update test/smoke.test.ts: mutating file plans require governed tool calls.",
+      "[admission_e60907a8bd22] deferred-mutation create cli/benchmark.ts: mutating file plans require governed tool calls.",
+      "[admission_e60907a8bd22] command.run npm run start:once -> failure [command-failed]: Command failed: npm run start:once",
+      "[admission_e60907a8bd22] backend.ollama model=codellama",
+      "[blocked_ticket_c3d298bbcf5a_1780005568163] failure.classification verification; retryable=true; recommendation=Read the verification output, fix the failing check, and retry with the amended plan."
+    ],
+    "recentEvents": [
+      {
+        "type": "attempt-started",
+        "createdAt": "2026-05-28T21:58:16.715Z",
+        "details": "attempt_34c870e09c40"
+      },
+      {
+        "type": "claimed",
+        "createdAt": "2026-05-28T21:58:16.715Z",
+        "details": "Upgrade Roadmap 1 P1: add Ollama model inventory, smoke test, and benchmark CLI so local models are promoted by evidence (attempt_34c870e09c40)"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T21:59:28.164Z",
+        "details": "memory.record-blocker:blocked_ticket_c3d298bbcf5a_1780005568163:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-28T21:59:28.165Z",
+        "details": "memory.add-session-summary:blocked_ticket_c3d298bbcf5a_1780005568163:memory.add-session-summary"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T21:59:28.183Z",
+        "details": "memory.record-blocker:blocked_ticket_c3d298bbcf5a_1780005568163:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-28T21:59:28.214Z",
+        "details": "memory.add-session-summary:blocked_ticket_c3d298bbcf5a_1780005568163:memory.add-session-summary"
+      },
+      {
+        "type": "attempt-finished",
+        "createdAt": "2026-05-28T21:59:28.224Z",
+        "details": "attempt_34c870e09c40"
+      },
+      {
+        "type": "blocked",
+        "createdAt": "2026-05-28T21:59:28.224Z",
+        "details": "Command failed: npm run start:once: Command timed out after 60000ms."
+      }
+    ],
+    "pendingToolCalls": [
+      "file.read",
+      "command.run",
+      "file.read",
+      "command.run"
+    ]
+  }
+}

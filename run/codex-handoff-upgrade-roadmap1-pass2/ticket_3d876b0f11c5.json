@@ -1,0 +1,66 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-29T02:15:22.524Z",
+  "lane": "deep",
+  "laneReason": "status=blocked, high retry pressure",
+  "ticket": {
+    "id": "ticket_3d876b0f11c5",
+    "description": "Self-audit [high/startup]: Add a /health endpoint to the UI server and update smoke checks to use it",
+    "status": "blocked",
+    "attemptCount": 6,
+    "updatedAt": "2026-05-28T18:01:05.432Z"
+  },
+  "codexContext": {
+    "prompt": "Use a deep lane: perform a brief design-first analysis, then apply phased edits with explicit verification checkpoints.\nTicket: Self-audit [high/startup]: Add a /health endpoint to the UI server and update smoke checks to use it\nCurrent status: blocked\nAttempt count: 6",
+    "recentArtifacts": [
+      "[admission_1325cc7cd679] policy.snapshot [84ccb708059d0acd] {\"version\":\"hephaestus-tool-policy/v1\",\"workspaceRoot\":\"C:\\\\Users\\\\ryanv\\\\Desktop\\\\MCGILL\\\\McGillSoftware\\\\Hephaestus\",\"dryRunByDefault\":false,\"maxReadBytes\":131072,\"maxOutputBytes\":65536,\"maxSearchResults\":50,\"commandTimeoutMs\":60000,\"commandAllowlist\":[\"npm test\",\"npm run test\",\"npm run lint\",\"npm run build\",\"npm run validate:config\",\"npm run preflight\",\"npm run start:once\",\"npm run tickets\",\"node scripts/run-tests.mjs\",\"node_modules/.bin/tsc --noEmit\",\"node_modules\\\\.bin\\\\tsc.cmd --noEmit\"],\"protectedPathPrefixes\":[\".git\",\"node_modules\",\"dist\",\".env\",\".env.local\",\".hephaestus-tickets.db\",\".hephaestus-tickets.db-shm\",\".hephaestus-tickets.db-wal\"],\"patchRiskThresholds\":{\"maxSafeTouchedPaths\":1,\"maxSafeChangedLines\":20},\"generatedAt\":\"2026-05-27T23:17:38.212Z\",\"signature\":\"84ccb708059d0acd\"}",
+      "[admission_1325cc7cd679] command.run npm test -> success: Command succeeded: npm test",
+      "[admission_1325cc7cd679] denied command.binding curl http://localhost:8080/health: Command curl http://localhost:8080/health is not declared in the validated plan commands."
+    ],
+    "recentEvents": [
+      {
+        "type": "attempt-started",
+        "createdAt": "2026-05-27T23:17:32.188Z",
+        "details": "attempt_c86814dbb3cc"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-27T23:17:49.484Z",
+        "details": "memory.record-blocker:blocked_ticket_3d876b0f11c5_1779923869484:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-enqueued",
+        "createdAt": "2026-05-27T23:17:49.485Z",
+        "details": "memory.add-session-summary:blocked_ticket_3d876b0f11c5_1779923869484:memory.add-session-summary"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-27T23:17:49.497Z",
+        "details": "memory.record-blocker:blocked_ticket_3d876b0f11c5_1779923869484:memory.record-blocker"
+      },
+      {
+        "type": "side-effect-completed",
+        "createdAt": "2026-05-27T23:17:49.506Z",
+        "details": "memory.add-session-summary:blocked_ticket_3d876b0f11c5_1779923869484:memory.add-session-summary"
+      },
+      {
+        "type": "attempt-finished",
+        "createdAt": "2026-05-27T23:17:49.516Z",
+        "details": "attempt_c86814dbb3cc"
+      },
+      {
+        "type": "blocked",
+        "createdAt": "2026-05-27T23:17:49.516Z",
+        "details": "Command curl http://localhost:8080/health is not declared in the validated plan commands."
+      },
+      {
+        "type": "stale-recovered",
+        "createdAt": "2026-05-28T18:01:05.432Z",
+        "details": "Cleared orphaned active attempt metadata without changing terminal ticket status."
+      }
+    ],
+    "pendingToolCalls": [
+      "command.run"
+    ]
+  }
+}

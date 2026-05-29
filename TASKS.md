@@ -5,12 +5,12 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 ## Queue
 
 <!-- Tasks are processed top-to-bottom. Add new tasks at the bottom. -->
-- [ ] Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context <!-- hephaestus-ticket:ticket_c7b1678b8697 -->
+- [ ] Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles <!-- hephaestus-ticket:ticket_0a0f99ff3e57 -->
 
 ## In Progress
 
 <!-- Currently working on these tasks -->
-- [ ] Upgrade Roadmap 1 P3: add strict action schema validation with phases, evidence requirements, and escalation fields <!-- hephaestus-ticket:ticket_2e1efc233451 -->
+- [ ] Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports <!-- hephaestus-ticket:ticket_ac70f1716648 -->
 
 ## Completed
 
@@ -49,6 +49,7 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Efficiency Roadmap 2: Remove full event scans from operational SLO/UI metrics by deriving latency from ticket lifecycle columns and latest board-sync metadata <!-- hephaestus-ticket:ticket_f4bc94f1f408 -->
 - [x] Upgrade Roadmap 1 P1: upgrade the Ollama backend to prefer /api/chat with structured JSON controls and telemetry while preserving generate fallback <!-- hephaestus-ticket:ticket_7171f50e7505 -->
 - [x] Upgrade Roadmap 1 P2: expose active model profile, installed models, and upgrade recommendations in the operator UI and health API <!-- hephaestus-ticket:ticket_7c32c5c18ee6 -->
+- [x] Upgrade Roadmap 1 P3: add strict action schema validation with phases, evidence requirements, and escalation fields <!-- hephaestus-ticket:ticket_2e1efc233451 -->
 
 ## Blocked
 
@@ -64,6 +65,7 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [ ] Upgrade Roadmap 1 P0: add model profiles for codellama, qwen3-coder, and gpt-oss with capability metadata and config visibility <!-- hephaestus-ticket:ticket_2e4b2b042e83 -->
 - [ ] Upgrade Roadmap 1 P1: add Ollama model inventory, smoke test, and benchmark CLI so local models are promoted by evidence <!-- hephaestus-ticket:ticket_c3d298bbcf5a -->
 - [ ] Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking <!-- hephaestus-ticket:ticket_142bf6d52cb5 -->
+- [ ] Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context <!-- hephaestus-ticket:ticket_c7b1678b8697 -->
 
 ## Cancelled
 

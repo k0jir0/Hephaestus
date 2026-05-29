@@ -1,0 +1,25 @@
+{
+  "version": "hephaestus-codex-handoff/v1",
+  "generatedAt": "2026-05-29T02:15:22.524Z",
+  "lane": "fast",
+  "laneReason": "low-complexity ticket with limited risk signals",
+  "ticket": {
+    "id": "ticket_ac70f1716648",
+    "description": "Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports",
+    "status": "pending",
+    "attemptCount": 0,
+    "updatedAt": "2026-05-29T02:15:04.078Z"
+  },
+  "codexContext": {
+    "prompt": "Use a minimal-change fast lane: prioritize the smallest safe patch and one narrow verification command.\nTicket: Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports\nCurrent status: pending\nAttempt count: 0",
+    "recentArtifacts": [],
+    "recentEvents": [
+      {
+        "type": "created",
+        "createdAt": "2026-05-29T02:15:04.078Z",
+        "details": "Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports"
+      }
+    ],
+    "pendingToolCalls": []
+  }
+}

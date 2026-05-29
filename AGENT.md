@@ -11,9 +11,9 @@ This file stores the agent's long-term context and memory.
 
 ## Current State
 
-- **Status**: Blocked
-- **Current Task**: Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context
-- **Last Activity**: 2026-05-29T02:14:56.264Z
+- **Status**: Working
+- **Current Task**: Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports
+- **Last Activity**: 2026-05-29T02:15:24.383Z
 
 ## Working Context
 
@@ -62,6 +62,7 @@ This file stores the agent's long-term context and memory.
 | 2026-05-28 | Efficiency Roadmap 2: Remove full event scans f... | Plan ready |
 | 2026-05-28 | Upgrade Roadmap 1 P1: upgrade the Ollama backen... | Plan ready |
 | 2026-05-28 | Upgrade Roadmap 1 P2: expose active model profi... | Plan ready |
+| 2026-05-29 | Upgrade Roadmap 1 P3: add strict action schema ... | Plan ready |
 
 ### Blockers Encountered
 | Date | Blocker | Resolution |
@@ -3172,6 +3173,9 @@ ok 21 - TaskWatcher
 | 2026-05-28 | Upgrade Roadmap 1 P1: upgrade the Ollama backend to prefer /api/chat with structured JSON controls and telemetry while preserving generate fallback | Invalid task transition in ticket ticket_7171f50e7505: completed -> in_progress |
 | 2026-05-28 | Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking | file.read failed.: ENOENT: no such file or directory, open 'c:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\src\example.ts' |
 | 2026-05-29 | Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context | Error threshold (5) exceeded [admission_d82bbf9d4417] |
+| 2026-05-29 | Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports | Error threshold (5) exceeded [admission_1f9716fe877b] |
+| 2026-05-29 | Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles | Error threshold (5) exceeded [admission_31c02923d0c6] |
+| 2026-05-29 | Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context | Command is not allowlisted: npm run test:unit src/admission.ts -- -t Add support for invalid command repair guidance and artifacts |
 
 ## Preferences
 
@@ -3372,6 +3376,8 @@ ok 21 - TaskWatcher
 - [2026-05-28T21:59:28.272Z] Blocked: Upgrade Roadmap 1 P1: upgrade the Ollama backend to prefer /api/chat with structured JSON controls and telemetry while preserving generate fallback
 - [2026-05-28T21:59:43.178Z] Blocked: Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking
 - [2026-05-28T21:59:43.206Z] Single-pass run complete
+- [2026-05-29T02:15:06.512Z] Planned: Upgrade Roadmap 1 P3: add strict action schema validation with phases, evidence requirements, and escalation fields
+- [2026-05-29T02:15:24.332Z] Blocked: Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context
 
 ---
 
