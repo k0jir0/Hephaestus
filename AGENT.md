@@ -12,8 +12,8 @@ This file stores the agent's long-term context and memory.
 ## Current State
 
 - **Status**: Blocked
-- **Current Task**: Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking
-- **Last Activity**: 2026-05-28T21:59:43.188Z
+- **Current Task**: Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context
+- **Last Activity**: 2026-05-29T02:14:56.264Z
 
 ## Working Context
 
@@ -3171,6 +3171,7 @@ ok 21 - TaskWatcher
 | 2026-05-28 | Upgrade Roadmap 1 P1: add Ollama model inventory, smoke test, and benchmark CLI so local models are promoted by evidence | Command failed: npm run start:once: Command timed out after 60000ms. |
 | 2026-05-28 | Upgrade Roadmap 1 P1: upgrade the Ollama backend to prefer /api/chat with structured JSON controls and telemetry while preserving generate fallback | Invalid task transition in ticket ticket_7171f50e7505: completed -> in_progress |
 | 2026-05-28 | Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking | file.read failed.: ENOENT: no such file or directory, open 'c:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\src\example.ts' |
+| 2026-05-29 | Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context | Error threshold (5) exceeded [admission_d82bbf9d4417] |
 
 ## Preferences
 

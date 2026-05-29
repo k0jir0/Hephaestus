@@ -5,12 +5,12 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 ## Queue
 
 <!-- Tasks are processed top-to-bottom. Add new tasks at the bottom. -->
-- (empty)
+- [ ] Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context <!-- hephaestus-ticket:ticket_c7b1678b8697 -->
 
 ## In Progress
 
 <!-- Currently working on these tasks -->
-- (empty)
+- [ ] Upgrade Roadmap 1 P3: add strict action schema validation with phases, evidence requirements, and escalation fields <!-- hephaestus-ticket:ticket_2e1efc233451 -->
 
 ## Completed
 
