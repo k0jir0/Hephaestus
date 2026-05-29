@@ -307,4 +307,38 @@ describe('runTicketAutopilot', () => {
     assert.ok(result.gateFailures.length > 0);
     assert.equal(result.availableWaveSlots, 0);
   });
+
+  it('halts queue priming when strict external gate failures are supplied', async () => {
+    const calls = {
+      retried: 0,
+      resumed: 0,
+    };
+
+    const result = await runTicketAutopilot(
+      {
+        repository: {
+          async listTickets() {
+            return [makeTicket('ticket_blocked', 'blocked')];
+          },
+          async retryTicket() {
+            calls.retried += 1;
+            throw new Error('retryTicket should not be called when external gates fail');
+          },
+          async resumeApprovedTicket() {
+            calls.resumed += 1;
+            throw new Error('resumeApprovedTicket should not be called when external gates fail');
+          },
+        },
+      },
+      {
+        additionalGateFailures: ['d2-replay-empty'],
+      }
+    );
+
+    assert.equal(calls.retried, 0);
+    assert.equal(calls.resumed, 0);
+    assert.equal(result.blockedByGates, true);
+    assert.ok(result.gateFailures.includes('d2-replay-empty'));
+    assert.equal(result.availableWaveSlots, 0);
+  });
 });

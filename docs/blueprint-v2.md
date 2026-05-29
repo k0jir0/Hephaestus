@@ -606,6 +606,21 @@ Exit criteria:
 - ticket timeline can be reconstructed without reading `AGENT.md`
 - "what changed and why" is queryable
 
+Current implementation status (2026-05-29):
+
+- `domain_events` and `event_evidence` are live with additive migrations.
+- lifecycle recording is dual-write with canonical read preference and legacy fallback.
+- restart-safe backfill hydrates legacy event history into canonical tables.
+- `npm run tickets -- verify-d2` enforces parity, replay stability, and correlation coverage.
+- optional strict D2 enforcement is available in operator workflow gates:
+  `npm run tickets -- autopilot --enforce-d2 ...` and
+  `npm run tickets -- review-wave --enforce-d2 ...`.
+
+Remaining D2 closure:
+
+- publish final D2 closure note linking evidence artifacts and strict gate thresholds.
+- keep D2 strict enforcement opt-in until operators finish burn-in.
+
 Library anchors:
 
 - `ChandyLamport1985`: deterministic state reconstruction and consistent

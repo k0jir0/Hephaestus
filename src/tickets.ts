@@ -35,7 +35,7 @@ Usage:
   npm run tickets -- list [--status <status>]
   npm run tickets -- show <ticket-id>
   npm run tickets -- retry <ticket-id> [--amend <description>]
-  npm run tickets -- autopilot [--include-cancelled] [--no-self-audit] [--self-audit-limit <count>] [--max-attempts <count>] [--wave-size <count>] [--max-active <count>] [--min-completion-rate <ratio>] [--max-superseded-rate <ratio>] [--max-blocked <count>] [--max-allowlist-denial-rate <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>] [--dry-run]
+  npm run tickets -- autopilot [--include-cancelled] [--no-self-audit] [--self-audit-limit <count>] [--max-attempts <count>] [--wave-size <count>] [--max-active <count>] [--min-completion-rate <ratio>] [--max-superseded-rate <ratio>] [--max-blocked <count>] [--max-allowlist-denial-rate <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>] [--enforce-d2] [--max-d2-count-mismatches <count>] [--max-d2-legacy-only <count>] [--max-d2-domain-only <count>] [--max-d2-domain-deficit <count>] [--max-d2-missing-legacy-link <count>] [--min-d2-replay-correlation-coverage <ratio>] [--dry-run]
   npm run tickets -- approve <ticket-id> <reviewer> [reason]
   npm run tickets -- reject <ticket-id> <reviewer> [reason]
   npm run tickets -- resume <ticket-id>
@@ -48,7 +48,7 @@ Usage:
   npm run tickets -- metrics [--source-grounding]
   npm run tickets -- audit-source-evidence [--max-drifted <count>] [--max-missing-evidence <count>]
   npm run tickets -- verify-d2 [--max-count-mismatches <count>] [--max-legacy-only <count>] [--max-domain-only <count>] [--max-domain-deficit <count>] [--max-missing-legacy-link <count>] [--min-replay-correlation-coverage <ratio>]
-  npm run tickets -- review-wave [--min-efficiency-score <score>] [--max-blocked <count>] [--max-p95-ms <milliseconds>] [--max-allowlist-denial-rate <ratio>] [--min-backend-success-ratio <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>]
+  npm run tickets -- review-wave [--min-efficiency-score <score>] [--max-blocked <count>] [--max-p95-ms <milliseconds>] [--max-allowlist-denial-rate <ratio>] [--min-backend-success-ratio <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>] [--enforce-d2] [--max-d2-count-mismatches <count>] [--max-d2-legacy-only <count>] [--max-d2-domain-only <count>] [--max-d2-domain-deficit <count>] [--max-d2-missing-legacy-link <count>] [--min-d2-replay-correlation-coverage <ratio>]
   npm run tickets -- render-board
   npm run tickets -- sync-board
 
@@ -165,6 +165,73 @@ interface SourceGroundingLatestSnapshot {
     eventEvidenceCoverage?: number;
     driftedTickets?: string[];
     missingEvidenceTickets?: string[];
+  };
+}
+
+interface D2GateThresholds {
+  maxCountMismatches: number;
+  maxLegacyOnly: number;
+  maxDomainOnly: number;
+  maxDomainDeficit: number;
+  maxMissingLegacyLink: number;
+  minReplayCorrelationCoverage: number;
+}
+
+interface D2GateEvaluation {
+  failures: string[];
+  domainDeficit: number;
+  missingLegacyLink: number;
+  snapshot: Awaited<ReturnType<TicketStoreRepository['getD2EventSpineSnapshot']>>;
+  replaySummary: Awaited<ReturnType<TicketStoreRepository['getD2ReplaySummary']>>;
+}
+
+async function evaluateD2Gate(
+  repository: TicketStoreRepository,
+  thresholds: D2GateThresholds
+): Promise<D2GateEvaluation> {
+  const snapshot = await repository.getD2EventSpineSnapshot();
+  const replaySummaryA = await repository.getD2ReplaySummary();
+  const replaySummaryB = await repository.getD2ReplaySummary();
+  const failures: string[] = [];
+
+  const domainDeficit = Math.max(0, snapshot.legacyEventCount - snapshot.domainEventCount);
+  if (domainDeficit > thresholds.maxDomainDeficit) {
+    failures.push(`d2-domain-deficit-high:${domainDeficit}>${thresholds.maxDomainDeficit}`);
+  }
+  if (snapshot.ticketsWithCountMismatch.length > thresholds.maxCountMismatches) {
+    failures.push(
+      `d2-count-mismatch-high:${snapshot.ticketsWithCountMismatch.length}>${thresholds.maxCountMismatches}`
+    );
+  }
+  if (snapshot.ticketsWithLegacyOnly.length > thresholds.maxLegacyOnly) {
+    failures.push(`d2-legacy-only-high:${snapshot.ticketsWithLegacyOnly.length}>${thresholds.maxLegacyOnly}`);
+  }
+  if (snapshot.ticketsWithDomainOnly.length > thresholds.maxDomainOnly) {
+    failures.push(`d2-domain-only-high:${snapshot.ticketsWithDomainOnly.length}>${thresholds.maxDomainOnly}`);
+  }
+
+  const missingLegacyLink = Math.max(0, snapshot.domainEventCount - snapshot.domainEventsWithLegacyLink);
+  if (missingLegacyLink > thresholds.maxMissingLegacyLink) {
+    failures.push(`d2-missing-legacy-link-high:${missingLegacyLink}>${thresholds.maxMissingLegacyLink}`);
+  }
+  if (replaySummaryA.replayHash !== replaySummaryB.replayHash) {
+    failures.push('d2-replay-hash-unstable');
+  }
+  if (replaySummaryA.totalEvents === 0) {
+    failures.push('d2-replay-empty');
+  }
+  if (replaySummaryA.correlationCoverage < thresholds.minReplayCorrelationCoverage) {
+    failures.push(
+      `d2-replay-correlation-low:${replaySummaryA.correlationCoverage.toFixed(3)}<${thresholds.minReplayCorrelationCoverage}`
+    );
+  }
+
+  return {
+    failures,
+    domainDeficit,
+    missingLegacyLink,
+    snapshot,
+    replaySummary: replaySummaryA,
   };
 }
 
@@ -332,6 +399,31 @@ async function main(): Promise<void> {
           parseOption(args, '--max-source-snapshot-age-hours'),
           '--max-source-snapshot-age-hours'
         );
+        const enforceD2 = args.includes('--enforce-d2');
+        const maxD2CountMismatches = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-d2-count-mismatches'),
+          '--max-d2-count-mismatches'
+        ) ?? 0;
+        const maxD2LegacyOnly = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-d2-legacy-only'),
+          '--max-d2-legacy-only'
+        ) ?? 0;
+        const maxD2DomainOnly = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-d2-domain-only'),
+          '--max-d2-domain-only'
+        ) ?? 0;
+        const maxD2DomainDeficit = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-d2-domain-deficit'),
+          '--max-d2-domain-deficit'
+        ) ?? 0;
+        const maxD2MissingLegacyLink = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-d2-missing-legacy-link'),
+          '--max-d2-missing-legacy-link'
+        ) ?? 0;
+        const minD2ReplayCorrelationCoverage = parseRatioOption(
+          parseOption(args, '--min-d2-replay-correlation-coverage'),
+          '--min-d2-replay-correlation-coverage'
+        ) ?? 0.2;
         const enforceSourceSnapshot =
           minSourceGroundingCoverage !== undefined ||
           minSourceEvidenceCoverage !== undefined ||
@@ -344,6 +436,18 @@ async function main(): Promise<void> {
           sourceGroundingSnapshot = JSON.parse(sourceGroundingRaw) as SourceGroundingLatestSnapshot;
         } catch {
           sourceGroundingSnapshot = undefined;
+        }
+
+        let d2Evaluation: D2GateEvaluation | undefined;
+        if (enforceD2) {
+          d2Evaluation = await evaluateD2Gate(repository, {
+            maxCountMismatches: maxD2CountMismatches,
+            maxLegacyOnly: maxD2LegacyOnly,
+            maxDomainOnly: maxD2DomainOnly,
+            maxDomainDeficit: maxD2DomainDeficit,
+            maxMissingLegacyLink: maxD2MissingLegacyLink,
+            minReplayCorrelationCoverage: minD2ReplayCorrelationCoverage,
+          });
         }
 
         const result = await runTicketAutopilot(
@@ -369,6 +473,7 @@ async function main(): Promise<void> {
             sourceGroundingSnapshot,
             enforceSourceSnapshot,
             maxSourceSnapshotAgeHours,
+            additionalGateFailures: d2Evaluation?.failures,
           }
         );
 
@@ -382,6 +487,20 @@ async function main(): Promise<void> {
           for (const failure of result.gateFailures) {
             console.log(`Gate fail ${failure}`);
           }
+        }
+
+        if (d2Evaluation) {
+          console.log(
+            `D2 replay coverage: ${d2Evaluation.replaySummary.correlationCoverage.toFixed(3)} (threshold ${minD2ReplayCorrelationCoverage})`
+          );
+          console.log(`D2 replay hash: ${d2Evaluation.replaySummary.replayHash}`);
+          console.log(
+            `D2 count mismatch tickets: ${d2Evaluation.snapshot.ticketsWithCountMismatch.length} (threshold ${maxD2CountMismatches})`
+          );
+          console.log(`D2 domain deficit: ${d2Evaluation.domainDeficit} (threshold ${maxD2DomainDeficit})`);
+          console.log(
+            `D2 missing legacy link rows: ${d2Evaluation.missingLegacyLink} (threshold ${maxD2MissingLegacyLink})`
+          );
         }
 
         for (const ticket of result.resumed) {
@@ -653,41 +772,15 @@ async function main(): Promise<void> {
           '--min-replay-correlation-coverage'
         ) ?? 0;
 
-        const snapshot = await repository.getD2EventSpineSnapshot();
-        const replaySummaryA = await repository.getD2ReplaySummary();
-        const replaySummaryB = await repository.getD2ReplaySummary();
-        const failures: string[] = [];
-
-        const domainDeficit = Math.max(0, snapshot.legacyEventCount - snapshot.domainEventCount);
-        if (domainDeficit > maxDomainDeficit) {
-          failures.push(`d2-domain-deficit-high:${domainDeficit}>${maxDomainDeficit}`);
-        }
-        if (snapshot.ticketsWithCountMismatch.length > maxCountMismatches) {
-          failures.push(
-            `d2-count-mismatch-high:${snapshot.ticketsWithCountMismatch.length}>${maxCountMismatches}`
-          );
-        }
-        if (snapshot.ticketsWithLegacyOnly.length > maxLegacyOnly) {
-          failures.push(`d2-legacy-only-high:${snapshot.ticketsWithLegacyOnly.length}>${maxLegacyOnly}`);
-        }
-        if (snapshot.ticketsWithDomainOnly.length > maxDomainOnly) {
-          failures.push(`d2-domain-only-high:${snapshot.ticketsWithDomainOnly.length}>${maxDomainOnly}`);
-        }
-        const missingLegacyLink = Math.max(0, snapshot.domainEventCount - snapshot.domainEventsWithLegacyLink);
-        if (missingLegacyLink > maxMissingLegacyLink) {
-          failures.push(`d2-missing-legacy-link-high:${missingLegacyLink}>${maxMissingLegacyLink}`);
-        }
-        if (replaySummaryA.replayHash !== replaySummaryB.replayHash) {
-          failures.push('d2-replay-hash-unstable');
-        }
-        if (replaySummaryA.totalEvents === 0) {
-          failures.push('d2-replay-empty');
-        }
-        if (replaySummaryA.correlationCoverage < minReplayCorrelationCoverage) {
-          failures.push(
-            `d2-replay-correlation-low:${replaySummaryA.correlationCoverage.toFixed(3)}<${minReplayCorrelationCoverage}`
-          );
-        }
+        const evaluation = await evaluateD2Gate(repository, {
+          maxCountMismatches,
+          maxLegacyOnly,
+          maxDomainOnly,
+          maxDomainDeficit,
+          maxMissingLegacyLink,
+          minReplayCorrelationCoverage,
+        });
+        const { failures, domainDeficit, missingLegacyLink, snapshot, replaySummary } = evaluation;
 
         console.log('Hephaestus D2 verifier');
         console.log(`Decision: ${failures.length === 0 ? 'PASS' : 'FAIL'}`);
@@ -697,12 +790,12 @@ async function main(): Promise<void> {
         console.log(`Domain events with legacy link: ${snapshot.domainEventsWithLegacyLink}`);
         console.log(`Missing legacy link rows: ${missingLegacyLink} (threshold ${maxMissingLegacyLink})`);
         console.log(`Event evidence rows: ${snapshot.eventEvidenceCount}`);
-        console.log(`Replay tickets: ${replaySummaryA.ticketCount}`);
-        console.log(`Replay total events: ${replaySummaryA.totalEvents}`);
+        console.log(`Replay tickets: ${replaySummary.ticketCount}`);
+        console.log(`Replay total events: ${replaySummary.totalEvents}`);
         console.log(
-          `Replay correlation coverage: ${replaySummaryA.correlationCoverage.toFixed(3)} (threshold ${minReplayCorrelationCoverage})`
+          `Replay correlation coverage: ${replaySummary.correlationCoverage.toFixed(3)} (threshold ${minReplayCorrelationCoverage})`
         );
-        console.log(`Replay hash: ${replaySummaryA.replayHash}`);
+        console.log(`Replay hash: ${replaySummary.replayHash}`);
         console.log(
           `Tickets with event count mismatch: ${snapshot.ticketsWithCountMismatch.length} (threshold ${maxCountMismatches})`
         );
@@ -751,6 +844,31 @@ async function main(): Promise<void> {
           parseOption(args, '--max-source-snapshot-age-hours'),
           '--max-source-snapshot-age-hours'
         ) ?? 24;
+        const enforceD2 = args.includes('--enforce-d2');
+        const maxD2CountMismatches = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-d2-count-mismatches'),
+          '--max-d2-count-mismatches'
+        ) ?? 0;
+        const maxD2LegacyOnly = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-d2-legacy-only'),
+          '--max-d2-legacy-only'
+        ) ?? 0;
+        const maxD2DomainOnly = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-d2-domain-only'),
+          '--max-d2-domain-only'
+        ) ?? 0;
+        const maxD2DomainDeficit = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-d2-domain-deficit'),
+          '--max-d2-domain-deficit'
+        ) ?? 0;
+        const maxD2MissingLegacyLink = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-d2-missing-legacy-link'),
+          '--max-d2-missing-legacy-link'
+        ) ?? 0;
+        const minD2ReplayCorrelationCoverage = parseRatioOption(
+          parseOption(args, '--min-d2-replay-correlation-coverage'),
+          '--min-d2-replay-correlation-coverage'
+        ) ?? 0.2;
 
         const efficiencyRaw = await fs.readFile('docs/metrics/efficiency-latest.json', 'utf-8');
         const efficiency = JSON.parse(efficiencyRaw) as EfficiencyLatestSnapshot;
@@ -833,6 +951,19 @@ async function main(): Promise<void> {
           }
         }
 
+        let d2Evaluation: D2GateEvaluation | undefined;
+        if (enforceD2) {
+          d2Evaluation = await evaluateD2Gate(repository, {
+            maxCountMismatches: maxD2CountMismatches,
+            maxLegacyOnly: maxD2LegacyOnly,
+            maxDomainOnly: maxD2DomainOnly,
+            maxDomainDeficit: maxD2DomainDeficit,
+            maxMissingLegacyLink: maxD2MissingLegacyLink,
+            minReplayCorrelationCoverage: minD2ReplayCorrelationCoverage,
+          });
+          failures.push(...d2Evaluation.failures);
+        }
+
         console.log('Hephaestus wave review');
         console.log(`Decision: ${failures.length === 0 ? 'GO' : 'NO-GO'}`);
         console.log(`Efficiency score: ${efficiencyScore.toFixed(3)} (threshold ${minEfficiencyScore})`);
@@ -861,6 +992,19 @@ async function main(): Promise<void> {
         console.log(
           `Source drifted tickets: ${sourceDriftedTickets.length} (threshold ${maxSourceDrifted})`
         );
+        if (d2Evaluation) {
+          console.log(
+            `D2 replay correlation coverage: ${d2Evaluation.replaySummary.correlationCoverage.toFixed(3)} (threshold ${minD2ReplayCorrelationCoverage})`
+          );
+          console.log(`D2 replay hash: ${d2Evaluation.replaySummary.replayHash}`);
+          console.log(
+            `D2 count mismatch tickets: ${d2Evaluation.snapshot.ticketsWithCountMismatch.length} (threshold ${maxD2CountMismatches})`
+          );
+          console.log(`D2 domain deficit: ${d2Evaluation.domainDeficit} (threshold ${maxD2DomainDeficit})`);
+          console.log(
+            `D2 missing legacy link rows: ${d2Evaluation.missingLegacyLink} (threshold ${maxD2MissingLegacyLink})`
+          );
+        }
         if (backendReliabilityEntries.length === 0) {
           console.log('Backend reliability: unavailable (no attributed attempts)');
         } else {

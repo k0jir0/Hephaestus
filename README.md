@@ -35,8 +35,9 @@ Since the last README update, D2 (Event and Evidence Spine) advanced with the fo
 - idempotent legacy backfill into canonical event/evidence tables with restart-safe uniqueness constraints
 - deterministic D2 parity and replay verifier command via `npm run tickets -- verify-d2`
 - strict D2 gate alias via `npm run metrics:d2:verify` (parity, link completeness, replay stability, replay correlation coverage)
+- opt-in strict D2 gate integration into `autopilot` and `review-wave` via `--enforce-d2`
 
-Current D2 status: approximately 85% complete toward D3 handoff. Remaining work is optional strict-gate integration into review/autopilot flows and final D2 closure docs/ADR updates.
+Current D2 status: approximately 92% complete toward D3 handoff. Remaining work is final D2 closure evidence notes and threshold burn-in before making strict runtime D2 gates default.
 
 ## Validated Today (2026-05-29)
 

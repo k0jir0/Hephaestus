@@ -41,6 +41,7 @@ export interface TicketAutopilotGateOptions {
   };
   enforceSourceSnapshot?: boolean;
   maxSourceSnapshotAgeHours?: number;
+  additionalGateFailures?: string[];
   nowMs?: number;
 }
 
@@ -55,6 +56,7 @@ interface ResolvedTicketAutopilotGateOptions {
   sourceGroundingSnapshot?: TicketAutopilotGateOptions['sourceGroundingSnapshot'];
   enforceSourceSnapshot: boolean;
   maxSourceSnapshotAgeHours: number;
+  additionalGateFailures: string[];
   nowMs: number;
 }
 
@@ -100,6 +102,7 @@ function resolveGateOptions(
     sourceGroundingSnapshot: options.sourceGroundingSnapshot,
     enforceSourceSnapshot: options.enforceSourceSnapshot ?? false,
     maxSourceSnapshotAgeHours: options.maxSourceSnapshotAgeHours ?? 24,
+    additionalGateFailures: options.additionalGateFailures ?? [],
     nowMs: options.nowMs ?? Date.now(),
   };
 }
@@ -133,7 +136,7 @@ export function evaluateTicketAutopilotGateFailures(
   options: TicketAutopilotGateOptions = {}
 ): string[] {
   const resolvedOptions = resolveGateOptions(options);
-  const failures: string[] = [];
+  const failures: string[] = [...resolvedOptions.additionalGateFailures];
 
   const terminalTickets = tickets.filter((ticket) => terminalStatuses.has(ticket.status));
   if (terminalTickets.length >= 10) {

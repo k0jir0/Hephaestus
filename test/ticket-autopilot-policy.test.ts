@@ -197,6 +197,17 @@ describe('ticket autopilot policy', () => {
     );
   });
 
+  it('includes externally supplied gate failures for strict runtime enforcement', () => {
+    const failures = evaluateTicketAutopilotGateFailures(
+      [makeTicket('ticket_1', 'completed')],
+      {
+        additionalGateFailures: ['d2-domain-deficit-high:1>0'],
+      }
+    );
+
+    assert.ok(failures.includes('d2-domain-deficit-high:1>0'));
+  });
+
   it('decides when idle autopilot should seed self-audit work', () => {
     assert.equal(
       shouldSeedSelfAuditFromAutopilot({

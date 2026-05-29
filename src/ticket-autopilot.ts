@@ -42,6 +42,7 @@ export interface TicketAutopilotOptions {
   };
   enforceSourceSnapshot?: boolean;
   maxSourceSnapshotAgeHours?: number;
+  additionalGateFailures?: string[];
 }
 
 export interface TicketAutopilotResult {

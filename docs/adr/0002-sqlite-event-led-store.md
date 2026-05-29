@@ -36,5 +36,10 @@ The domain model must not depend on SQLite-specific behavior.
 
 ## Follow-Up
 
-- Design `domain_events` and `side_effects` migration in D2.
-- Add drift checks between current-state tables and event-derived timelines.
+- Delivered in D2:
+    - `domain_events` plus `event_evidence` migrations are active.
+    - dual-write and canonical-read fallback paths are active.
+    - idempotent legacy backfill into canonical event/evidence tables is active.
+    - D2 verifier (`verify-d2`) enforces parity, replay hash stability, and replay correlation coverage.
+- Remaining:
+    - keep strict D2 gates in burn-in mode for workflow entrypoints before making them mandatory defaults.
