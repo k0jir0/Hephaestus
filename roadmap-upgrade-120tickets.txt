@@ -1,0 +1,191 @@
+﻿Hephaestus Roadmap Upgrade: 120 Ticket Thesis
+Date: 2026-05-28
+
+Thesis
+The post-README operating questions reveal one central constraint: efficiency metrics improve only when ticket semantics, execution mode, and policy/runtime capabilities remain aligned. Superseded-heavy runs, mixed assisted/autonomous cohorts, and uneven ticket granularity can inflate activity while diluting true autonomous throughput. The next roadmap therefore prioritizes a structured 120-ticket seed that converts reflection into measurable engineering work.
+
+Derived Findings from Recent Questions
+1. Completed status represents successful workflow execution, but not always source mutation.
+2. Superseded clusters are often a signal of intake fragmentation and late scope absorption.
+3. Tandem mode currently delivers fastest value, while Hephaestus-only remains valid for bounded lanes.
+4. High-volume retention only helps when metadata and acceptance criteria are disciplined.
+5. Optimal intake should be large enough for stable trend detection but bounded enough to avoid churn.
+
+Roadmap Objective
+Seed exactly 120 bounded tickets that improve architecture quality, design coherence, functionality reliability, test depth, code quality, runtime performance, UI visual correctness, dark mode default UX, methodology efficiency, and measurable control-loop gains.
+
+Execution Model
+- Default operating lane: tandem mode for delivery velocity.
+- Calibration lane: bounded Hephaestus-only cohorts for autonomy measurement.
+- Ticket contract: each ticket includes local scope and explicit verification signal.
+- Completion quality: prefer completed outcomes; reduce superseded outcomes through tighter intake.
+
+Review and Improvement Domains Covered
+- Architecture review
+- Design review
+- Functionality review
+- Further test implementation under test/
+- Code review
+- Optimization
+- Unnecessary code reduction
+- Web UI table/layer visual formatting fixes
+- Dark mode default CSS direction
+- Methodology replacement for efficiency
+- Largest efficiency gain targeting
+- Ticketized execution through Hephaestus CLI
+
+120-Ticket Seed Catalog
+Format: T### | Stream | Ticket Description
+
+Stream AR: Architecture Review
+T001 | AR-01 | Implement bounded module mapping and dependency annotation in src/runtime.ts and src/repositories.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T002 | AR-02 | Refactor control-flow seams to reduce coupling in src/runtime.ts and src/repositories.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T003 | AR-03 | Add invariant checks for state transition safety in src/runtime.ts and src/repositories.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T004 | AR-04 | Harden error taxonomy and operator-facing messaging in src/runtime.ts and src/repositories.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T005 | AR-05 | Normalize command and option parsing paths in src/runtime.ts and src/repositories.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T006 | AR-06 | Reduce duplicate logic through shared utility extraction in src/runtime.ts and src/repositories.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T007 | AR-07 | Strengthen telemetry fields for diagnosis and trend analysis in src/runtime.ts and src/repositories.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T008 | AR-08 | Improve verification pathways and acceptance traceability in src/runtime.ts and src/repositories.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T009 | AR-09 | Stabilize edge-case handling under retry and resume flows in src/runtime.ts and src/repositories.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T010 | AR-10 | Document design rationale and measurable acceptance criteria in src/runtime.ts and src/repositories.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+
+Stream DR: Design Review
+T011 | DR-01 | Implement bounded module mapping and dependency annotation in docs/architecture.md and src/ui-server.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T012 | DR-02 | Refactor control-flow seams to reduce coupling in docs/architecture.md and src/ui-server.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T013 | DR-03 | Add invariant checks for state transition safety in docs/architecture.md and src/ui-server.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T014 | DR-04 | Harden error taxonomy and operator-facing messaging in docs/architecture.md and src/ui-server.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T015 | DR-05 | Normalize command and option parsing paths in docs/architecture.md and src/ui-server.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T016 | DR-06 | Reduce duplicate logic through shared utility extraction in docs/architecture.md and src/ui-server.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T017 | DR-07 | Strengthen telemetry fields for diagnosis and trend analysis in docs/architecture.md and src/ui-server.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T018 | DR-08 | Improve verification pathways and acceptance traceability in docs/architecture.md and src/ui-server.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T019 | DR-09 | Stabilize edge-case handling under retry and resume flows in docs/architecture.md and src/ui-server.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T020 | DR-10 | Document design rationale and measurable acceptance criteria in docs/architecture.md and src/ui-server.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+
+Stream FR: Functionality Review
+T021 | FR-01 | Implement bounded module mapping and dependency annotation in src/tickets.ts and src/ticket-autopilot.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T022 | FR-02 | Refactor control-flow seams to reduce coupling in src/tickets.ts and src/ticket-autopilot.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T023 | FR-03 | Add invariant checks for state transition safety in src/tickets.ts and src/ticket-autopilot.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T024 | FR-04 | Harden error taxonomy and operator-facing messaging in src/tickets.ts and src/ticket-autopilot.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T025 | FR-05 | Normalize command and option parsing paths in src/tickets.ts and src/ticket-autopilot.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T026 | FR-06 | Reduce duplicate logic through shared utility extraction in src/tickets.ts and src/ticket-autopilot.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T027 | FR-07 | Strengthen telemetry fields for diagnosis and trend analysis in src/tickets.ts and src/ticket-autopilot.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T028 | FR-08 | Improve verification pathways and acceptance traceability in src/tickets.ts and src/ticket-autopilot.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T029 | FR-09 | Stabilize edge-case handling under retry and resume flows in src/tickets.ts and src/ticket-autopilot.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T030 | FR-10 | Document design rationale and measurable acceptance criteria in src/tickets.ts and src/ticket-autopilot.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+
+Stream TT: Test Expansion
+T031 | TT-01 | Implement bounded module mapping and dependency annotation in test/runtime.test.ts and test/task-store.test.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T032 | TT-02 | Refactor control-flow seams to reduce coupling in test/runtime.test.ts and test/task-store.test.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T033 | TT-03 | Add invariant checks for state transition safety in test/runtime.test.ts and test/task-store.test.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T034 | TT-04 | Harden error taxonomy and operator-facing messaging in test/runtime.test.ts and test/task-store.test.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T035 | TT-05 | Normalize command and option parsing paths in test/runtime.test.ts and test/task-store.test.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T036 | TT-06 | Reduce duplicate logic through shared utility extraction in test/runtime.test.ts and test/task-store.test.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T037 | TT-07 | Strengthen telemetry fields for diagnosis and trend analysis in test/runtime.test.ts and test/task-store.test.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T038 | TT-08 | Improve verification pathways and acceptance traceability in test/runtime.test.ts and test/task-store.test.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T039 | TT-09 | Stabilize edge-case handling under retry and resume flows in test/runtime.test.ts and test/task-store.test.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+T040 | TT-10 | Document design rationale and measurable acceptance criteria in test/runtime.test.ts and test/task-store.test.ts; verify with npm test and expected signal: bounded checks pass without policy denials.
+
+Stream CR: Code Review
+T041 | CR-01 | Implement bounded module mapping and dependency annotation in src/runtime.ts and src/task-store.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T042 | CR-02 | Refactor control-flow seams to reduce coupling in src/runtime.ts and src/task-store.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T043 | CR-03 | Add invariant checks for state transition safety in src/runtime.ts and src/task-store.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T044 | CR-04 | Harden error taxonomy and operator-facing messaging in src/runtime.ts and src/task-store.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T045 | CR-05 | Normalize command and option parsing paths in src/runtime.ts and src/task-store.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T046 | CR-06 | Reduce duplicate logic through shared utility extraction in src/runtime.ts and src/task-store.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T047 | CR-07 | Strengthen telemetry fields for diagnosis and trend analysis in src/runtime.ts and src/task-store.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T048 | CR-08 | Improve verification pathways and acceptance traceability in src/runtime.ts and src/task-store.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T049 | CR-09 | Stabilize edge-case handling under retry and resume flows in src/runtime.ts and src/task-store.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T050 | CR-10 | Document design rationale and measurable acceptance criteria in src/runtime.ts and src/task-store.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+
+Stream OP: Optimization
+T051 | OP-01 | Implement bounded module mapping and dependency annotation in src/task-store.ts and src/efficiency-metrics.ts; verify with npm run metrics:efficiency and expected signal: bounded checks pass without policy denials.
+T052 | OP-02 | Refactor control-flow seams to reduce coupling in src/task-store.ts and src/efficiency-metrics.ts; verify with npm run metrics:efficiency and expected signal: bounded checks pass without policy denials.
+T053 | OP-03 | Add invariant checks for state transition safety in src/task-store.ts and src/efficiency-metrics.ts; verify with npm run metrics:efficiency and expected signal: bounded checks pass without policy denials.
+T054 | OP-04 | Harden error taxonomy and operator-facing messaging in src/task-store.ts and src/efficiency-metrics.ts; verify with npm run metrics:efficiency and expected signal: bounded checks pass without policy denials.
+T055 | OP-05 | Normalize command and option parsing paths in src/task-store.ts and src/efficiency-metrics.ts; verify with npm run metrics:efficiency and expected signal: bounded checks pass without policy denials.
+T056 | OP-06 | Reduce duplicate logic through shared utility extraction in src/task-store.ts and src/efficiency-metrics.ts; verify with npm run metrics:efficiency and expected signal: bounded checks pass without policy denials.
+T057 | OP-07 | Strengthen telemetry fields for diagnosis and trend analysis in src/task-store.ts and src/efficiency-metrics.ts; verify with npm run metrics:efficiency and expected signal: bounded checks pass without policy denials.
+T058 | OP-08 | Improve verification pathways and acceptance traceability in src/task-store.ts and src/efficiency-metrics.ts; verify with npm run metrics:efficiency and expected signal: bounded checks pass without policy denials.
+T059 | OP-09 | Stabilize edge-case handling under retry and resume flows in src/task-store.ts and src/efficiency-metrics.ts; verify with npm run metrics:efficiency and expected signal: bounded checks pass without policy denials.
+T060 | OP-10 | Document design rationale and measurable acceptance criteria in src/task-store.ts and src/efficiency-metrics.ts; verify with npm run metrics:efficiency and expected signal: bounded checks pass without policy denials.
+
+Stream RF: Refinement
+T061 | RF-01 | Implement bounded module mapping and dependency annotation in src/model-cli.ts and src/cli-utils.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T062 | RF-02 | Refactor control-flow seams to reduce coupling in src/model-cli.ts and src/cli-utils.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T063 | RF-03 | Add invariant checks for state transition safety in src/model-cli.ts and src/cli-utils.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T064 | RF-04 | Harden error taxonomy and operator-facing messaging in src/model-cli.ts and src/cli-utils.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T065 | RF-05 | Normalize command and option parsing paths in src/model-cli.ts and src/cli-utils.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T066 | RF-06 | Reduce duplicate logic through shared utility extraction in src/model-cli.ts and src/cli-utils.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T067 | RF-07 | Strengthen telemetry fields for diagnosis and trend analysis in src/model-cli.ts and src/cli-utils.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T068 | RF-08 | Improve verification pathways and acceptance traceability in src/model-cli.ts and src/cli-utils.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T069 | RF-09 | Stabilize edge-case handling under retry and resume flows in src/model-cli.ts and src/cli-utils.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T070 | RF-10 | Document design rationale and measurable acceptance criteria in src/model-cli.ts and src/cli-utils.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+
+Stream UI: UI Formatting
+T071 | UI-01 | Implement bounded module mapping and dependency annotation in src/ui.ts and src/ui-server.ts; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T072 | UI-02 | Refactor control-flow seams to reduce coupling in src/ui.ts and src/ui-server.ts; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T073 | UI-03 | Add invariant checks for state transition safety in src/ui.ts and src/ui-server.ts; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T074 | UI-04 | Harden error taxonomy and operator-facing messaging in src/ui.ts and src/ui-server.ts; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T075 | UI-05 | Normalize command and option parsing paths in src/ui.ts and src/ui-server.ts; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T076 | UI-06 | Reduce duplicate logic through shared utility extraction in src/ui.ts and src/ui-server.ts; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T077 | UI-07 | Strengthen telemetry fields for diagnosis and trend analysis in src/ui.ts and src/ui-server.ts; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T078 | UI-08 | Improve verification pathways and acceptance traceability in src/ui.ts and src/ui-server.ts; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T079 | UI-09 | Stabilize edge-case handling under retry and resume flows in src/ui.ts and src/ui-server.ts; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T080 | UI-10 | Document design rationale and measurable acceptance criteria in src/ui.ts and src/ui-server.ts; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+
+Stream DM: Dark Mode Default
+T081 | DM-01 | Implement bounded module mapping and dependency annotation in src/ui.ts and docs/architecture.md; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T082 | DM-02 | Refactor control-flow seams to reduce coupling in src/ui.ts and docs/architecture.md; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T083 | DM-03 | Add invariant checks for state transition safety in src/ui.ts and docs/architecture.md; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T084 | DM-04 | Harden error taxonomy and operator-facing messaging in src/ui.ts and docs/architecture.md; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T085 | DM-05 | Normalize command and option parsing paths in src/ui.ts and docs/architecture.md; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T086 | DM-06 | Reduce duplicate logic through shared utility extraction in src/ui.ts and docs/architecture.md; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T087 | DM-07 | Strengthen telemetry fields for diagnosis and trend analysis in src/ui.ts and docs/architecture.md; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T088 | DM-08 | Improve verification pathways and acceptance traceability in src/ui.ts and docs/architecture.md; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T089 | DM-09 | Stabilize edge-case handling under retry and resume flows in src/ui.ts and docs/architecture.md; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+T090 | DM-10 | Document design rationale and measurable acceptance criteria in src/ui.ts and docs/architecture.md; verify with npm run ui and expected signal: bounded checks pass without policy denials.
+
+Stream MR: Methodology Replacement
+T091 | MR-01 | Implement bounded module mapping and dependency annotation in src/task-envelope.ts and src/runtime.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T092 | MR-02 | Refactor control-flow seams to reduce coupling in src/task-envelope.ts and src/runtime.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T093 | MR-03 | Add invariant checks for state transition safety in src/task-envelope.ts and src/runtime.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T094 | MR-04 | Harden error taxonomy and operator-facing messaging in src/task-envelope.ts and src/runtime.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T095 | MR-05 | Normalize command and option parsing paths in src/task-envelope.ts and src/runtime.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T096 | MR-06 | Reduce duplicate logic through shared utility extraction in src/task-envelope.ts and src/runtime.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T097 | MR-07 | Strengthen telemetry fields for diagnosis and trend analysis in src/task-envelope.ts and src/runtime.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T098 | MR-08 | Improve verification pathways and acceptance traceability in src/task-envelope.ts and src/runtime.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T099 | MR-09 | Stabilize edge-case handling under retry and resume flows in src/task-envelope.ts and src/runtime.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+T100 | MR-10 | Document design rationale and measurable acceptance criteria in src/task-envelope.ts and src/runtime.ts; verify with npm run build and expected signal: bounded checks pass without policy denials.
+
+Stream EG: Efficiency Gains
+T101 | EG-01 | Implement bounded module mapping and dependency annotation in src/efficiency-weekly-report.ts and docs/metrics/efficiency-weekly-report.md; verify with npm run metrics:efficiency:weekly and expected signal: bounded checks pass without policy denials.
+T102 | EG-02 | Refactor control-flow seams to reduce coupling in src/efficiency-weekly-report.ts and docs/metrics/efficiency-weekly-report.md; verify with npm run metrics:efficiency:weekly and expected signal: bounded checks pass without policy denials.
+T103 | EG-03 | Add invariant checks for state transition safety in src/efficiency-weekly-report.ts and docs/metrics/efficiency-weekly-report.md; verify with npm run metrics:efficiency:weekly and expected signal: bounded checks pass without policy denials.
+T104 | EG-04 | Harden error taxonomy and operator-facing messaging in src/efficiency-weekly-report.ts and docs/metrics/efficiency-weekly-report.md; verify with npm run metrics:efficiency:weekly and expected signal: bounded checks pass without policy denials.
+T105 | EG-05 | Normalize command and option parsing paths in src/efficiency-weekly-report.ts and docs/metrics/efficiency-weekly-report.md; verify with npm run metrics:efficiency:weekly and expected signal: bounded checks pass without policy denials.
+T106 | EG-06 | Reduce duplicate logic through shared utility extraction in src/efficiency-weekly-report.ts and docs/metrics/efficiency-weekly-report.md; verify with npm run metrics:efficiency:weekly and expected signal: bounded checks pass without policy denials.
+T107 | EG-07 | Strengthen telemetry fields for diagnosis and trend analysis in src/efficiency-weekly-report.ts and docs/metrics/efficiency-weekly-report.md; verify with npm run metrics:efficiency:weekly and expected signal: bounded checks pass without policy denials.
+T108 | EG-08 | Improve verification pathways and acceptance traceability in src/efficiency-weekly-report.ts and docs/metrics/efficiency-weekly-report.md; verify with npm run metrics:efficiency:weekly and expected signal: bounded checks pass without policy denials.
+T109 | EG-09 | Stabilize edge-case handling under retry and resume flows in src/efficiency-weekly-report.ts and docs/metrics/efficiency-weekly-report.md; verify with npm run metrics:efficiency:weekly and expected signal: bounded checks pass without policy denials.
+T110 | EG-10 | Document design rationale and measurable acceptance criteria in src/efficiency-weekly-report.ts and docs/metrics/efficiency-weekly-report.md; verify with npm run metrics:efficiency:weekly and expected signal: bounded checks pass without policy denials.
+
+Stream HT: Hephaestus Ticket Execution
+T111 | HT-01 | Implement bounded module mapping and dependency annotation in src/tickets.ts and TASKS.md; verify with npm run tickets -- metrics and expected signal: bounded checks pass without policy denials.
+T112 | HT-02 | Refactor control-flow seams to reduce coupling in src/tickets.ts and TASKS.md; verify with npm run tickets -- metrics and expected signal: bounded checks pass without policy denials.
+T113 | HT-03 | Add invariant checks for state transition safety in src/tickets.ts and TASKS.md; verify with npm run tickets -- metrics and expected signal: bounded checks pass without policy denials.
+T114 | HT-04 | Harden error taxonomy and operator-facing messaging in src/tickets.ts and TASKS.md; verify with npm run tickets -- metrics and expected signal: bounded checks pass without policy denials.
+T115 | HT-05 | Normalize command and option parsing paths in src/tickets.ts and TASKS.md; verify with npm run tickets -- metrics and expected signal: bounded checks pass without policy denials.
+T116 | HT-06 | Reduce duplicate logic through shared utility extraction in src/tickets.ts and TASKS.md; verify with npm run tickets -- metrics and expected signal: bounded checks pass without policy denials.
+T117 | HT-07 | Strengthen telemetry fields for diagnosis and trend analysis in src/tickets.ts and TASKS.md; verify with npm run tickets -- metrics and expected signal: bounded checks pass without policy denials.
+T118 | HT-08 | Improve verification pathways and acceptance traceability in src/tickets.ts and TASKS.md; verify with npm run tickets -- metrics and expected signal: bounded checks pass without policy denials.
+T119 | HT-09 | Stabilize edge-case handling under retry and resume flows in src/tickets.ts and TASKS.md; verify with npm run tickets -- metrics and expected signal: bounded checks pass without policy denials.
+T120 | HT-10 | Document design rationale and measurable acceptance criteria in src/tickets.ts and TASKS.md; verify with npm run tickets -- metrics and expected signal: bounded checks pass without policy denials.
+
+Roadmap Delivery Notes
+1. Seed all 120 tickets through npm run tickets -- create.
+2. Execute in 12 waves of 10 tickets by stream code order.
+3. Measure weekly deltas for completion rate, retry rate, denial rate, and p95 latency.
+4. Keep Hephaestus-only cohorts separate from assisted cohorts for clean comparability.
+
+Expected Outcome
+A structured 120-ticket backlog should improve retention usefulness, reduce superseded churn, and expose highest-yield efficiency upgrades with measurable evidence.
