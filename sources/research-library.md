@@ -111,6 +111,12 @@ Do **not** store unauthorized copies of copyrighted PDFs on the drive. If a pape
 
 ## Suggested Local Library Shape
 
+Initial implementation status:
+
+- `sources/notes/` now exists and contains notes for the active catalog
+- `sources/papers/` now exists and contains the first lawful open-access batch
+- `sources/acquisition-manifest.md` tracks what is stocked, note-only, or still pending lawful acquisition
+
 Recommended on-drive structure:
 
 ```text

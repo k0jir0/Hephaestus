@@ -99,3 +99,44 @@ https://doi.org/10.1023/A:1022883727209
 [Yao2023] Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan, K., and
 Cao, Y. (2023). "ReAct: Synergizing Reasoning and Acting in Language Models."
 ICLR 2023. https://arxiv.org/abs/2210.03629
+
+[Amodei2016] Amodei, D., Olah, C., Steinhardt, J., Christiano, P., Schulman,
+J., and Mane, D. (2016). "Concrete Problems in AI Safety."
+https://arxiv.org/abs/1606.06565
+
+[ChandyLamport1985] Chandy, K. M., and Lamport, L. (1985). "Distributed
+Snapshots: Determining Global States of Distributed Systems." ACM
+Transactions on Computer Systems, 3(1), 63-75.
+https://doi.org/10.1145/214451.214456
+
+[ClaessenHughes2000] Claessen, K., and Hughes, J. (2000). "QuickCheck: A
+Lightweight Tool for Random Testing of Haskell Programs." ICFP 2000.
+https://doi.org/10.1145/351240.351266
+
+[Endsley1995] Endsley, M. R. (1995). "Toward a Theory of Situation Awareness
+in Dynamic Systems." Human Factors, 37(1), 32-64.
+https://doi.org/10.1518/001872095779049543
+
+[Helland2015] Helland, P. (2015). "Immutability Changes Everything."
+Communications of the ACM, 58(1), 66-73.
+https://doi.org/10.1145/2857274.2884038
+
+[LeeSee2004] Lee, J. D., and See, K. A. (2004). "Trust in Automation:
+Designing for Appropriate Reliance." Human Factors, 46(1), 50-80.
+https://doi.org/10.1518/hfes.46.1.50.30392
+
+[Schick2023Toolformer] Schick, T., Dwivedi-Yu, J., Dessi, R., et al. (2023).
+"Toolformer: Language Models Can Teach Themselves to Use Tools."
+https://arxiv.org/abs/2302.04761
+
+[Shinn2023Reflexion] Shinn, N., Cassano, F., Labash, B., and Gopinath, A.
+(2023). "Reflexion: Language Agents with Verbal Reinforcement Learning."
+https://arxiv.org/abs/2303.11366
+
+[Yang2024SWEAgent] Yang, J., Jimenez, C. E., Wettig, A., Yao, S., Pei, K., and
+Narasimhan, K. (2024). "SWE-agent: Agent-Computer Interfaces Enable Automated
+Software Engineering." https://arxiv.org/abs/2405.15793
+
+[Zhang2023RepoCoder] Zhang, Y., Li, C., Sun, J., et al. (2023). "RepoCoder:
+Repository-Level Code Completion Through Iterative Retrieval and Generation."
+https://arxiv.org/abs/2303.12570
