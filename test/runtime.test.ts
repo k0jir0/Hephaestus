@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { HephaestusRuntime } from '../src/runtime.js';
+import { buildCommandCatalogPolicySnapshot } from '../src/domain/policy/command-catalog-policy.js';
 import type { PendingTaskSideEffect } from '../src/repositories.js';
 import type { AIResponse, Task, TaskPlan } from '../src/types.js';
 
@@ -1008,6 +1009,7 @@ describe('HephaestusRuntime', () => {
             maxSearchResults: 10,
             commandTimeoutMs: 1000,
             commandAllowlist: ['npm test'],
+            commandCatalog: buildCommandCatalogPolicySnapshot(),
             protectedPathPrefixes: ['.git'],
             patchRiskThresholds: {
               maxSafeTouchedPaths: 1,
@@ -1192,6 +1194,7 @@ describe('HephaestusRuntime', () => {
             maxSearchResults: 10,
             commandTimeoutMs: 1000,
             commandAllowlist: ['npm test'],
+            commandCatalog: buildCommandCatalogPolicySnapshot(),
             protectedPathPrefixes: ['.git'],
             patchRiskThresholds: {
               maxSafeTouchedPaths: 1,
@@ -1400,6 +1403,7 @@ describe('HephaestusRuntime', () => {
             maxSearchResults: 10,
             commandTimeoutMs: 1000,
             commandAllowlist: ['npm test'],
+            commandCatalog: buildCommandCatalogPolicySnapshot(),
             protectedPathPrefixes: ['.git'],
             patchRiskThresholds: {
               maxSafeTouchedPaths: 1,

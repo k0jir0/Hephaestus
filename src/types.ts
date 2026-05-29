@@ -240,6 +240,23 @@ export interface EngineeringToolResult {
   mutatedPaths: string[];
 }
 
+export interface ToolPolicyCommandCatalogEntry {
+  id: string;
+  purpose: string;
+  command: string;
+  args: string[];
+  platforms: {
+    posix: {
+      command: string;
+      args: string[];
+    };
+    win32: {
+      command: string;
+      args: string[];
+    };
+  };
+}
+
 export interface ToolPolicySnapshot {
   version: string;
   workspaceRoot: string;
@@ -249,6 +266,7 @@ export interface ToolPolicySnapshot {
   maxSearchResults: number;
   commandTimeoutMs: number;
   commandAllowlist: string[];
+  commandCatalog: ToolPolicyCommandCatalogEntry[];
   protectedPathPrefixes: string[];
   patchRiskThresholds: {
     maxSafeTouchedPaths: number;

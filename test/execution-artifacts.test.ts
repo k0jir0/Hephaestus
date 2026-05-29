@@ -12,6 +12,7 @@ import {
   formatToolExecutionArtifact,
   formatToolFailureReason,
 } from '../src/domain/evidence/execution-artifacts.js';
+import { buildCommandCatalogPolicySnapshot } from '../src/domain/policy/command-catalog-policy.js';
 import type { EngineeringToolResult, ToolPolicySnapshot } from '../src/types.js';
 
 function makeResult(
@@ -41,6 +42,7 @@ function makePolicySnapshot(): ToolPolicySnapshot {
     maxSearchResults: 5,
     commandTimeoutMs: 1000,
     commandAllowlist: ['npm test'],
+    commandCatalog: buildCommandCatalogPolicySnapshot(),
     protectedPathPrefixes: ['.git'],
     patchRiskThresholds: {
       maxSafeTouchedPaths: 1,

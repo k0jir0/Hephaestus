@@ -46,7 +46,9 @@ import {
   validatePatchCallAgainstPlan,
   validateReadCallAgainstPlan,
 } from './domain/policy/plan-binding-policy.js';
-import { resolveCommandCatalogEntry } from './domain/policy/command-catalog-policy.js';
+import {
+  resolveCommandCatalogEntryForPlatform,
+} from './domain/policy/command-catalog-policy.js';
 import { formatCommandInvocation, parseCommandPlan } from './domain/plans/command-plan.js';
 import { buildApprovedResumeToolCalls } from './domain/tickets/approval-resume-policy.js';
 import { decideTaskCompletion } from './domain/tickets/completion-policy.js';
@@ -805,7 +807,7 @@ export class HephaestusRuntime {
       for (const commandPlan of plan.commands) {
         let parsedCommand = parseCommandPlan(commandPlan.command);
         if (commandPlan.commandId) {
-          const catalogEntry = resolveCommandCatalogEntry(commandPlan.commandId);
+          const catalogEntry = resolveCommandCatalogEntryForPlatform(commandPlan.commandId);
           if (!catalogEntry) {
             const reason = `Command ID ${commandPlan.commandId} is not defined in the command catalog.`;
             artifacts.push(formatDeniedToolArtifact(correlationId, `command.id ${commandPlan.commandId}`, reason));
@@ -1026,7 +1028,7 @@ export class HephaestusRuntime {
         let resolvedCommand = command;
         let resolvedArgs = args;
         if (commandId) {
-          const catalogEntry = resolveCommandCatalogEntry(commandId);
+          const catalogEntry = resolveCommandCatalogEntryForPlatform(commandId);
           if (!catalogEntry) {
             return {
               artifacts: [

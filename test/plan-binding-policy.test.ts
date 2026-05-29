@@ -6,6 +6,7 @@ import {
   decidePatchPlanBinding,
   decideReadPlanBinding,
 } from '../src/domain/policy/plan-binding-policy.js';
+import { buildCommandCatalogPolicySnapshot } from '../src/domain/policy/command-catalog-policy.js';
 import type { EngineeringToolResult, TaskPlan, ToolPolicySnapshot } from '../src/types.js';
 
 function makePlan(): TaskPlan {
@@ -62,6 +63,7 @@ function makePolicySnapshot(): ToolPolicySnapshot {
     maxSearchResults: 5,
     commandTimeoutMs: 1000,
     commandAllowlist: ['npm run lint', 'npm test'],
+    commandCatalog: buildCommandCatalogPolicySnapshot(),
     protectedPathPrefixes: [],
     patchRiskThresholds: {
       maxSafeTouchedPaths: 1,

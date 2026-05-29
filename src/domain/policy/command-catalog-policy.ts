@@ -1,59 +1,49 @@
+import type { ToolPolicyCommandCatalogEntry } from '../../types.js';
+
+export interface CommandCatalogMapping {
+  command: string;
+  args: string[];
+}
+
 export interface CommandCatalogEntry {
   id: string;
   command: string;
   args: string[];
   purpose: string;
+  platforms: {
+    posix: CommandCatalogMapping;
+    win32: CommandCatalogMapping;
+  };
+}
+
+function npmCatalogEntry(id: string, args: string[], purpose: string): CommandCatalogEntry {
+  return {
+    id,
+    command: 'npm',
+    args,
+    purpose,
+    platforms: {
+      posix: {
+        command: 'npm',
+        args,
+      },
+      win32: {
+        command: 'npm.cmd',
+        args,
+      },
+    },
+  };
 }
 
 const commandCatalog: readonly CommandCatalogEntry[] = [
-  {
-    id: 'npm.test',
-    command: 'npm',
-    args: ['test'],
-    purpose: 'Run the default test suite.',
-  },
-  {
-    id: 'npm.run.test',
-    command: 'npm',
-    args: ['run', 'test'],
-    purpose: 'Run the named test script.',
-  },
-  {
-    id: 'npm.run.build',
-    command: 'npm',
-    args: ['run', 'build'],
-    purpose: 'Compile TypeScript output.',
-  },
-  {
-    id: 'npm.run.validate-config',
-    command: 'npm',
-    args: ['run', 'validate:config'],
-    purpose: 'Validate runtime configuration before execution.',
-  },
-  {
-    id: 'npm.run.preflight',
-    command: 'npm',
-    args: ['run', 'preflight'],
-    purpose: 'Run preflight admission and health checks.',
-  },
-  {
-    id: 'npm.run.start-once',
-    command: 'npm',
-    args: ['run', 'start:once'],
-    purpose: 'Run one bounded agent pass.',
-  },
-  {
-    id: 'npm.run.tickets',
-    command: 'npm',
-    args: ['run', 'tickets'],
-    purpose: 'Run ticket CLI workflows.',
-  },
-  {
-    id: 'npm.run.lint',
-    command: 'npm',
-    args: ['run', 'lint'],
-    purpose: 'Run static lint checks.',
-  },
+  npmCatalogEntry('npm.test', ['test'], 'Run the default test suite.'),
+  npmCatalogEntry('npm.run.test', ['run', 'test'], 'Run the named test script.'),
+  npmCatalogEntry('npm.run.build', ['run', 'build'], 'Compile TypeScript output.'),
+  npmCatalogEntry('npm.run.validate-config', ['run', 'validate:config'], 'Validate runtime configuration before execution.'),
+  npmCatalogEntry('npm.run.preflight', ['run', 'preflight'], 'Run preflight admission and health checks.'),
+  npmCatalogEntry('npm.run.start-once', ['run', 'start:once'], 'Run one bounded agent pass.'),
+  npmCatalogEntry('npm.run.tickets', ['run', 'tickets'], 'Run ticket CLI workflows.'),
+  npmCatalogEntry('npm.run.lint', ['run', 'lint'], 'Run static lint checks.'),
 ];
 
 const catalogById = new Map(commandCatalog.map((entry) => [entry.id, entry]));
@@ -69,4 +59,35 @@ export function resolveCommandCatalogEntry(commandId: string): CommandCatalogEnt
   }
 
   return catalogById.get(normalized);
+}
+
+export function resolveCommandCatalogEntryForPlatform(
+  commandId: string,
+  platform: NodeJS.Platform = process.platform
+): CommandCatalogMapping | undefined {
+  const entry = resolveCommandCatalogEntry(commandId);
+  if (!entry) {
+    return undefined;
+  }
+
+  return platform === 'win32' ? entry.platforms.win32 : entry.platforms.posix;
+}
+
+export function buildCommandCatalogPolicySnapshot(): ToolPolicyCommandCatalogEntry[] {
+  return commandCatalog.map((entry) => ({
+    id: entry.id,
+    purpose: entry.purpose,
+    command: entry.command,
+    args: [...entry.args],
+    platforms: {
+      posix: {
+        command: entry.platforms.posix.command,
+        args: [...entry.platforms.posix.args],
+      },
+      win32: {
+        command: entry.platforms.win32.command,
+        args: [...entry.platforms.win32.args],
+      },
+    },
+  }));
 }

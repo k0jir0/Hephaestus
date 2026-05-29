@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ToolRuntimeReadinessProbe } from './repositories.js';
 import type { EngineeringToolName, EngineeringToolResult, ToolPolicySnapshot } from './types.js';
+import { buildCommandCatalogPolicySnapshot } from './domain/policy/command-catalog-policy.js';
 
 type ToolRequest =
   | RepoSearchRequest
@@ -196,6 +197,7 @@ export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
       maxSearchResults: this.maxSearchResults,
       commandTimeoutMs: this.commandTimeoutMs,
       commandAllowlist: this.commandAllowlist.map((entry) => [entry.command, ...entry.args].join(' ')),
+      commandCatalog: buildCommandCatalogPolicySnapshot(),
       protectedPathPrefixes: [...this.protectedPathPrefixes],
       patchRiskThresholds: {
         maxSafeTouchedPaths: this.maxSafePatchPaths,

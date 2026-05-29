@@ -158,6 +158,9 @@ describe('EngineeringToolRuntime', () => {
 
     assert.equal(snapshot.version, 'hephaestus-tool-policy/v1');
     assert.match(snapshot.signature, /^[a-f0-9]{16}$/);
+    const npmTestEntry = snapshot.commandCatalog.find((entry) => entry.id === 'npm.test');
+    assert.equal(npmTestEntry?.platforms.posix.command, 'npm');
+    assert.equal(npmTestEntry?.platforms.win32.command, 'npm.cmd');
     assert.equal(dryRunResult.status, 'dry_run');
     assert.equal(applyResult.status, 'denied');
     assert.equal(applyResult.reasonCode, 'approval-required');
