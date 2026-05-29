@@ -556,6 +556,11 @@ Controls:
 
 ## Implementation Phases
 
+All D1-D6 tickets should be source-grounded against the active local library.
+Use `sources/notes/` as the primary design reference and treat
+`sources/library-catalog.md` plus `sources/acquisition-manifest.md` as the
+inventory-of-record for what grounding is available.
+
 ### D1: Extract Pure Domain
 
 Goal: move semantics out of runtime and task store without changing behavior.
@@ -576,6 +581,13 @@ Exit criteria:
 - `src/task-store.ts` stores decisions rather than defining them.
 - tests still pass.
 
+Library anchors:
+
+- `FooteYoder1997BigBallOfMud`: avoid orchestration gravity while extracting
+  domain seams.
+- `ClaessenHughes2000`: express lifecycle behavior as invariants that can be
+  property-tested during extraction.
+
 ### D2: Event and Evidence Spine
 
 Goal: make audit and reconstruction first-class.
@@ -587,11 +599,20 @@ Deliverables:
 - ticket current-state tables retained as projections
 - outbox-backed markdown and memory side effects
 - replay and drift checks
+- phase notes that cite active library sources for event/evidence tradeoffs
 
 Exit criteria:
 
 - ticket timeline can be reconstructed without reading `AGENT.md`
 - "what changed and why" is queryable
+
+Library anchors:
+
+- `ChandyLamport1985`: deterministic state reconstruction and consistent
+  snapshots.
+- `Helland2007LifeBeyondDistributedTransactions`: compensation-oriented,
+  append-first workflow thinking.
+- `Verraes2019`: event-stream versus projection boundaries and vocabulary.
 
 ### D3: Policy and Command Catalog
 
@@ -611,6 +632,13 @@ Exit criteria:
 - allowlist denials become a policy or ticket-quality problem, not a shell
   string problem
 
+Library anchors:
+
+- `Schick2023Toolformer`: explicit tool-call interface design.
+- `Yao2023ReAct`: observable reasoning-action traces for operator review.
+- `Yang2024SWEAgent` and `Zhang2023RepoCoder`: repository-grounded execution
+  contracts and retrieval-aware policy boundaries.
+
 ### D4: Isolated Execution Workspaces
 
 Goal: stop applying autonomous mutations directly to the active project root.
@@ -627,6 +655,15 @@ Exit criteria:
 
 - low-risk self-edit can be attempted without dirtying active root
 - patch bundle and verification evidence reference the same workspace
+
+Library anchors:
+
+- `Shinn2023Reflexion` and `Madaan2023SelfRefine`: bounded retry and
+  self-critique loops with explicit stop conditions.
+- `Xia2024Agentless`: preserve a simple baseline path as a control.
+- `Zhang2024AutoCodeRover`, `Bairi2023CodePlan`, `Liu2024STALLPlus`,
+  `Ding2026SWEReplay`, `Tao2024MAGIS`: repository-scale localization,
+  planning, analysis, replay, and orchestration patterns for isolated runs.
 
 ### D5: Promotion and Rollback
 
@@ -647,6 +684,13 @@ Exit criteria:
 - version N+1 starts and processes the next ticket
 - failed version N+1 does not corrupt the loop
 
+Library anchors:
+
+- `Amodei2016`: misoptimization and unsafe autonomy failure modes.
+- `ClaessenHughes2000`: invariant-based promotion and rollback checks.
+- `Helland2007LifeBeyondDistributedTransactions`: compensation and recovery
+  posture when promotion fails.
+
 ### D6: Control Plane Refinement
 
 Goal: make operation obvious.
@@ -662,6 +706,44 @@ Exit criteria:
 
 - operator can inspect any change quickly
 - metrics are comparable across reports
+
+Library anchors:
+
+- `Endsley1995`: state visibility and situation awareness in the cockpit.
+- `LeeSee2004` and `Woods1996`: calibrated trust and anti-autopilot
+  complacency.
+- `LevesonThomas2018STPAHandbook`: unsafe control action framing for UI and
+  operator workflows.
+
+## D2+ Research Grounding Update
+
+The research-library baseline has changed during D0: Hephaestus now has a
+local, actively maintained source library under `sources/notes/` and
+`sources/papers/`, tracked by `sources/library-catalog.md` and
+`sources/acquisition-manifest.md`.
+
+This upgrades D2+ planning from "collect references later" to
+"cite implementation-grounding sources now".
+
+Required D2+ grounding by phase:
+
+- D2 event/evidence spine: `ChandyLamport1985`,
+  `Helland2007LifeBeyondDistributedTransactions`, `Verraes2019`
+- D3 policy and command catalog: `Schick2023Toolformer`, `Yao2023ReAct`,
+  `Yang2024SWEAgent`, `Zhang2023RepoCoder`
+- D4 isolated execution and bounded retries: `Shinn2023Reflexion`,
+  `Madaan2023SelfRefine`, `Xia2024Agentless`, `Zhang2024AutoCodeRover`,
+  `Bairi2023CodePlan`, `Liu2024STALLPlus`, `Ding2026SWEReplay`,
+  `Tao2024MAGIS`
+- D3-D6 operator and safety controls: `Endsley1995`, `LeeSee2004`,
+  `Woods1996`, `LevesonThomas2018STPAHandbook`, `Amodei2016`,
+  `ClaessenHughes2000`, `FooteYoder1997BigBallOfMud`
+
+Blueprint implication:
+
+- Every D2+ implementation ticket should include a short source-grounding
+  note in the ticket or ADR context, referencing at least one active library
+  note that informed the chosen design.
 
 ## D0 Exit Criteria
 

@@ -199,6 +199,32 @@ If the team wants a disciplined sequence rather than opportunistic collection, u
 3. agent-planning and tool-selection work: `Yang2024SWEAgent`, `Zhang2023RepoCoder`, `Schick2023Toolformer`, `Shinn2023Reflexion`
 4. safety and verification work: `Amodei2016`, `ClaessenHughes2000`
 
+## D2+ Blueprint Grounding Matrix
+
+With the implemented library now present on drive (`sources/notes/` plus lawful
+copies in `sources/papers/`), D2+ should be treated as source-grounded
+engineering work, not citation backlog work.
+
+- D2 event and evidence spine:
+  `ChandyLamport1985`, `Helland2007LifeBeyondDistributedTransactions`,
+  `Verraes2019`
+- D3 policy and command catalog:
+  `Schick2023Toolformer`, `Yao2023ReAct`, `Yang2024SWEAgent`,
+  `Zhang2023RepoCoder`
+- D4 isolated workspaces and bounded retries:
+  `Shinn2023Reflexion`, `Madaan2023SelfRefine`, `Xia2024Agentless`,
+  `Zhang2024AutoCodeRover`, `Bairi2023CodePlan`, `Liu2024STALLPlus`,
+  `Ding2026SWEReplay`, `Tao2024MAGIS`
+- D3-D6 oversight and safety:
+  `Endsley1995`, `LeeSee2004`, `Woods1996`,
+  `LevesonThomas2018STPAHandbook`, `Amodei2016`, `ClaessenHughes2000`
+
+Operational rule for D2+ tickets:
+
+1. cite at least one active note that informed the design
+2. capture one sentence about how the source changed an implementation choice
+3. update the note if implementation evidence contradicts the original takeaway
+
 ## Library Success Criteria
 
 The research library is doing its job when:
