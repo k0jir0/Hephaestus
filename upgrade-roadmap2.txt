@@ -1,0 +1,104 @@
+Hephaestus Upgrade Roadmap 2:
+Stability, Throughput, and Large-Model Readiness
+
+Date: 2026-05-29
+
+Summary
+
+Roadmap 1 established model diagnostics, profile visibility, and benchmark persistence.
+Roadmap 2 should shift to operational efficiency: reduce avoidable policy denials,
+make large-model diagnostics reliable on modest hardware, and improve ticket flow
+completion rates with measurable deltas.
+
+Current State Analysis
+
+Observed from live metrics and logs:
+- Ticket metrics show substantial command-policy churn (high count of "command is not allowlisted").
+- Backend reliability remains low in aggregate due to intermittent Ollama failures and blocked retries.
+- qwen3-coder:30b is installed, but first-run diagnostic calls can exceed legacy 30s timeouts.
+- UI and ticket store are healthy (projection lag near zero), so bottlenecks are mostly
+  command policy fit and model runtime latency.
+
+Efficiency: With Hephaestus vs Without Hephaestus
+
+With Hephaestus:
+- Pros: deterministic ticket lifecycle, durable retry history, bounded tool policies,
+  reproducible metrics, and faster recovery after crashes.
+- Cons: when allowlist policy lags new workflows, automation can self-block and add
+  queue churn.
+
+Without Hephaestus:
+- Pros: ad-hoc commands are immediately executable.
+- Cons: no durable queue state, no policy/audit guardrails, no consistent metrics,
+  higher operator overhead, and weaker post-failure recovery.
+
+Conclusion:
+- Hephaestus is more efficient for sustained engineering operations once policy and
+  runtime defaults are aligned with current workflows.
+- Roadmap 2 focuses on that alignment.
+
+Will qwen make things faster?
+
+Short answer: not always in wall-clock latency.
+- qwen3-coder:30b should improve quality and long-context reasoning.
+- On constrained hardware, per-call latency may be slower than codellama.
+- Net throughput can still improve if better outputs reduce retries, invalid commands,
+  and false completions.
+
+Roadmap 2 Workstreams
+
+R2-P0 Command Policy Alignment
+Goal: Remove avoidable policy-denied retries for safe diagnostics and reliability operations.
+Actions:
+- Expand safe command allowlist for model diagnostics and reliability publish scripts.
+- Add policy regression tests for newly allowlisted commands.
+Acceptance:
+- "command is not allowlisted" frequency drops materially in weekly metrics.
+
+R2-P1 Large-Model Diagnostic Reliability
+Goal: Make qwen/gpt-oss diagnostics complete consistently on first run.
+Actions:
+- Use adaptive timeout defaults by model size/tier.
+- Add explicit warmup CLI to prime model runtime before benchmark/promotion.
+- Allow override via --timeout-ms for smoke/benchmark/promote flows.
+Acceptance:
+- qwen smoke success rate reaches stable pass in repeated runs on this machine profile.
+
+R2-P2 Ticket Throughput Optimization
+Goal: Increase completed tickets per day while reducing superseded churn.
+Actions:
+- Add autopilot prechecks that suggest allowlisted command rewrites before failure.
+- Improve escalation hints for policy denials using command alternatives.
+Acceptance:
+- Blocked-retry success ratio improves versus current baseline.
+
+R2-P3 Benchmark Evidence Lifecycle
+Goal: Keep benchmark evidence fresh, queryable, and operator-visible.
+Actions:
+- Add age/freshness signal to model report and UI status card.
+- Surface benchmark recency warnings in promotion flow.
+Acceptance:
+- Operators can see freshness and confidence before promoting a model.
+
+R2-P4 Comparative Efficiency Reporting
+Goal: Quantify operational gains over time and compare policy changes.
+Actions:
+- Add weekly delta summary for allowlist denials, completion rate, and latency p95.
+- Add a "before/after" section in efficiency report tied to roadmap milestones.
+Acceptance:
+- Weekly report explicitly shows trend movement and confidence notes.
+
+Roadmap 2 Ticket Seed
+
+1. R2-T1: Implement adaptive diagnostic timeout defaults and timeout override flags.
+2. R2-T2: Add model warmup command and script for large-model first-pass readiness.
+3. R2-T3: Expand command allowlist for safe model and reliability operations.
+4. R2-T4: Add policy regression test coverage for roadmap2 allowlist entries.
+5. R2-T5: Add benchmark freshness signal to report/UI and promotion gate messaging.
+6. R2-T6: Add weekly efficiency delta reporting focused on denial-rate and retry outcomes.
+
+Execution Strategy
+
+- Implement R2-T1 through R2-T4 immediately in this cycle.
+- Queue R2-T5 and R2-T6 for next cycle after collecting one fresh benchmark window.
+- Process tickets through Hephaestus autopilot/single-pass after each mergeable batch.

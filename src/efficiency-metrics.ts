@@ -32,6 +32,10 @@ interface EfficiencySnapshot {
     approvalRate: number;
     completionRate: number;
   };
+  policy: {
+    allowlistDenialCount: number;
+    allowlistDenialRate: number;
+  };
   efficiencyIndex: {
     score: number;
     targetScore: number;
@@ -179,6 +183,7 @@ function buildVariance(
   const p95Series = window.map((entry) => entry.latencyMs.admissionToComplete.p95);
   const completionSeries = window.map((entry) => entry.quality.completionRate);
   const retrySeries = window.map((entry) => entry.quality.retryRate);
+  const allowlistDenialSeries = window.map((entry) => entry.policy?.allowlistDenialRate ?? 0);
   const scoreSeries = window.map((entry) => entry.efficiencyIndex.score);
 
   const alerts: string[] = [];
@@ -199,6 +204,7 @@ function buildVariance(
   evaluateZScore('p95-admission-to-complete-ms', current.latencyMs.admissionToComplete.p95, p95Series);
   evaluateZScore('completion-rate', current.quality.completionRate, completionSeries);
   evaluateZScore('retry-rate', current.quality.retryRate, retrySeries);
+  evaluateZScore('allowlist-denial-rate', current.policy.allowlistDenialRate, allowlistDenialSeries);
   evaluateZScore('efficiency-score', current.efficiencyIndex.score, scoreSeries);
 
   return {
@@ -285,6 +291,8 @@ async function collectSnapshot(): Promise<EfficiencySnapshot> {
     const blockRate = tickets.length === 0 ? 0 : blockedCount / tickets.length;
     const approvalRate = tickets.length === 0 ? 0 : awaitingApprovalCount / tickets.length;
     const completionRate = tickets.length === 0 ? 0 : completedCount / tickets.length;
+    const allowlistDenialCount = tickets.filter((ticket) => /allowlisted/i.test(ticket.error ?? '')).length;
+    const allowlistDenialRate = tickets.length === 0 ? 0 : allowlistDenialCount / tickets.length;
 
     const latencySummary = {
       admissionToStart: summarize(admissionToStart),
@@ -326,6 +334,10 @@ async function collectSnapshot(): Promise<EfficiencySnapshot> {
         blockRate: round(blockRate),
         approvalRate: round(approvalRate),
         completionRate: round(completionRate),
+      },
+      policy: {
+        allowlistDenialCount,
+        allowlistDenialRate: round(allowlistDenialRate),
       },
       efficiencyIndex: {
         score,

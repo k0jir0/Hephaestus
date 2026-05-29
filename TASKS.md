@@ -53,6 +53,9 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports <!-- hephaestus-ticket:ticket_ac70f1716648 -->
 - [x] Upgrade Roadmap Future F4: add benchmark score and report path visibility to model-status API and CLI output <!-- hephaestus-ticket:ticket_67eb69d2ab89 -->
 - [x] Upgrade Roadmap Future F6: update UI model status panel to show benchmark score and promotion readiness <!-- hephaestus-ticket:ticket_54eae1882ed5 -->
+- [x] R2-T1: Implement adaptive diagnostic timeout defaults and timeout override flags. <!-- hephaestus-ticket:ticket_4ea91eed7b69 -->
+- [x] R2-T5 bounded: add benchmark freshness signal to src/model-cli.ts, src/ui-server.ts, and src/ui.ts promotion messaging. <!-- hephaestus-ticket:ticket_925d7811ba74 -->
+- [x] R2-T6 bounded: add allowlist-denial weekly delta reporting in src/efficiency-metrics.ts and src/efficiency-weekly-report.ts. <!-- hephaestus-ticket:ticket_7408b5b196a0 -->
 
 ## Blocked
 
@@ -106,6 +109,9 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Upgrade Roadmap Future F3: add model recommendation command that factors installed models and host memory tier <!-- hephaestus-ticket:ticket_0c89d65074b1 -->
 - [x] Upgrade Roadmap Future F5: add promote-model-to-default command gated by benchmark success threshold <!-- hephaestus-ticket:ticket_e19bfed9f5d7 -->
 - [x] Upgrade Roadmap Future F7: run qwen3-coder installation and validate smoke plus benchmark execution <!-- hephaestus-ticket:ticket_d6c5b7ead9ad -->
+- [x] R2-T2 bounded: validate models:warmup on qwen3-coder:30b with --timeout-ms 180000 and capture latency evidence. <!-- hephaestus-ticket:ticket_cb5a8a9ead4b -->
+- [x] R2-T3 bounded: verify and finalize safe command allowlist entries in src/tool-runtime.ts for model and reliability scripts. <!-- hephaestus-ticket:ticket_6064c73fc125 -->
+- [x] R2-T4 bounded: confirm regression coverage in test/tool-runtime.test.ts for roadmap2 allowlist entries and run npm test. <!-- hephaestus-ticket:ticket_f536bdc74c07 -->
 
 ---
 

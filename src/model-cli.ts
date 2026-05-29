@@ -3,7 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { config } from './config.js';
 import {
+  assessBenchmarkFreshness,
   buildModelStatus,
+  defaultDiagnosticsTimeoutMs,
   fetchOllamaModelInventory,
   readLatestModelBenchmarkSummary,
   runOllamaModelBenchmark,
@@ -19,6 +21,7 @@ Usage:
   npm run models:benchmark -- [--models <model[,model...]>]
   npm run models:recommend
   npm run models:promote -- [--model <model>] [--min-success <ratio>]
+  npm run models:warmup -- [model] [--timeout-ms <ms>]
 `);
 }
 
@@ -71,11 +74,13 @@ async function printReport(): Promise<void> {
   console.log(`- Codex handoff summary: ${status.routingPolicy.codexHandoffSummary}`);
 
   if (benchmark.available) {
+    const freshness = assessBenchmarkFreshness(benchmark);
     console.log('Latest benchmark summary:');
     console.log(`- Model: ${benchmark.model}`);
     console.log(`- Success rate: ${Number(benchmark.successRate ?? 0).toFixed(2)}`);
     console.log(`- Cases: ${benchmark.caseCount ?? 0}`);
     console.log(`- Generated at: ${benchmark.generatedAt ?? '-'}`);
+    console.log(`- Freshness: ${freshness.status}${typeof freshness.ageHours === 'number' ? ` (${freshness.ageHours.toFixed(2)}h old)` : ''}`);
     if (benchmark.latestReportPath) {
       console.log(`- Report: ${benchmark.latestReportPath}`);
     }
@@ -86,7 +91,8 @@ async function printReport(): Promise<void> {
 
 async function runSmoke(args: string[]): Promise<void> {
   const model = args[0] || config.aiModel || undefined;
-  const result = await runOllamaModelSmokeTest(config, { model });
+  const timeoutMs = parseTimeoutMs(args, model || config.aiModel || 'codellama');
+  const result = await runOllamaModelSmokeTest(config, { model, timeoutMs });
   console.log(`Model: ${result.model}`);
   console.log(`Success: ${result.success}`);
   console.log(`Parsed JSON: ${result.parsedJson}`);
@@ -103,13 +109,15 @@ async function runSmoke(args: string[]): Promise<void> {
 }
 
 async function runBenchmark(args: string[]): Promise<void> {
-  const models = (parseOption(args, '--models') || config.aiModel || 'codellama')
+  const modelsRaw = parseOption(args, '--models') || config.aiModel || 'codellama';
+  const timeoutMs = parseTimeoutMs(args, modelsRaw.split(',')[0] || config.aiModel || 'codellama');
+  const models = modelsRaw
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean);
 
   for (const model of models) {
-    const result = await runOllamaModelBenchmark(config, { model });
+    const result = await runOllamaModelBenchmark(config, { model, timeoutMs });
     console.log(`\nModel: ${result.model}`);
     console.log(`Success rate: ${result.successRate.toFixed(2)}`);
     console.log(`Case count: ${result.caseCount}`);
@@ -151,6 +159,7 @@ async function runRecommend(): Promise<void> {
 async function runPromote(args: string[]): Promise<void> {
   const requestedModel = parseOption(args, '--model');
   const minSuccessRaw = parseOption(args, '--min-success');
+  const timeoutMs = parseTimeoutMs(args, requestedModel || config.aiModel || 'codellama');
   const minSuccess = minSuccessRaw ? Number(minSuccessRaw) : 0.75;
   if (!Number.isFinite(minSuccess) || minSuccess <= 0 || minSuccess > 1) {
     throw new Error('--min-success must be a number in (0, 1].');
@@ -168,7 +177,7 @@ async function runPromote(args: string[]): Promise<void> {
   let benchmark = await readLatestModelBenchmarkSummary(config.baseDir);
   if (!benchmark.available || benchmark.model?.toLowerCase() !== model.toLowerCase()) {
     console.log(`No fresh benchmark for ${model}; running benchmark now...`);
-    const executed = await runOllamaModelBenchmark(config, { model, persist: true });
+    const executed = await runOllamaModelBenchmark(config, { model, persist: true, timeoutMs });
     benchmark = {
       available: true,
       model: executed.model,
@@ -181,8 +190,11 @@ async function runPromote(args: string[]): Promise<void> {
 
   const successRate = Number(benchmark.successRate ?? 0);
   const caseCount = Number(benchmark.caseCount ?? 0);
-  if (caseCount < 10 || successRate < minSuccess) {
-    console.log(`Promotion blocked for ${model}: success=${successRate.toFixed(2)}, cases=${caseCount}, threshold=${minSuccess.toFixed(2)}.`);
+  const freshness = assessBenchmarkFreshness(benchmark, 168);
+  if (caseCount < 10 || successRate < minSuccess || freshness.status !== 'fresh') {
+    console.log(
+      `Promotion blocked for ${model}: success=${successRate.toFixed(2)}, cases=${caseCount}, threshold=${minSuccess.toFixed(2)}, freshness=${freshness.status}.`
+    );
     process.exitCode = 1;
     return;
   }
@@ -190,6 +202,34 @@ async function runPromote(args: string[]): Promise<void> {
   const envPath = path.join(config.baseDir, '.env');
   await updateEnvModel(envPath, model);
   console.log(`Promoted ${model} to default AI_MODEL in ${envPath}.`);
+}
+
+async function runWarmup(args: string[]): Promise<void> {
+  const model = args[0] || config.aiModel || 'codellama';
+  const timeoutMs = parseTimeoutMs(args, model);
+  const result = await runOllamaModelSmokeTest(config, { model, timeoutMs });
+  console.log(`Warmup model: ${model}`);
+  console.log(`Timeout: ${timeoutMs} ms`);
+  console.log(`Success: ${result.success}`);
+  console.log(`Latency: ${result.latencyMs} ms`);
+  if (result.error) {
+    console.log(`Error: ${result.error}`);
+    process.exitCode = 1;
+  }
+}
+
+function parseTimeoutMs(args: string[], model: string): number {
+  const timeoutRaw = parseOption(args, '--timeout-ms');
+  if (!timeoutRaw) {
+    return defaultDiagnosticsTimeoutMs(model);
+  }
+
+  const timeoutMs = Number(timeoutRaw);
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error('--timeout-ms must be a positive number.');
+  }
+
+  return timeoutMs;
 }
 
 async function updateEnvModel(envPath: string, model: string): Promise<void> {
@@ -247,6 +287,11 @@ async function main(): Promise<void> {
 
   if (command === 'promote') {
     await runPromote(args);
+    return;
+  }
+
+  if (command === 'warmup') {
+    await runWarmup(args);
     return;
   }
 

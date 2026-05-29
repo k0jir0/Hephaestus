@@ -6,6 +6,7 @@ import { afterEach, describe, it } from 'node:test';
 import type { Config } from '../src/config.js';
 import {
   buildModelStatus,
+  defaultDiagnosticsTimeoutMs,
   parseOllamaTagsResponse,
   readLatestModelBenchmarkSummary,
   runOllamaModelBenchmark,
@@ -106,6 +107,12 @@ describe('model diagnostics', () => {
     assert.equal(result.parsedJson, true);
     assert.match(requestedBody, /"format"/);
     assert.match(requestedBody, /qwen3-coder:30b/);
+  });
+
+  it('uses a longer default timeout for large reasoning or coder models', () => {
+    assert.equal(defaultDiagnosticsTimeoutMs('qwen3-coder:30b'), 120_000);
+    assert.equal(defaultDiagnosticsTimeoutMs('gpt-oss:20b'), 120_000);
+    assert.equal(defaultDiagnosticsTimeoutMs('codellama:latest'), 30_000);
   });
 
   it('runs the 10-case benchmark harness and persists the latest summary', async () => {

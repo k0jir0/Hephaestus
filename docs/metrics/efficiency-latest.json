@@ -1,70 +1,77 @@
 {
-  "timestamp": "2026-05-28T21:01:37.203Z",
+  "timestamp": "2026-05-29T03:14:39.700Z",
   "totals": {
-    "tickets": 52,
-    "attempts": 82,
-    "completed": 31,
-    "blocked": 12,
+    "tickets": 88,
+    "attempts": 108,
+    "completed": 39,
+    "blocked": 5,
     "awaitingApproval": 0,
     "pending": 0,
     "inProgress": 0,
-    "cancelled": 5
+    "cancelled": 10
   },
   "throughput": {
-    "completedLast24h": 9,
-    "completedPerDay": 9
+    "completedLast24h": 11,
+    "completedPerDay": 11
   },
   "latencyMs": {
     "admissionToStart": {
-      "p50": 94124,
-      "p95": 101982974,
+      "p50": 71379,
+      "p95": 9992303,
       "p99": 101983060,
-      "average": 7216407.222,
-      "sampleCount": 36
+      "average": 4251883.403,
+      "sampleCount": 62
     },
     "startToComplete": {
-      "p50": 13562,
-      "p95": 7292965,
+      "p50": 23200,
+      "p95": 7253016,
       "p99": 7292965,
-      "average": 1529303.444,
-      "sampleCount": 18
+      "average": 1067140.115,
+      "sampleCount": 26
     },
     "admissionToComplete": {
-      "p50": 115004,
-      "p95": 104750292,
+      "p50": 94114,
+      "p95": 7293959,
       "p99": 104750292,
-      "average": 7335187.722,
-      "sampleCount": 18
+      "average": 5127404.385,
+      "sampleCount": 26
     }
   },
   "quality": {
-    "retryRate": 0.269,
-    "blockRate": 0.231,
+    "retryRate": 0.159,
+    "blockRate": 0.057,
     "approvalRate": 0,
-    "completionRate": 0.596
+    "completionRate": 0.443
+  },
+  "policy": {
+    "allowlistDenialCount": 3,
+    "allowlistDenialRate": 0.034
   },
   "efficiencyIndex": {
-    "score": 39.52,
+    "score": 49.973,
     "targetScore": 70,
     "status": "below-target",
     "components": {
-      "throughputScore": 0.563,
-      "latencyScore": 0.017,
-      "completionScore": 0.596,
-      "retryPenaltyScore": 0.731
+      "throughputScore": 0.688,
+      "latencyScore": 0.247,
+      "completionScore": 0.443,
+      "retryPenaltyScore": 0.841
     }
   },
   "variance": {
-    "sampleCount": 3,
+    "sampleCount": 4,
     "alerts": [
-      "efficiency-score variance alert z=9.012"
+      "throughput variance alert z=2.828",
+      "completion-rate variance alert z=-3.654",
+      "retry-rate variance alert z=-6.09",
+      "efficiency-score variance alert z=4.604"
     ],
     "deltas": {
-      "completedPerDayDelta": 3,
-      "p95AdmissionToCompleteDeltaMs": 0,
-      "completionRateDelta": 0.058,
-      "retryRateDelta": 0.019,
-      "efficiencyScoreDelta": 7.524
+      "completedPerDayDelta": 2,
+      "p95AdmissionToCompleteDeltaMs": -97456333,
+      "completionRateDelta": -0.153,
+      "retryRateDelta": -0.11,
+      "efficiencyScoreDelta": 10.453
     }
   }
 }

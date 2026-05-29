@@ -13,7 +13,7 @@ This file stores the agent's long-term context and memory.
 
 - **Status**: Idle
 - **Current Task**: None
-- **Last Activity**: 2026-05-29T02:55:44.702Z
+- **Last Activity**: 2026-05-29T03:16:00.904Z
 
 ## Working Context
 
@@ -66,6 +66,9 @@ This file stores the agent's long-term context and memory.
 | 2026-05-29 | Upgrade Roadmap 1 P4: expand model benchmark to... | Plan ready |
 | 2026-05-29 | Upgrade Roadmap Future F4: add benchmark score ... | Plan ready |
 | 2026-05-29 | Upgrade Roadmap Future F6: update UI model stat... | Plan ready |
+| 2026-05-29 | R2-T1: Implement adaptive diagnostic timeout de... | Plan ready |
+| 2026-05-29 | R2-T5 bounded: add benchmark freshness signal t... | Plan ready |
+| 2026-05-29 | R2-T6 bounded: add allowlist-denial weekly delt... | Plan ready |
 
 ### Blockers Encountered
 | Date | Blocker | Resolution |
@@ -3185,6 +3188,14 @@ ok 21 - TaskWatcher
 | 2026-05-29 | Upgrade Roadmap Future F3: add model recommendation command that factors installed models and host memory tier | Command is not allowlisted: npm run models:recommend |
 | 2026-05-29 | Upgrade Roadmap Future F5: add promote-model-to-default command gated by benchmark success threshold | Command is not allowlisted: npm run test:model |
 | 2026-05-29 | Upgrade Roadmap Future F7: run qwen3-coder installation and validate smoke plus benchmark execution | Command is not allowlisted: npm install qwen3-coder |
+| 2026-05-29 | R2-T2: Add model warmup command and script for large-model first-pass readiness. | Command is not allowlisted: npm run model:warmup |
+| 2026-05-29 | R2-T3: Expand command allowlist for safe model and reliability operations. | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. |
+| 2026-05-29 | R2-T4: Add policy regression test coverage for roadmap2 allowlist entries. | Command is not allowlisted: npm run test:roadmap2 |
+| 2026-05-29 | R2-T5: Add benchmark freshness signal to report/UI and promotion gate messaging. | file.read failed.: ENOENT: no such file or directory, open 'C:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\src\models\report.ts' |
+| 2026-05-29 | R2-T6: Add weekly efficiency delta reporting focused on denial-rate and retry outcomes. | Command is not allowlisted: npm run metrics:efficiency:weekly |
+| 2026-05-29 | R2-T2 bounded: validate models:warmup on qwen3-coder:30b with --timeout-ms 180000 and capture latency evidence. | Command is not allowlisted: npm run validate:config -- --timeout-ms 180000 |
+| 2026-05-29 | R2-T3 bounded: verify and finalize safe command allowlist entries in src/tool-runtime.ts for model and reliability scripts. | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. |
+| 2026-05-29 | R2-T4 bounded: confirm regression coverage in test/tool-runtime.test.ts for roadmap2 allowlist entries and run npm test. | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. |
 
 ## Preferences
 
@@ -3404,6 +3415,30 @@ ok 21 - TaskWatcher
 - [2026-05-29T02:55:42.200Z] Single-pass run found no pending tasks
 - [2026-05-29T02:55:43.437Z] Single-pass run found no pending tasks
 - [2026-05-29T02:55:44.691Z] Single-pass run found no pending tasks
+- [2026-05-29T03:11:30.174Z] Planned: R2-T1: Implement adaptive diagnostic timeout defaults and timeout override flags.
+- [2026-05-29T03:11:37.654Z] Blocked: R2-T2: Add model warmup command and script for large-model first-pass readiness.
+- [2026-05-29T03:11:37.749Z] Blocked: R2-T3: Expand command allowlist for safe model and reliability operations.
+- [2026-05-29T03:11:46.149Z] Blocked: R2-T4: Add policy regression test coverage for roadmap2 allowlist entries.
+- [2026-05-29T03:12:06.369Z] Blocked: R2-T5: Add benchmark freshness signal to report/UI and promotion gate messaging.
+- [2026-05-29T03:12:18.828Z] Blocked: R2-T6: Add weekly efficiency delta reporting focused on denial-rate and retry outcomes.
+- [2026-05-29T03:12:18.859Z] Single-pass run complete
+- [2026-05-29T03:12:20.185Z] Single-pass run found no pending tasks
+- [2026-05-29T03:12:21.510Z] Single-pass run found no pending tasks
+- [2026-05-29T03:12:22.787Z] Single-pass run found no pending tasks
+- [2026-05-29T03:12:24.077Z] Single-pass run found no pending tasks
+- [2026-05-29T03:12:25.364Z] Single-pass run found no pending tasks
+- [2026-05-29T03:15:17.787Z] Blocked: R2-T2 bounded: validate models:warmup on qwen3-coder:30b with --timeout-ms 180000 and capture latency evidence.
+- [2026-05-29T03:15:17.872Z] Blocked: R2-T3 bounded: verify and finalize safe command allowlist entries in src/tool-runtime.ts for model and reliability scripts.
+- [2026-05-29T03:15:17.967Z] Blocked: R2-T4 bounded: confirm regression coverage in test/tool-runtime.test.ts for roadmap2 allowlist entries and run npm test.
+- [2026-05-29T03:15:35.850Z] Startup preflight passed
+- [2026-05-29T03:15:35.941Z] Planned: R2-T5 bounded: add benchmark freshness signal to src/model-cli.ts, src/ui-server.ts, and src/ui.ts promotion messaging.
+- [2026-05-29T03:15:55.721Z] Startup preflight passed
+- [2026-05-29T03:15:55.814Z] Planned: R2-T6 bounded: add allowlist-denial weekly delta reporting in src/efficiency-metrics.ts and src/efficiency-weekly-report.ts.
+- [2026-05-29T03:15:55.832Z] Single-pass run complete
+- [2026-05-29T03:15:57.022Z] Single-pass run found no pending tasks
+- [2026-05-29T03:15:58.298Z] Single-pass run found no pending tasks
+- [2026-05-29T03:15:59.679Z] Single-pass run found no pending tasks
+- [2026-05-29T03:16:00.893Z] Single-pass run found no pending tasks
 
 ---
 

@@ -7,6 +7,7 @@ interface EfficiencySnapshot {
   throughput?: { completedPerDay?: number };
   latencyMs?: { admissionToComplete?: { p95?: number } };
   quality?: { completionRate?: number; retryRate?: number };
+  policy?: { allowlistDenialRate?: number; allowlistDenialCount?: number };
   efficiencyIndex?: { score?: number };
   variance?: { alerts?: string[] };
 }
@@ -47,6 +48,7 @@ function summarize(entries: EfficiencySnapshot[]): {
   p95Avg: number;
   completionAvg: number;
   retryAvg: number;
+  allowlistDenialRateAvg: number;
   scoreAvg: number;
   alerts: string[];
 } {
@@ -54,6 +56,7 @@ function summarize(entries: EfficiencySnapshot[]): {
   const p95 = entries.map((entry) => Number(entry.latencyMs?.admissionToComplete?.p95 ?? 0));
   const completion = entries.map((entry) => Number(entry.quality?.completionRate ?? 0));
   const retry = entries.map((entry) => Number(entry.quality?.retryRate ?? 0));
+  const allowlistDenialRate = entries.map((entry) => Number(entry.policy?.allowlistDenialRate ?? 0));
   const score = entries.map((entry) => Number(entry.efficiencyIndex?.score ?? 0));
 
   const alerts = entries.flatMap((entry) => entry.variance?.alerts ?? []);
@@ -64,6 +67,7 @@ function summarize(entries: EfficiencySnapshot[]): {
     p95Avg: average(p95),
     completionAvg: average(completion),
     retryAvg: average(retry),
+    allowlistDenialRateAvg: average(allowlistDenialRate),
     scoreAvg: average(score),
     alerts,
   };
@@ -85,6 +89,8 @@ function buildReport(allEntries: EfficiencySnapshot[]): string {
     p95: currentSummary.p95Avg - previousSummary.p95Avg,
     completion: currentSummary.completionAvg - previousSummary.completionAvg,
     retry: currentSummary.retryAvg - previousSummary.retryAvg,
+    allowlistDenialRate:
+      currentSummary.allowlistDenialRateAvg - previousSummary.allowlistDenialRateAvg,
     score: currentSummary.scoreAvg - previousSummary.scoreAvg,
   };
 
@@ -103,6 +109,7 @@ function buildReport(allEntries: EfficiencySnapshot[]): string {
     `- Average p95 admission->complete (ms): ${format(currentSummary.p95Avg)}`,
     `- Average completion rate: ${format(currentSummary.completionAvg)}`,
     `- Average retry rate: ${format(currentSummary.retryAvg)}`,
+    `- Average allowlist denial rate: ${format(currentSummary.allowlistDenialRateAvg)}`,
     '',
     '## Week-over-Week Delta',
     '',
@@ -111,6 +118,7 @@ function buildReport(allEntries: EfficiencySnapshot[]): string {
     `- p95 admission->complete delta (ms): ${format(delta.p95)}`,
     `- Completion rate delta: ${format(delta.completion)}`,
     `- Retry rate delta: ${format(delta.retry)}`,
+    `- Allowlist denial rate delta: ${format(delta.allowlistDenialRate)}`,
     '',
     '## Variance Alerts (Current Window)',
     '',

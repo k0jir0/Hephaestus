@@ -75,6 +75,13 @@ export interface ModelBenchmarkSummary {
   historyPath?: string;
 }
 
+export interface BenchmarkFreshness {
+  available: boolean;
+  status: 'fresh' | 'stale' | 'unknown';
+  maxAgeHours: number;
+  ageHours?: number;
+}
+
 interface BenchmarkCase {
   name: string;
   prompt: string;
@@ -114,6 +121,13 @@ interface OllamaChatResponse {
 }
 
 export type DiagnosticsFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
+
+export function defaultDiagnosticsTimeoutMs(model: string): number {
+  if (/(30b|70b|120b|480b|qwen3-coder|gpt-oss)/i.test(model)) {
+    return 120_000;
+  }
+  return 30_000;
+}
 
 export function buildModelStatus(config: Config, inventory: ModelInventory = emptyInventory()): ModelStatus {
   const activeModel = config.aiModel || defaultModelForBackend(config.aiBackend);
@@ -196,6 +210,7 @@ export async function runOllamaModelSmokeTest(
   } = {}
 ): Promise<ModelSmokeResult> {
   const model = options.model || config.aiModel || 'codellama';
+  const timeoutMs = options.timeoutMs ?? defaultDiagnosticsTimeoutMs(model);
   const startedAt = Date.now();
 
   if (config.aiBackend !== 'ollama') {
@@ -222,7 +237,7 @@ export async function runOllamaModelSmokeTest(
         required: ['ok', 'purpose'],
       },
       fetchImpl: options.fetchImpl,
-      timeoutMs: options.timeoutMs,
+      timeoutMs,
     });
     const parsed = JSON.parse(content) as { ok?: boolean };
     return {
@@ -254,6 +269,7 @@ export async function runOllamaModelBenchmark(
   } = {}
 ): Promise<ModelBenchmarkResult> {
   const model = options.model || config.aiModel || 'codellama';
+  const timeoutMs = options.timeoutMs ?? defaultDiagnosticsTimeoutMs(model);
   const cases = buildBenchmarkCases();
 
   const results: ModelBenchmarkCaseResult[] = [];
@@ -265,7 +281,7 @@ export async function runOllamaModelBenchmark(
         prompt: benchmarkCase.prompt,
         schema: { type: 'object' },
         fetchImpl: options.fetchImpl,
-        timeoutMs: options.timeoutMs,
+        timeoutMs,
       });
       const parsed = JSON.parse(content) as Record<string, unknown>;
       results.push({
@@ -323,6 +339,33 @@ export async function readLatestModelBenchmarkSummary(baseDir: string): Promise<
   } catch {
     return emptyBenchmarkSummary();
   }
+}
+
+export function assessBenchmarkFreshness(summary: ModelBenchmarkSummary, maxAgeHours = 24): BenchmarkFreshness {
+  if (!summary.available || !summary.generatedAt) {
+    return {
+      available: false,
+      status: 'unknown',
+      maxAgeHours,
+    };
+  }
+
+  const generatedAtMs = new Date(summary.generatedAt).getTime();
+  if (!Number.isFinite(generatedAtMs)) {
+    return {
+      available: true,
+      status: 'unknown',
+      maxAgeHours,
+    };
+  }
+
+  const ageHours = (Date.now() - generatedAtMs) / (1000 * 60 * 60);
+  return {
+    available: true,
+    status: ageHours <= maxAgeHours ? 'fresh' : 'stale',
+    maxAgeHours,
+    ageHours,
+  };
 }
 
 function buildBenchmarkCases(): BenchmarkCase[] {

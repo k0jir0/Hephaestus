@@ -5,7 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { exportPatchBundle } from './delivery.js';
 import { logger } from './logger.js';
-import { buildModelStatus, fetchOllamaModelInventory, readLatestModelBenchmarkSummary } from './model-diagnostics.js';
+import {
+  assessBenchmarkFreshness,
+  buildModelStatus,
+  fetchOllamaModelInventory,
+  readLatestModelBenchmarkSummary,
+} from './model-diagnostics.js';
 import { deriveRecoveryRecommendation } from './recovery-recommendation.js';
 import { computeOperationalSLOMetrics, type OperationalSLOMetrics } from './slo-metrics.js';
 import { TicketStoreRepository } from './task-store.js';
@@ -556,18 +561,22 @@ export class UIServer {
   private async buildModelStatusResponse(): Promise<Record<string, unknown>> {
     const inventory = await fetchOllamaModelInventory(config);
     const benchmark = await readLatestModelBenchmarkSummary(config.baseDir);
+    const freshness = assessBenchmarkFreshness(benchmark);
     return {
       ...buildModelStatus(config, inventory),
       benchmark,
+      benchmarkFreshness: freshness,
       promotionReadiness: {
         ready:
           benchmark.available === true &&
           typeof benchmark.successRate === 'number' &&
           typeof benchmark.caseCount === 'number' &&
           benchmark.caseCount >= 10 &&
-          benchmark.successRate >= 0.75,
+          benchmark.successRate >= 0.75 &&
+          freshness.status === 'fresh',
         thresholdSuccessRate: 0.75,
         minimumCaseCount: 10,
+        benchmarkFreshnessHours: freshness.maxAgeHours,
       },
       inventory,
     };

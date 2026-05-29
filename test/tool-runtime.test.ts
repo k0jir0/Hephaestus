@@ -212,6 +212,19 @@ describe('EngineeringToolRuntime', () => {
     assert.match(result.output ?? '', /build ok/);
   });
 
+  it('allowlists safe model diagnostics commands by default policy', async () => {
+    const workspaceRoot = await createWorkspace();
+    const runtime = new EngineeringToolRuntime({ workspaceRoot });
+
+    const result = await runtime.execute({
+      tool: 'command.run',
+      command: 'npm',
+      args: ['run', 'models:benchmark'],
+    });
+
+    assert.notEqual(result.reasonCode, 'command-not-allowlisted');
+  });
+
   it('fails closed for delivery tools until approval-backed adapters exist', async () => {
     const workspaceRoot = await createWorkspace();
     const runtime = new EngineeringToolRuntime({ workspaceRoot });
