@@ -51,11 +51,13 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Upgrade Roadmap 1 P2: expose active model profile, installed models, and upgrade recommendations in the operator UI and health API <!-- hephaestus-ticket:ticket_7c32c5c18ee6 -->
 - [x] Upgrade Roadmap 1 P3: add strict action schema validation with phases, evidence requirements, and escalation fields <!-- hephaestus-ticket:ticket_2e1efc233451 -->
 - [x] Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports <!-- hephaestus-ticket:ticket_ac70f1716648 -->
+- [x] Upgrade Roadmap Future F4: add benchmark score and report path visibility to model-status API and CLI output <!-- hephaestus-ticket:ticket_67eb69d2ab89 -->
+- [x] Upgrade Roadmap Future F6: update UI model status panel to show benchmark score and promotion readiness <!-- hephaestus-ticket:ticket_54eae1882ed5 -->
 
 ## Blocked
 
 <!-- Tasks that need operator attention before they should be retried -->
-- [ ] Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery <!-- hephaestus-ticket:ticket_ecb969cec9d4 -->
+- (empty)
 
 ## Cancelled
 
@@ -67,6 +69,7 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Self-audit [medium/general]: Add a `stop_all` script that terminates the daemon and UI processes from PID files. This would make it easier to shut down the application when needed, and ensure that all processes are properly terminated. <!-- hephaestus-ticket:ticket_cda9c04eebbc -->
 - [x] Extend the plan contract and executor prompt so plans can declare executable edit operations, verification commands, and approval requirements in a machine-runnable format <!-- hephaestus-ticket:ticket_a612151dbdd0 -->
 - [x] Self-audit [high/startup]: Add a /health endpoint to the UI server and update smoke checks to use it <!-- hephaestus-ticket:ticket_3d876b0f11c5 -->
+- [x] Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery <!-- hephaestus-ticket:ticket_ecb969cec9d4 -->
 - [x] CLI validation ticket 2026-05-28T14:01:04 <!-- hephaestus-ticket:ticket_92dce2c6d60a -->
 - [x] CLI validation ticket 2026-05-28T14:01:51 <!-- hephaestus-ticket:ticket_860896e72375 -->
 - [x] "CLI validation ticket 2026-05-28T18:03:11.611Z" <!-- hephaestus-ticket:ticket_a1787a295da6 -->
@@ -98,6 +101,11 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Upgrade Roadmap 1 Replay T8: verify local versus Codex routing evidence in handoff bundle output <!-- hephaestus-ticket:ticket_33fdb582c037 -->
 - [x] Upgrade Roadmap 1 Replay T9: verify benchmark evidence gating copy in docs and operator messaging <!-- hephaestus-ticket:ticket_3bc5cdc44367 -->
 - [x] Upgrade Roadmap 1 Replay T10: finalize roadmap replay summary and board state audit <!-- hephaestus-ticket:ticket_b13987aa22d1 -->
+- [x] Upgrade Roadmap Future F1: expand model benchmark harness to 10 deterministic cases and persist per-model benchmark report <!-- hephaestus-ticket:ticket_eca6e2848d69 -->
+- [x] Upgrade Roadmap Future F2: add benchmark history storage and latest snapshot API payload for operator visibility <!-- hephaestus-ticket:ticket_8a24829a31b0 -->
+- [x] Upgrade Roadmap Future F3: add model recommendation command that factors installed models and host memory tier <!-- hephaestus-ticket:ticket_0c89d65074b1 -->
+- [x] Upgrade Roadmap Future F5: add promote-model-to-default command gated by benchmark success threshold <!-- hephaestus-ticket:ticket_e19bfed9f5d7 -->
+- [x] Upgrade Roadmap Future F7: run qwen3-coder installation and validate smoke plus benchmark execution <!-- hephaestus-ticket:ticket_d6c5b7ead9ad -->
 
 ---
 

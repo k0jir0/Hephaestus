@@ -11,9 +11,9 @@ This file stores the agent's long-term context and memory.
 
 ## Current State
 
-- **Status**: Blocked
-- **Current Task**: Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles
-- **Last Activity**: 2026-05-29T02:16:33.431Z
+- **Status**: Idle
+- **Current Task**: None
+- **Last Activity**: 2026-05-29T02:55:44.702Z
 
 ## Working Context
 
@@ -64,6 +64,8 @@ This file stores the agent's long-term context and memory.
 | 2026-05-28 | Upgrade Roadmap 1 P2: expose active model profi... | Plan ready |
 | 2026-05-29 | Upgrade Roadmap 1 P3: add strict action schema ... | Plan ready |
 | 2026-05-29 | Upgrade Roadmap 1 P4: expand model benchmark to... | Plan ready |
+| 2026-05-29 | Upgrade Roadmap Future F4: add benchmark score ... | Plan ready |
+| 2026-05-29 | Upgrade Roadmap Future F6: update UI model stat... | Plan ready |
 
 ### Blockers Encountered
 | Date | Blocker | Resolution |
@@ -3178,6 +3180,11 @@ ok 21 - TaskWatcher
 | 2026-05-29 | Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles | Error threshold (5) exceeded [admission_31c02923d0c6] |
 | 2026-05-29 | Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context | Command is not allowlisted: npm run test:unit src/admission.ts -- -t Add support for invalid command repair guidance and artifacts |
 | 2026-05-29 | Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles | Command is not allowlisted: npm run start:once |
+| 2026-05-29 | Upgrade Roadmap Future F1: expand model benchmark harness to 10 deterministic cases and persist per-model benchmark report | Command is not allowlisted: npm run models:benchmark |
+| 2026-05-29 | Upgrade Roadmap Future F2: add benchmark history storage and latest snapshot API payload for operator visibility | Command is not allowlisted: npm run publish:reliability |
+| 2026-05-29 | Upgrade Roadmap Future F3: add model recommendation command that factors installed models and host memory tier | Command is not allowlisted: npm run models:recommend |
+| 2026-05-29 | Upgrade Roadmap Future F5: add promote-model-to-default command gated by benchmark success threshold | Command is not allowlisted: npm run test:model |
+| 2026-05-29 | Upgrade Roadmap Future F7: run qwen3-coder installation and validate smoke plus benchmark execution | Command is not allowlisted: npm install qwen3-coder |
 
 ## Preferences
 
@@ -3383,6 +3390,20 @@ ok 21 - TaskWatcher
 - [2026-05-29T02:15:54.415Z] Planned: Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports
 - [2026-05-29T02:16:13.072Z] Single-pass run found no pending tasks
 - [2026-05-29T02:16:33.421Z] Blocked: Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles
+- [2026-05-29T02:53:40.490Z] Blocked: Upgrade Roadmap Future F1: expand model benchmark harness to 10 deterministic cases and persist per-model benchmark report
+- [2026-05-29T02:53:53.270Z] Blocked: Upgrade Roadmap Future F2: add benchmark history storage and latest snapshot API payload for operator visibility
+- [2026-05-29T02:54:11.045Z] Blocked: Upgrade Roadmap Future F3: add model recommendation command that factors installed models and host memory tier
+- [2026-05-29T02:54:42.400Z] Planned: Upgrade Roadmap Future F4: add benchmark score and report path visibility to model-status API and CLI output
+- [2026-05-29T02:55:00.086Z] Blocked: Upgrade Roadmap Future F5: add promote-model-to-default command gated by benchmark success threshold
+- [2026-05-29T02:55:16.837Z] Planned: Upgrade Roadmap Future F6: update UI model status panel to show benchmark score and promotion readiness
+- [2026-05-29T02:55:36.980Z] Blocked: Upgrade Roadmap Future F7: run qwen3-coder installation and validate smoke plus benchmark execution
+- [2026-05-29T02:55:37.007Z] Single-pass run complete
+- [2026-05-29T02:55:38.319Z] Single-pass run found no pending tasks
+- [2026-05-29T02:55:39.612Z] Single-pass run found no pending tasks
+- [2026-05-29T02:55:40.886Z] Single-pass run found no pending tasks
+- [2026-05-29T02:55:42.200Z] Single-pass run found no pending tasks
+- [2026-05-29T02:55:43.437Z] Single-pass run found no pending tasks
+- [2026-05-29T02:55:44.691Z] Single-pass run found no pending tasks
 
 ---
 

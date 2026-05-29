@@ -1,7 +1,11 @@
+import { readFile, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { config } from './config.js';
 import {
   buildModelStatus,
   fetchOllamaModelInventory,
+  readLatestModelBenchmarkSummary,
   runOllamaModelBenchmark,
   runOllamaModelSmokeTest,
 } from './model-diagnostics.js';
@@ -13,6 +17,8 @@ Usage:
   npm run models:report
   npm run models:smoke -- [model]
   npm run models:benchmark -- [--models <model[,model...]>]
+  npm run models:recommend
+  npm run models:promote -- [--model <model>] [--min-success <ratio>]
 `);
 }
 
@@ -28,6 +34,7 @@ function parseOption(args: string[], name: string): string | undefined {
 async function printReport(): Promise<void> {
   const inventory = await fetchOllamaModelInventory(config);
   const status = buildModelStatus(config, inventory);
+  const benchmark = await readLatestModelBenchmarkSummary(config.baseDir);
   const profile = status.profile.profile;
 
   console.log(`Backend: ${status.backend}`);
@@ -62,6 +69,19 @@ async function printReport(): Promise<void> {
   console.log(`- Max local retries: ${status.routingPolicy.maxLocalRetries}`);
   console.log(`- Escalation triggers: ${status.routingPolicy.escalationTriggers.join('; ')}`);
   console.log(`- Codex handoff summary: ${status.routingPolicy.codexHandoffSummary}`);
+
+  if (benchmark.available) {
+    console.log('Latest benchmark summary:');
+    console.log(`- Model: ${benchmark.model}`);
+    console.log(`- Success rate: ${Number(benchmark.successRate ?? 0).toFixed(2)}`);
+    console.log(`- Cases: ${benchmark.caseCount ?? 0}`);
+    console.log(`- Generated at: ${benchmark.generatedAt ?? '-'}`);
+    if (benchmark.latestReportPath) {
+      console.log(`- Report: ${benchmark.latestReportPath}`);
+    }
+  } else {
+    console.log('Latest benchmark summary: unavailable');
+  }
 }
 
 async function runSmoke(args: string[]): Promise<void> {
@@ -92,15 +112,109 @@ async function runBenchmark(args: string[]): Promise<void> {
     const result = await runOllamaModelBenchmark(config, { model });
     console.log(`\nModel: ${result.model}`);
     console.log(`Success rate: ${result.successRate.toFixed(2)}`);
+    console.log(`Case count: ${result.caseCount}`);
+    if (result.latestReportPath) {
+      console.log(`Report path: ${result.latestReportPath}`);
+    }
     for (const benchmarkCase of result.cases) {
       const status = benchmarkCase.success ? 'pass' : 'fail';
+      const family = benchmarkCase.failureFamily ? `, family=${benchmarkCase.failureFamily}` : '';
       const error = benchmarkCase.error ? ` (${benchmarkCase.error})` : '';
-      console.log(`- ${benchmarkCase.name}: ${status}, parsed=${benchmarkCase.parsedJson}, latency=${benchmarkCase.latencyMs} ms, expected=${benchmarkCase.expectedSignal}${error}`);
+      console.log(`- ${benchmarkCase.name}: ${status}, parsed=${benchmarkCase.parsedJson}, latency=${benchmarkCase.latencyMs} ms, expected=${benchmarkCase.expectedSignal}${family}${error}`);
     }
     if (result.successRate < 1) {
       process.exitCode = 1;
     }
   }
+}
+
+async function runRecommend(): Promise<void> {
+  const inventory = await fetchOllamaModelInventory(config);
+  const status = buildModelStatus(config, inventory);
+  const benchmark = await readLatestModelBenchmarkSummary(config.baseDir);
+  const memoryGb = Math.round((os.totalmem() / 1024 / 1024 / 1024) * 10) / 10;
+  const memoryTier = memoryGb >= 32 ? 'serious-local' : memoryGb >= 16 ? 'small-local' : 'minimal-local';
+
+  console.log(`Host memory: ${memoryGb} GB (${memoryTier})`);
+  console.log(`Active model: ${status.activeModel}`);
+  console.log('Recommendations:');
+  for (const recommendation of status.recommendations) {
+    const state = recommendation.installed ? 'installed' : 'not installed';
+    console.log(`- ${recommendation.model}: ${state} - ${recommendation.reason}`);
+  }
+
+  if (benchmark.available) {
+    console.log(`Latest benchmark: model=${benchmark.model}, success=${Number(benchmark.successRate ?? 0).toFixed(2)}, cases=${benchmark.caseCount ?? 0}`);
+  }
+}
+
+async function runPromote(args: string[]): Promise<void> {
+  const requestedModel = parseOption(args, '--model');
+  const minSuccessRaw = parseOption(args, '--min-success');
+  const minSuccess = minSuccessRaw ? Number(minSuccessRaw) : 0.75;
+  if (!Number.isFinite(minSuccess) || minSuccess <= 0 || minSuccess > 1) {
+    throw new Error('--min-success must be a number in (0, 1].');
+  }
+
+  const inventory = await fetchOllamaModelInventory(config);
+  const installed = new Set(inventory.models.map((model) => model.name.toLowerCase()));
+  const fallbackModel = inventory.models.find((model) => model.name.toLowerCase() !== 'codellama:latest')?.name;
+  const model = requestedModel || fallbackModel || config.aiModel || 'codellama:latest';
+
+  if (!installed.has(model.toLowerCase())) {
+    throw new Error(`Cannot promote ${model}: model is not installed.`);
+  }
+
+  let benchmark = await readLatestModelBenchmarkSummary(config.baseDir);
+  if (!benchmark.available || benchmark.model?.toLowerCase() !== model.toLowerCase()) {
+    console.log(`No fresh benchmark for ${model}; running benchmark now...`);
+    const executed = await runOllamaModelBenchmark(config, { model, persist: true });
+    benchmark = {
+      available: true,
+      model: executed.model,
+      successRate: executed.successRate,
+      caseCount: executed.caseCount,
+      generatedAt: executed.savedAt,
+      latestReportPath: executed.latestReportPath,
+    };
+  }
+
+  const successRate = Number(benchmark.successRate ?? 0);
+  const caseCount = Number(benchmark.caseCount ?? 0);
+  if (caseCount < 10 || successRate < minSuccess) {
+    console.log(`Promotion blocked for ${model}: success=${successRate.toFixed(2)}, cases=${caseCount}, threshold=${minSuccess.toFixed(2)}.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const envPath = path.join(config.baseDir, '.env');
+  await updateEnvModel(envPath, model);
+  console.log(`Promoted ${model} to default AI_MODEL in ${envPath}.`);
+}
+
+async function updateEnvModel(envPath: string, model: string): Promise<void> {
+  let content = '';
+  try {
+    content = await readFile(envPath, 'utf-8');
+  } catch {
+    content = '';
+  }
+
+  const lines = content.length > 0 ? content.split(/\r?\n/) : [];
+  let found = false;
+  const updated = lines.map((line) => {
+    if (/^\s*AI_MODEL\s*=/.test(line)) {
+      found = true;
+      return `AI_MODEL=${model}`;
+    }
+    return line;
+  });
+
+  if (!found) {
+    updated.push(`AI_MODEL=${model}`);
+  }
+
+  await writeFile(envPath, `${updated.filter((line) => line !== undefined).join('\n')}\n`, 'utf-8');
 }
 
 async function main(): Promise<void> {
@@ -123,6 +237,16 @@ async function main(): Promise<void> {
 
   if (command === 'benchmark') {
     await runBenchmark(args);
+    return;
+  }
+
+  if (command === 'recommend') {
+    await runRecommend();
+    return;
+  }
+
+  if (command === 'promote') {
+    await runPromote(args);
     return;
   }
 

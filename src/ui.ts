@@ -1044,6 +1044,8 @@ function buildClientScript(): string {
     function renderModelStatus(status) {
       const profile = status.profile && status.profile.profile ? status.profile.profile : {};
       const inventory = status.inventory || {};
+      const benchmark = status.benchmark || {};
+      const promotion = status.promotionReadiness || {};
       const installed = inventory.models || [];
       const recommendations = status.recommendations || [];
       const installedHtml = installed.length
@@ -1068,6 +1070,10 @@ function buildClientScript(): string {
           detailItem('Profile', status.summary || '-') +
           detailItem('Task Class', profile.recommendedTaskClass || '-') +
           detailItem('Context', profile.contextWindowTokens ? String(profile.contextWindowTokens) : '-') +
+          detailItem('Benchmark Model', benchmark.available ? (benchmark.model || '-') : 'unavailable') +
+          detailItem('Benchmark Success', benchmark.available && typeof benchmark.successRate === 'number' ? Number(benchmark.successRate).toFixed(2) : '-') +
+          detailItem('Benchmark Cases', benchmark.available ? String(benchmark.caseCount || 0) : '-') +
+          detailItem('Promotion Ready', promotion.ready ? 'yes' : 'no') +
           detailItem('Capabilities', profile.capabilities ? Object.entries(profile.capabilities).filter(function (entry) { return entry[1]; }).map(function (entry) { return entry[0]; }).join(', ') : '-') +
         '</div>' +
         '<div class="split-tight">' +

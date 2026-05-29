@@ -20,6 +20,8 @@
     "models:report": "tsx src/model-cli.ts report",
     "models:smoke": "tsx src/model-cli.ts smoke",
     "models:benchmark": "tsx src/model-cli.ts benchmark",
+    "models:recommend": "tsx src/model-cli.ts recommend",
+    "models:promote": "tsx src/model-cli.ts promote",
     "autopilot": "tsx src/tickets.ts autopilot",
     "metrics:efficiency": "tsx src/efficiency-metrics.ts",
     "metrics:efficiency:weekly": "tsx src/efficiency-weekly-report.ts",

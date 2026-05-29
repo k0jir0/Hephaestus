@@ -1,12 +1,27 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
-import { describe, it } from 'node:test';
+import { afterEach, describe, it } from 'node:test';
 import type { Config } from '../src/config.js';
 import {
   buildModelStatus,
   parseOllamaTagsResponse,
+  readLatestModelBenchmarkSummary,
+  runOllamaModelBenchmark,
   runOllamaModelSmokeTest,
 } from '../src/model-diagnostics.js';
+
+const tempDirs: string[] = [];
+
+afterEach(async () => {
+  while (tempDirs.length > 0) {
+    const tempDir = tempDirs.pop();
+    if (tempDir) {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  }
+});
 
 function makeConfig(): Config {
   return {
@@ -91,5 +106,40 @@ describe('model diagnostics', () => {
     assert.equal(result.parsedJson, true);
     assert.match(requestedBody, /"format"/);
     assert.match(requestedBody, /qwen3-coder:30b/);
+  });
+
+  it('runs the 10-case benchmark harness and persists the latest summary', async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-model-benchmark-'));
+    tempDirs.push(tempRoot);
+    const benchmarkConfig: Config = {
+      ...makeConfig(),
+      baseDir: tempRoot,
+      tasksFile: path.join(tempRoot, 'TASKS.md'),
+      ticketStoreFile: path.join(tempRoot, '.hephaestus-tickets.db'),
+      agentMemoryFile: path.join(tempRoot, 'AGENT.md'),
+      progressLog: path.join(tempRoot, 'PROGRESS.log'),
+    };
+
+    const result = await runOllamaModelBenchmark(benchmarkConfig, {
+      model: 'codellama:latest',
+      fetchImpl: async (_input, _init) => {
+        return new Response(JSON.stringify({
+          message: {
+            content: '{"task":"safe-escalation","phase":"escalate","reason":"policy"}',
+          },
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      },
+    });
+
+    assert.equal(result.caseCount, 10);
+    assert.ok(typeof result.latestReportPath === 'string' && result.latestReportPath.length > 0);
+
+    const summary = await readLatestModelBenchmarkSummary(tempRoot);
+    assert.equal(summary.available, true);
+    assert.equal(summary.caseCount, 10);
+    assert.equal(summary.model, 'codellama:latest');
   });
 });
