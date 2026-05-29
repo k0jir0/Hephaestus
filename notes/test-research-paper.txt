@@ -1,0 +1,255 @@
+From Snapshot to Supervision: A Synthesis Paper for Hephaestus
+
+1. Introduction
+
+Hephaestus is not merely a coding tool or a ticket processor. It is an attempt
+to engineer bounded software autonomy: a system that can inspect a repository,
+plan work, execute constrained changes, surface evidence, request approval when
+necessary, and remain intelligible to human operators. That makes Hephaestus a
+composite engineering problem rather than a single-model problem. Its design
+burden spans software architecture, event and evidence design, human oversight,
+tool-mediated agency, retry discipline, and safety-oriented verification.
+
+The current Hephaestus research library reflects that reality. The active set
+includes work on distributed snapshots, immutability, event sourcing,
+situation awareness, trust in automation, automation complexity, repository-
+scale coding agents, tool use, reflective retry loops, AI safety, and
+property-based testing. Considered individually, each source answers a narrow
+question. Considered together, they imply a coherent architecture for
+Hephaestus.
+
+This paper synthesizes that library into a single design argument. The central
+claim is that Hephaestus should be built as an evidence-first, policy-bounded,
+operator-supervised system whose autonomy is grounded in durable records,
+explicit state transitions, governed tool interfaces, and calibrated human
+control. In that sense, this paper is an equivalent companion to the library: a
+single document that restates the combined design pressure of the sources in
+project language.
+
+2. The Core Problem Hephaestus Must Solve
+
+Hephaestus is operating in the difficult region between ordinary automation and
+fully manual engineering. It is expected to do more than suggest text. It must:
+
+- gather context from a live repository
+- construct a bounded work plan
+- execute inspect, patch, and verification actions
+- persist evidence about what it did and why
+- stop when autonomy is not justified
+- expose enough state for a human to approve, reject, or redirect action
+
+The engineering challenge is therefore not "how do we make the model smarter?"
+The challenge is "how do we make system behavior reconstructable, governable,
+and appropriately supervised?" The research library points to a consistent
+answer: separate facts from projections, separate policy from mechanism,
+separate autonomy from authority, and separate retries from uncontrolled drift.
+
+3. Evidence Before Projection
+
+The strongest shared thread across the event-oriented papers is that the system
+must privilege durable facts over mutable views. Chandy and Lamport show that a
+system state worth trusting is not whatever happens to be visible in the moment,
+but a state that can be reconstructed from a disciplined capture model. Helland
+pushes the same instinct toward immutability: once facts are recorded, later
+views may change, but the facts should not. Verraes provides the practical
+vocabulary for separating event streams from projections.
+
+For Hephaestus, this means that the control plane, task lists, approval queues,
+and summary dashboards should be treated as projections over a more stable
+evidence spine. A task is not complete because the UI says so. It is complete
+because durable evidence shows an allowed transition, bounded execution, and the
+required verification or mutation artifacts. Likewise, an approval request is
+not merely a modal state in the frontend. It is a persisted policy event with
+traceable context.
+
+This design choice matters because Hephaestus must support replay, audit, and
+post-failure diagnosis. If the system collapses evidence, current state, and UI
+projection into one mutable structure, then later reasoning becomes guesswork.
+An evidence-first architecture makes it possible to answer the most important
+operational questions: what happened, why it happened, what was known at the
+time, and what policy allowed it.
+
+4. Policy-Bounded Autonomy
+
+The LLM-agent papers collectively argue that tool-using software agents succeed
+or fail less because of raw model eloquence than because of how the environment
+is structured around them. SWE-agent shows that issue resolution is deeply tied
+to the interface between the agent and the working environment. RepoCoder shows
+that repository-scale context gathering must be deliberate rather than ad hoc.
+Toolformer makes tool invocation itself an explicit part of the reasoning loop.
+Reflexion shows that critique can improve performance when it is captured and
+bounded rather than left open-ended.
+
+For Hephaestus, the implication is straightforward: autonomy must be implemented
+through explicit policy envelopes, not through broad model discretion. The
+system should not be told simply to fix a problem however it wishes. It should
+instead operate through constrained actions, typed tool calls, declared target
+files, bounded verification commands, and persisted policy decisions. Planning
+must name what files are intended to change, what commands are allowed to run,
+and what evidence will count as successful completion.
+
+This reframes autonomy. The agent is not the authority. Policy is the authority.
+The model is one component participating inside an execution contract. That is a
+crucial distinction for any system that can mutate code or ask for approval to
+perform riskier mutations.
+
+5. Human Oversight Is Architectural, Not Cosmetic
+
+The human-factors papers make a second major point: oversight quality depends on
+how the system presents state and uncertainty, not merely on whether a human is
+technically in the loop. Endsley argues that operators need perception,
+comprehension, and projection. Lee and See argue that automation must be trusted
+appropriately rather than maximally. Woods warns that automation often hides
+complexity rather than removing it.
+
+Taken together, these sources imply that Hephaestus cannot treat the control
+plane as a decorative shell placed on top of an autonomous engine. The control
+plane is part of the system's safety mechanism. Approval workflows, blocked task
+states, pending policy explanations, and retry histories are not peripheral UX
+details. They are how the human supervisor acquires enough understanding to make
+correct interventions.
+
+This means the operator UI should answer at least four questions clearly:
+
+- what state is the ticket or attempt in now
+- what evidence produced that state
+- what action the system wants to take next
+- why that action is or is not allowed without approval
+
+If Hephaestus cannot answer those questions succinctly, then human oversight is
+performative rather than real. The operator would still be nominally present,
+but without the situation awareness needed to direct the system intelligently.
+
+6. Retry Discipline and Reflective Restraint
+
+One of the easiest ways for an autonomous engineering system to become dangerous
+or useless is to retry work without learning or stopping. Reflexion suggests
+that repeated attempts can improve outcomes when failure information is
+incorporated into later action. But Woods and the safety literature warn that
+more automation does not automatically mean better control. The lesson for
+Hephaestus is not "retry more." It is "retry only under explicit conditions and
+with durable memory of why the last attempt failed."
+
+That requires retry to become a domain policy rather than a convenience feature.
+The system should know which ticket states are retryable, what counts as a new
+attempt, when description changes are required, and when continued retries are a
+symptom of architecture or policy failure rather than perseverance. Reflection
+notes, denial artifacts, and failure classifications should be preserved in a
+form operators can inspect. Otherwise, retries become silent churn.
+
+Bounded reflection is useful. Unbounded self-justification is not. The library
+supports the former and rejects the latter.
+
+7. Safety Must Be Concrete
+
+Amodei and colleagues are useful here because they force a move away from vague
+safety language. A system like Hephaestus does not need general moral rhetoric;
+it needs concrete failure classes. Unsafe autonomy can appear as premature patch
+application, weak evidence thresholds, misleading success classification,
+insufficient operator escalation, or overconfident recovery from partial
+failures. These are not abstract concerns. They are specific design defects.
+
+Once safety is made concrete, several design rules follow:
+
+- risky mutations need explicit approval boundaries
+- verification claims need evidence, not optimistic status labels
+- failure states need stable classifications that support recovery
+- the system should fail closed when tooling or policy assumptions break
+- operator override and review mechanisms must be first-class, not afterthoughts
+
+This is where the research library aligns strongly with the Hephaestus
+blueprint. D3 through D5 are not separate from safety; they are the location
+where safety gets operationalized.
+
+8. Verification Must Target Invariants
+
+The library also points toward a testing philosophy. QuickCheck is important not
+because Hephaestus is written in Haskell, but because it reorients testing
+toward invariants. In a system with task states, attempt states, retry policies,
+approval gates, and evidence rules, the most important properties are often not
+single examples but durable behavioral constraints.
+
+For example:
+
+- terminal states should not reopen without explicit policy paths
+- mutable completion claims should require governed mutation evidence
+- approval resumes should only replay the allowed slice of deferred work
+- retries should preserve attempt history and policy traceability
+- projections should remain derivable from canonical records
+
+Example-driven tests remain useful, but they are not enough. Hephaestus needs a
+verification strategy that makes policy drift visible. Property-based testing,
+transition-sequence testing, and replay-oriented checks are therefore not merely
+quality improvements. They are architectural instruments.
+
+9. A Unified Design Thesis for Hephaestus
+
+Across all of these papers, a single thesis emerges.
+
+Hephaestus should be designed as a governed autonomy system whose core unit is
+not a generated answer but a policy-constrained, evidence-backed operational
+attempt. Every meaningful action should be representable as a transition over
+durable state, justified by recorded artifacts, constrained by explicit policy,
+and reviewable through an operator interface that preserves situation awareness.
+
+That thesis has several concrete consequences:
+
+First, the canonical system record should be append-oriented and replayable.
+
+Second, runtime decisions should be delegated to explicit domain policies rather
+than hidden inside orchestration code.
+
+Third, tool use should occur through a bounded execution contract rather than
+free-form shell access.
+
+Fourth, approval is not a pause button but a structured promotion boundary.
+
+Fifth, retries and reflections should be bounded and evidence-linked.
+
+Sixth, operator understanding should be designed as a core capability of the
+system, not a side effect.
+
+Seventh, verification should focus on invariants that preserve the integrity of
+the autonomy model.
+
+10. Implications for the Blueprint
+
+The synthesis is especially relevant because Hephaestus already has a blueprint
+structure. The library now gives clearer intellectual grounding for that work.
+
+D1 is supported by the need to extract domain policy out of orchestration and
+into pure decision modules.
+
+D2 is supported by the event, evidence, replay, and projection literature.
+
+D3 is supported by the agent, tool-use, trust, and safety sources.
+
+D4 is supported by the bounded reflection and governed mutation logic implied by
+the agent and safety papers.
+
+D5 is supported by promotion-boundary and failure-mode thinking: what must be
+true before the system is allowed to move from local action into stronger claims
+of correctness or completion.
+
+D6 is supported by situation awareness, trust calibration, and control-plane
+clarity.
+
+The library is therefore not separate from the blueprint. It is the reasoning
+substrate that helps prevent the blueprint from degenerating into implementation
+folklore.
+
+11. Conclusion
+
+The Hephaestus research library, taken as a whole, does not recommend a larger,
+smarter, or more aggressive agent. It recommends a better engineered one. It
+pushes toward a system that records facts durably, projects them carefully,
+enforces policy explicitly, asks for approval at real promotion boundaries,
+supports operator understanding, and validates its own behavior through stable
+invariants.
+
+That is the equivalent paper hiding inside the library. The individual sources
+contribute vocabulary and specific techniques, but together they describe a
+single architecture for responsible software autonomy. For Hephaestus, the most
+important research conclusion is not that autonomous coding is possible. It is
+that autonomous coding is only defensible when evidence, policy, supervision,
+and verification are designed as primary system components.

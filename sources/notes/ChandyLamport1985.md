@@ -3,8 +3,8 @@
 Citation: Chandy, K. M., and Lamport, L. (1985). Distributed Snapshots: Determining Global States of Distributed Systems. ACM Transactions on Computer Systems, 3(1), 63-75.
 
 Public URL or DOI: https://doi.org/10.1145/214451.214456
-Local Copy: not present
-Status: note
+Local Copy: sources/papers/20-event-evidence/ChandyLamport1985.pdf
+Status: copy+note
 Blueprint Phases: D2
 
 ## Summary
@@ -26,4 +26,4 @@ Hephaestus would risk mixing current projections with historical truth and would
 
 ## Acquisition Note
 
-A verified local copy path is still needed before this entry can become copy+note.
+Local copy acquired from the public Lamport archive at https://lamport.azurewebsites.net/pubs/chandy.pdf.

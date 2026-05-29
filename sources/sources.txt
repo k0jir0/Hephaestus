@@ -140,3 +140,33 @@ Software Engineering." https://arxiv.org/abs/2405.15793
 [Zhang2023RepoCoder] Zhang, Y., Li, C., Sun, J., et al. (2023). "RepoCoder:
 Repository-Level Code Completion Through Iterative Retrieval and Generation."
 https://arxiv.org/abs/2303.12570
+
+[Madaan2023SelfRefine] Madaan, A., Tandon, N., Gupta, P., Hallinan, S., Gao,
+L., Wiegreffe, S., Alon, U., Dziri, N., Prabhumoye, S., Yang, Y., Gupta, S.,
+Shah, A., Hu, J., Yavuz, S., and Clark, P. (2023). "Self-Refine: Iterative
+Refinement with Self-Feedback." https://arxiv.org/abs/2303.17651
+
+[Xia2024Agentless] Xia, C. S., Deng, Y., Dunn, S., and Zhang, L. (2024).
+"Agentless: Demystifying LLM-based Software Engineering Agents."
+https://arxiv.org/abs/2407.01489
+
+[Zhang2024AutoCodeRover] Zhang, Y., Ruan, H., Fan, Z., and Roychoudhury, A.
+(2024). "AutoCodeRover: Autonomous Program Improvement."
+https://arxiv.org/abs/2404.05427
+
+[Tao2024MAGIS] Tao, W., Zhou, Y., Wang, Y., Zhang, W., Zhang, H., and Cheng,
+Y. (2024). "MAGIS: LLM-Based Multi-Agent Framework for GitHub Issue
+Resolution." https://arxiv.org/abs/2403.17927
+
+[Bairi2023CodePlan] Bairi, R., Sonwane, A., Kanade, A., D C, V., Iyer, A.,
+Parthasarathy, S., Rajamani, S., and Ashok, B. (2023). "CodePlan:
+Repository-level Coding using LLMs and Planning."
+https://arxiv.org/abs/2309.12499
+
+[Liu2024STALLPlus] Liu, J., Chen, Y., Liu, M., Peng, X., and Lou, Y. (2024).
+"STALL+: Boosting LLM-based Repository-level Code Completion with Static
+Analysis." https://arxiv.org/abs/2406.10018
+
+[Ding2026SWEReplay] Ding, Y., and Zhang, L. (2026). "SWE-Replay: Efficient
+Test-Time Scaling for Software Engineering Agents."
+https://arxiv.org/abs/2601.22129

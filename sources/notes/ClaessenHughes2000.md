@@ -3,8 +3,8 @@
 Citation: Claessen, K., and Hughes, J. (2000). QuickCheck: A Lightweight Tool for Random Testing of Haskell Programs. ICFP 2000.
 
 Public URL or DOI: https://doi.org/10.1145/351240.351266
-Local Copy: not present
-Status: note
+Local Copy: sources/papers/50-safety-verification/ClaessenHughes2000.pdf
+Status: copy+note
 Blueprint Phases: D1-D5
 
 ## Summary
@@ -26,4 +26,4 @@ Hephaestus would rely too heavily on scenario tests and miss the broader invaria
 
 ## Acquisition Note
 
-A lawful local copy is still desirable, but the note is immediately actionable.
+Local copy acquired from the public Tufts-hosted PDF at https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf.
