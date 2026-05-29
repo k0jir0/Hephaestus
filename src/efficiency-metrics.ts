@@ -35,6 +35,7 @@ interface EfficiencySnapshot {
   policy: {
     allowlistDenialCount: number;
     allowlistDenialRate: number;
+    allowlistDenialTaxonomyTop: Array<{ bucket: string; count: number }>;
   };
   efficiencyIndex: {
     score: number;
@@ -45,6 +46,15 @@ interface EfficiencySnapshot {
       latencyScore: number;
       completionScore: number;
       retryPenaltyScore: number;
+    };
+    attribution: {
+      topCohorts: Array<{
+        cohort: string;
+        ticketCount: number;
+        completionRate: number;
+        retryRate: number;
+        scoreContribution: number;
+      }>;
     };
   };
   variance: {
@@ -143,6 +153,66 @@ function stdDev(values: number[]): number {
 
 function formatMs(value: number): string {
   return `${Math.round(value)}ms`;
+}
+
+function extractCohort(description: string): string {
+  const normalized = description.trim();
+  const epMatch = normalized.match(/\b(EP\d+)-T\d+\b/i);
+  if (epMatch?.[1]) {
+    return epMatch[1].toUpperCase();
+  }
+
+  const roadmapMatch = normalized.match(/\broadmap\s*(\d+)\b/i);
+  if (roadmapMatch?.[1]) {
+    return `ROADMAP-${roadmapMatch[1]}`;
+  }
+
+  const prefix = normalized.split(/\s+/, 1)[0] ?? 'general';
+  return prefix.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24).toUpperCase() || 'GENERAL';
+}
+
+function normalizeDenialBucket(error: string): string {
+  const normalized = error.trim().toLowerCase();
+  const bucket = normalized.split(/[:.;]/, 1)[0] ?? normalized;
+  return bucket.replace(/\s+/g, ' ').slice(0, 72);
+}
+
+function buildTopCohortAttribution(tickets: TaskTicket[]): Array<{
+  cohort: string;
+  ticketCount: number;
+  completionRate: number;
+  retryRate: number;
+  scoreContribution: number;
+}> {
+  const cohorts = new Map<string, TaskTicket[]>();
+  for (const ticket of tickets) {
+    const cohort = extractCohort(ticket.description);
+    const current = cohorts.get(cohort) ?? [];
+    current.push(ticket);
+    cohorts.set(cohort, current);
+  }
+
+  return [...cohorts.entries()]
+    .map(([cohort, cohortTickets]) => {
+      const count = cohortTickets.length;
+      const completionRate = count === 0
+        ? 0
+        : cohortTickets.filter((ticket) => ticket.status === 'completed').length / count;
+      const retryRate = count === 0
+        ? 0
+        : cohortTickets.filter((ticket) => ticket.attemptCount > 1).length / count;
+      const scoreContribution = round(100 * (0.65 * completionRate + 0.35 * (1 - retryRate)));
+
+      return {
+        cohort,
+        ticketCount: count,
+        completionRate: round(completionRate),
+        retryRate: round(retryRate),
+        scoreContribution,
+      };
+    })
+    .sort((left, right) => right.scoreContribution - left.scoreContribution || right.ticketCount - left.ticketCount)
+    .slice(0, 5);
 }
 
 async function loadHistory(): Promise<EfficiencySnapshot[]> {
@@ -293,6 +363,19 @@ async function collectSnapshot(): Promise<EfficiencySnapshot> {
     const completionRate = tickets.length === 0 ? 0 : completedCount / tickets.length;
     const allowlistDenialCount = tickets.filter((ticket) => /allowlisted/i.test(ticket.error ?? '')).length;
     const allowlistDenialRate = tickets.length === 0 ? 0 : allowlistDenialCount / tickets.length;
+    const denialTaxonomy = new Map<string, number>();
+    for (const ticket of tickets) {
+      if (!/allowlisted/i.test(ticket.error ?? '')) {
+        continue;
+      }
+
+      const bucket = normalizeDenialBucket(ticket.error ?? 'allowlisted');
+      denialTaxonomy.set(bucket, (denialTaxonomy.get(bucket) ?? 0) + 1);
+    }
+    const allowlistDenialTaxonomyTop = [...denialTaxonomy.entries()]
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 5)
+      .map(([bucket, count]) => ({ bucket, count }));
 
     const latencySummary = {
       admissionToStart: summarize(admissionToStart),
@@ -338,6 +421,7 @@ async function collectSnapshot(): Promise<EfficiencySnapshot> {
       policy: {
         allowlistDenialCount,
         allowlistDenialRate: round(allowlistDenialRate),
+        allowlistDenialTaxonomyTop,
       },
       efficiencyIndex: {
         score,
@@ -348,6 +432,9 @@ async function collectSnapshot(): Promise<EfficiencySnapshot> {
           latencyScore: round(latencyScore),
           completionScore: round(completionScore),
           retryPenaltyScore: round(retryPenaltyScore),
+        },
+        attribution: {
+          topCohorts: buildTopCohortAttribution(tickets),
         },
       },
     };

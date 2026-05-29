@@ -531,6 +531,68 @@ export class TicketStoreRepository
     await this.writeProjectionSafely();
   }
 
+  async markTaskFailed(task: Task): Promise<void> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      await this.fallbackWatcher.markTaskFailed(task);
+      return;
+    }
+
+    const ticket = this.findTicketForTask(task);
+    if (!ticket) {
+      logger.warn('Could not find ticket to mark failed', { task: task.description });
+      return;
+    }
+
+    assertValidTaskTransition(ticket.status, 'failed', `ticket ${ticket.id}`);
+
+    const now = new Date().toISOString();
+    this.finishCurrentAttempt(ticket, {
+      status: 'failed',
+      endedAt: now,
+      error: task.error,
+      planJson: task.plan ? JSON.stringify(task.plan) : undefined,
+      toolCallsJson: serializeToolCalls(task.toolCalls),
+      approvalJson: serializeApprovalState(task.approval),
+    });
+
+    this.getDatabase()
+      .prepare(
+        `update tickets
+         set status = 'failed',
+             updated_at = ?,
+             error = ?,
+             plan_json = ?,
+             tool_calls_json = coalesce(?, tool_calls_json),
+             approval_json = coalesce(?, approval_json),
+             current_attempt_id = null
+         where id = ?`
+      )
+      .run(
+        now,
+        task.error ?? null,
+        task.plan ? JSON.stringify(task.plan) : null,
+        serializeToolCalls(task.toolCalls),
+        serializeApprovalState(task.approval),
+        ticket.id
+      );
+    this.recordEvent({
+      ticketId: ticket.id,
+      type: 'failed',
+      createdAt: new Date(now),
+      details: task.error,
+    });
+    this.recordEvent({
+      ticketId: ticket.id,
+      type: 'attempt-finished',
+      createdAt: new Date(now),
+      details: ticket.current_attempt_id ?? undefined,
+    });
+
+    await this.writeProjectionSafely();
+  }
+
   async createTicket(
     description: string,
     options: { status?: TaskStatus } = {}
@@ -1843,9 +1905,11 @@ export class TicketStoreRepository
       return;
     }
 
+    const dispatchStartedAt = Date.now();
     this.dispatchInProgress = true;
     let pendingCount = 0;
     let dispatchedCount = 0;
+    let redispatchDueCount = 0;
     try {
       const tasks = this.listTasksByStatus('pending');
       pendingCount = tasks.length;
@@ -1859,7 +1923,12 @@ export class TicketStoreRepository
           return true;
         }
 
-        return (this.pendingRedispatchAfter.get(task.id) ?? Number.POSITIVE_INFINITY) <= now;
+        const due = (this.pendingRedispatchAfter.get(task.id) ?? Number.POSITIVE_INFINITY) <= now;
+        if (due) {
+          redispatchDueCount += 1;
+        }
+
+        return due;
       });
 
       this.knownPendingTaskIds.clear();
@@ -1892,18 +1961,58 @@ export class TicketStoreRepository
     } finally {
       this.dispatchInProgress = false;
       if (this.onNewTask) {
-        this.schedulePendingDispatch(this.computeNextPollInterval(pendingCount, dispatchedCount));
+        const dispatchDurationMs = Math.max(0, Date.now() - dispatchStartedAt);
+        this.schedulePendingDispatch(
+          this.computeNextPollInterval(
+            pendingCount,
+            dispatchedCount,
+            redispatchDueCount,
+            dispatchDurationMs
+          )
+        );
       }
     }
   }
 
-  private computeNextPollInterval(pendingCount: number, dispatchedCount: number): number {
+  private computeNextPollInterval(
+    pendingCount: number,
+    dispatchedCount: number,
+    redispatchDueCount: number,
+    dispatchDurationMs: number
+  ): number {
     if (pendingCount === 0) {
       this.currentPollIntervalMs = Math.min(this.currentPollIntervalMs * 2, 5_000);
       return this.currentPollIntervalMs;
     }
 
+    const queuePressure = pendingCount >= 5;
+
     if (dispatchedCount > 0) {
+      if (redispatchDueCount > 0) {
+        this.currentPollIntervalMs = 100;
+        return this.currentPollIntervalMs;
+      }
+
+      if (queuePressure) {
+        this.currentPollIntervalMs = 150;
+        return this.currentPollIntervalMs;
+      }
+
+      if (dispatchDurationMs > this.pollingIntervalMs) {
+        this.currentPollIntervalMs = Math.max(200, Math.floor(this.pollingIntervalMs / 2));
+        return this.currentPollIntervalMs;
+      }
+
+      this.currentPollIntervalMs = Math.max(250, Math.floor(this.pollingIntervalMs / 2));
+      return this.currentPollIntervalMs;
+    }
+
+    if (redispatchDueCount > 0) {
+      this.currentPollIntervalMs = 200;
+      return this.currentPollIntervalMs;
+    }
+
+    if (queuePressure) {
       this.currentPollIntervalMs = Math.max(250, Math.floor(this.pollingIntervalMs / 2));
       return this.currentPollIntervalMs;
     }

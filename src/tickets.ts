@@ -4,6 +4,8 @@ import { computeOperationalSLOMetrics, formatOperationalSLOMetrics } from './slo
 import { runTicketAutopilot } from './ticket-autopilot.js';
 import { exportPatchBundle } from './delivery.js';
 import { exportCodexHandoffBundles } from './codex-handoff.js';
+import { parseOption, parsePositiveInteger } from './cli-utils.js';
+import { assessTicketTemplate, formatTicketTemplateAssessment } from './ticket-template.js';
 import type { TaskStatus } from './types.js';
 
 const validStatuses: TaskStatus[] = [
@@ -61,15 +63,6 @@ function parseStatusArgument(value: string | undefined): TaskStatus | 'all' {
   return value as TaskStatus;
 }
 
-function parseOption(args: string[], name: string): string | undefined {
-  const optionIndex = args.indexOf(name);
-  if (optionIndex === -1) {
-    return undefined;
-  }
-
-  return args[optionIndex + 1];
-}
-
 function parseStatusesArgument(value: string | undefined): TaskStatus[] | undefined {
   if (!value) {
     return undefined;
@@ -99,19 +92,6 @@ function formatTimestamp(value: Date | undefined): string {
   return value ? value.toISOString() : '-';
 }
 
-function parsePositiveInteger(value: string | undefined, optionName: string): number | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${optionName} must be a positive integer.`);
-  }
-
-  return parsed;
-}
-
 async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2);
   if (!command || command === 'help' || command === '--help' || command === '-h') {
@@ -127,6 +107,11 @@ async function main(): Promise<void> {
         const description = args.join(' ').trim();
         if (!description) {
           throw new Error('create requires a non-empty ticket description.');
+        }
+
+        const templateAssessment = assessTicketTemplate(description);
+        if (!templateAssessment.valid) {
+          throw new Error(formatTicketTemplateAssessment(templateAssessment));
         }
 
         const ticket = await repository.createTicket(description);
@@ -225,6 +210,13 @@ async function main(): Promise<void> {
         }
 
         const amendedDescription = parseOption(args, '--amend');
+        if (amendedDescription) {
+          const templateAssessment = assessTicketTemplate(amendedDescription);
+          if (!templateAssessment.valid) {
+            throw new Error(formatTicketTemplateAssessment(templateAssessment));
+          }
+        }
+
         const ticket = await repository.retryTicket(ticketId, { amendedDescription });
         console.log(`Retried ${ticket.id}; new status: ${ticket.status}`);
         if (amendedDescription) {

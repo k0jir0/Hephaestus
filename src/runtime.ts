@@ -29,7 +29,7 @@ import type {
 import { SafetySystem } from './safety.js';
 import { SelfAuditSeeder, type SelfAuditSeedResult } from './self-audit.js';
 import { canTransitionTaskStatus, transitionTask } from './task-lifecycle.js';
-import { classifyTaskEnvelope, formatTaskEnvelopeDecision } from './task-envelope.js';
+import { classifyTaskEnvelope, formatTaskEnvelopeDecision, lintTaskEnvelopeQuality } from './task-envelope.js';
 import { TicketStoreRepository } from './task-store.js';
 import { EngineeringToolRuntime, type EngineeringToolRequest } from './tool-runtime.js';
 import type {
@@ -42,6 +42,31 @@ import type {
   ToolCall,
   ToolPolicySnapshot,
 } from './types.js';
+
+const defaultTransientFailureAttemptCap = Number.parseInt(
+  process.env.TRANSIENT_FAILURE_ATTEMPT_CAP ?? '2',
+  10
+);
+
+const likelyTransientFailurePatterns = [
+  /\btimeout\b/i,
+  /\betimedout\b/i,
+  /\beconnreset\b/i,
+  /\bebusy\b/i,
+  /\btemporar(il)?y\b/i,
+  /\btransient\b/i,
+  /\brate\s*limit\b/i,
+  /\bbackend\s+unavailable\b/i,
+  /\bwarmup\b/i,
+];
+
+const hardBlockFailurePatterns = [
+  /unsupported task envelope/i,
+  /allowlisted/i,
+  /denied/i,
+  /invalid\s+task\s+transition/i,
+  /approval\s+required/i,
+];
 
 export interface RuntimeOptions {
   runOnce?: boolean;
@@ -493,14 +518,21 @@ export class HephaestusRuntime {
       await this.tasks.markTaskInProgress(task);
       taskMarkedInProgress = true;
 
+      const envelopeLint = lintTaskEnvelopeQuality(task.description);
+      if (envelopeLint.issues.length > 0) {
+        await this.appendTaskArtifacts(task.id, [
+          `[${admission.correlationId}] task.envelope.lint score=${envelopeLint.score}/5 actionable=${envelopeLint.actionable} issues=${envelopeLint.issues.join('; ')} recommendation=${envelopeLint.recommendation}`,
+        ]);
+      }
+
       const envelope = classifyTaskEnvelope(task.description);
       if (!envelope.supported) {
-        const reason = formatTaskEnvelopeDecision(envelope);
+        const reason = `${formatTaskEnvelopeDecision(envelope)} Lint score=${envelopeLint.score}/5.`;
         task.error = reason;
         await this.appendTaskArtifacts(task.id, [
           `[${admission.correlationId}] task.envelope deferred ${envelope.taskClass}: ${envelope.reason}`,
         ]);
-        await this.handleBlockedTask(task, reason, taskMarkedInProgress);
+        await this.handleBlockedTask(task, reason, taskMarkedInProgress, { forceBlocked: true });
         return 'failed';
       }
 
@@ -1213,10 +1245,13 @@ export class HephaestusRuntime {
   private async handleBlockedTask(
     task: Task,
     reason: string,
-    taskMarkedInProgress: boolean
+    taskMarkedInProgress: boolean,
+    options: { forceBlocked?: boolean } = {}
   ): Promise<void> {
     this.safety.recordError(reason);
-    this.state.status = 'blocked';
+    const hardBlocked = this.shouldEscalateToBlocked(task, reason, options.forceBlocked === true);
+
+    this.state.status = hardBlocked ? 'blocked' : 'error';
     this.state.currentTask = task;
     this.state.lastActivity = new Date();
 
@@ -1243,17 +1278,24 @@ export class HephaestusRuntime {
         execute: () => this.memory.addSessionSummary(`Blocked: ${task.description}`),
       },
     ]);
-    await this.memory.updateStatus('Blocked', task.description);
+    await this.memory.updateStatus(hardBlocked ? 'Blocked' : 'Failed', task.description);
 
     if (taskMarkedInProgress) {
       try {
-        await this.tasks.markTaskBlocked(task);
-        if (canTransitionTaskStatus(task.status, 'blocked')) {
-          Object.assign(task, transitionTask(task, 'blocked'));
+        if (hardBlocked) {
+          await this.tasks.markTaskBlocked(task);
         } else {
-          task.status = 'blocked';
+          await this.tasks.markTaskFailed(task);
+        }
+
+        if (canTransitionTaskStatus(task.status, hardBlocked ? 'blocked' : 'failed')) {
+          Object.assign(task, transitionTask(task, hardBlocked ? 'blocked' : 'failed'));
+        } else {
+          task.status = hardBlocked ? 'blocked' : 'failed';
           task.updatedAt = new Date();
-          task.blockedAt = task.blockedAt ?? new Date();
+          if (hardBlocked) {
+            task.blockedAt = task.blockedAt ?? new Date();
+          }
         }
       } catch (error) {
         logger.warn('Could not persist blocked state transition; continuing shutdown-safe path', {
@@ -1262,6 +1304,30 @@ export class HephaestusRuntime {
         });
       }
     }
+
+    if (!hardBlocked) {
+      await this.markIdle();
+    }
+  }
+
+  private shouldEscalateToBlocked(task: Task, reason: string, forceBlocked: boolean): boolean {
+    if (forceBlocked) {
+      return true;
+    }
+
+    if (hardBlockFailurePatterns.some((pattern) => pattern.test(reason))) {
+      return true;
+    }
+
+    const maxTransientFailures = Number.isInteger(defaultTransientFailureAttemptCap)
+      ? Math.max(1, defaultTransientFailureAttemptCap)
+      : 2;
+    const attemptsUsed = task.attemptCount ?? 0;
+    if (attemptsUsed >= maxTransientFailures) {
+      return true;
+    }
+
+    return !likelyTransientFailurePatterns.some((pattern) => pattern.test(reason));
   }
 
   private async handleAwaitingApprovalTask(

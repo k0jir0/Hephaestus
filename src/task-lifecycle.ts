@@ -2,11 +2,11 @@ import type { Task, TaskStatus } from './types.js';
 
 const allowedTransitions: Record<TaskStatus, readonly TaskStatus[]> = {
   pending: ['in_progress', 'blocked', 'cancelled', 'superseded'],
-  in_progress: ['planned', 'awaiting_approval', 'applying', 'verifying', 'completed', 'blocked', 'stale', 'cancelled', 'superseded'],
-  planned: ['awaiting_approval', 'applying', 'verifying', 'completed', 'blocked', 'stale', 'cancelled', 'superseded'],
-  awaiting_approval: ['pending', 'applying', 'verifying', 'completed', 'blocked', 'cancelled', 'superseded'],
-  applying: ['verifying', 'completed', 'blocked', 'stale', 'cancelled', 'superseded'],
-  verifying: ['completed', 'blocked', 'stale', 'cancelled', 'superseded'],
+  in_progress: ['planned', 'awaiting_approval', 'applying', 'verifying', 'completed', 'failed', 'blocked', 'stale', 'cancelled', 'superseded'],
+  planned: ['awaiting_approval', 'applying', 'verifying', 'completed', 'failed', 'blocked', 'stale', 'cancelled', 'superseded'],
+  awaiting_approval: ['pending', 'applying', 'verifying', 'completed', 'failed', 'blocked', 'cancelled', 'superseded'],
+  applying: ['verifying', 'completed', 'failed', 'blocked', 'stale', 'cancelled', 'superseded'],
+  verifying: ['completed', 'failed', 'blocked', 'stale', 'cancelled', 'superseded'],
   completed: ['merged'],
   merged: [],
   blocked: ['pending', 'cancelled', 'superseded'],

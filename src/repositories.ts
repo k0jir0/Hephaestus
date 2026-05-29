@@ -40,6 +40,7 @@ export interface TaskRepository {
   markTaskInProgress(task: Task): Promise<void>;
   markTaskAwaitingApproval(task: Task): Promise<void>;
   markTaskCompleted(task: Task): Promise<void>;
+  markTaskFailed(task: Task): Promise<void>;
   markTaskBlocked(task: Task): Promise<void>;
 }
 

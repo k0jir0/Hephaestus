@@ -245,6 +245,13 @@ export class TaskWatcher implements TaskRepository {
   }
 
   /**
+   * Move a task into the Blocked section for transient failures in fallback mode.
+   */
+  async markTaskFailed(task: Task): Promise<void> {
+    await this.markTaskBlocked(task);
+  }
+
+  /**
    * Move a task into the Blocked section so operator action is visible.
    */
   async markTaskBlocked(task: Task): Promise<void> {

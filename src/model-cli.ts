@@ -11,6 +11,7 @@ import {
   runOllamaModelBenchmark,
   runOllamaModelSmokeTest,
 } from './model-diagnostics.js';
+import { parseOption } from './cli-utils.js';
 
 function printUsage(): void {
   console.log(`Hephaestus model diagnostics
@@ -23,15 +24,6 @@ Usage:
   npm run models:promote -- [--model <model>] [--min-success <ratio>]
   npm run models:warmup -- [model] [--timeout-ms <ms>]
 `);
-}
-
-function parseOption(args: string[], name: string): string | undefined {
-  const index = args.indexOf(name);
-  if (index === -1) {
-    return undefined;
-  }
-
-  return args[index + 1];
 }
 
 async function printReport(): Promise<void> {

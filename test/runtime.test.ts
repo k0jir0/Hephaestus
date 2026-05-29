@@ -715,11 +715,11 @@ describe('HephaestusRuntime', () => {
       { tool: 'file.read', subject: 'README.md' },
       { tool: 'command.run', subject: 'npm' },
     ]);
-    assert.equal(calls.artifacts.length, 4);
-    assert.match(calls.artifacts[0] || '', /file\.read README\.md -> success/);
-    assert.match(calls.artifacts[1] || '', /deferred-mutation update src\/runtime\.ts/);
-    assert.match(calls.artifacts[2] || '', /command\.run npm test -> success/);
-    assert.match(calls.artifacts[3] || '', /backend\.ollama model=/);
+    assert.equal(calls.artifacts.length, 5);
+    assert.ok(calls.artifacts.some((artifact) => /file\.read README\.md -> success/.test(artifact)));
+    assert.ok(calls.artifacts.some((artifact) => /deferred-mutation update src\/runtime\.ts/.test(artifact)));
+    assert.ok(calls.artifacts.some((artifact) => /command\.run npm test -> success/.test(artifact)));
+    assert.ok(calls.artifacts.some((artifact) => /backend\.ollama model=/.test(artifact)));
   });
 
   it('executes governed repo.search tool calls through the bounded tool runtime', async () => {
@@ -837,7 +837,7 @@ describe('HephaestusRuntime', () => {
     ]);
     assert.equal(calls.completed, 1);
     assert.equal(calls.blocked, 0);
-    assert.match(calls.artifacts[1] || '', /repo\.search updateStatus -> success/);
+    assert.ok(calls.artifacts.some((artifact) => /repo\.search updateStatus -> success/.test(artifact)));
   });
 
   it('executes low-risk patch tool calls through dry-run and apply with persisted policy artifacts', async () => {

@@ -23,8 +23,6 @@
     "models:recommend": "tsx src/model-cli.ts recommend",
     "models:promote": "tsx src/model-cli.ts promote",
     "models:warmup": "tsx src/model-cli.ts warmup",
-    "model:warmup": "npm run models:warmup",
-    "test:roadmap2": "npm test",
     "autopilot": "tsx src/tickets.ts autopilot",
     "metrics:efficiency": "tsx src/efficiency-metrics.ts",
     "metrics:efficiency:weekly": "tsx src/efficiency-weekly-report.ts",

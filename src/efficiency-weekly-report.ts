@@ -7,8 +7,23 @@ interface EfficiencySnapshot {
   throughput?: { completedPerDay?: number };
   latencyMs?: { admissionToComplete?: { p95?: number } };
   quality?: { completionRate?: number; retryRate?: number };
-  policy?: { allowlistDenialRate?: number; allowlistDenialCount?: number };
-  efficiencyIndex?: { score?: number };
+  policy?: {
+    allowlistDenialRate?: number;
+    allowlistDenialCount?: number;
+    allowlistDenialTaxonomyTop?: Array<{ bucket?: string; count?: number }>;
+  };
+  efficiencyIndex?: {
+    score?: number;
+    attribution?: {
+      topCohorts?: Array<{
+        cohort?: string;
+        ticketCount?: number;
+        completionRate?: number;
+        retryRate?: number;
+        scoreContribution?: number;
+      }>;
+    };
+  };
   variance?: { alerts?: string[] };
 }
 
@@ -95,6 +110,26 @@ function buildReport(allEntries: EfficiencySnapshot[]): string {
   };
 
   const uniqueAlerts = [...new Set(currentSummary.alerts)];
+  const latest = allEntries[allEntries.length - 1];
+  const denialTaxonomyTop = latest?.policy?.allowlistDenialTaxonomyTop ?? [];
+  const topCohorts = latest?.efficiencyIndex?.attribution?.topCohorts ?? [];
+  const recommendations: string[] = [];
+
+  if (delta.allowlistDenialRate > 0) {
+    recommendations.push('Prioritize allowlist policy cleanup because denial rate increased week-over-week.');
+  }
+  if (delta.retry > 0) {
+    recommendations.push('Retry rate increased; review transient failure handling and warmup windows.');
+  }
+  if (delta.p95 > 0) {
+    recommendations.push('Admission-to-complete latency worsened; tune pending-dispatch pacing and queue pressure thresholds.');
+  }
+  if (uniqueAlerts.length > 0) {
+    recommendations.push('Variance alerts are present; schedule bounded mitigation tickets for the top two alert families.');
+  }
+  if (denialTaxonomyTop.length > 0) {
+    recommendations.push(`Top denial bucket: ${(denialTaxonomyTop[0]?.bucket ?? 'unknown').trim()} - add or document approved command variants.`);
+  }
 
   return [
     '# Hephaestus Weekly Efficiency Report',
@@ -119,6 +154,25 @@ function buildReport(allEntries: EfficiencySnapshot[]): string {
     `- Completion rate delta: ${format(delta.completion)}`,
     `- Retry rate delta: ${format(delta.retry)}`,
     `- Allowlist denial rate delta: ${format(delta.allowlistDenialRate)}`,
+    '',
+    '## Denial Taxonomy (Latest Snapshot)',
+    '',
+    ...(denialTaxonomyTop.length
+      ? denialTaxonomyTop.map((entry) => `- ${(entry.bucket ?? 'unknown').trim()}: ${Number(entry.count ?? 0)}`)
+      : ['- none observed']),
+    '',
+    '## Cohort Attribution (Latest Snapshot)',
+    '',
+    ...(topCohorts.length
+      ? topCohorts.map(
+          (entry) =>
+            `- ${entry.cohort ?? 'UNKNOWN'}: tickets=${Number(entry.ticketCount ?? 0)}, completion=${format(Number(entry.completionRate ?? 0))}, retry=${format(Number(entry.retryRate ?? 0))}, contribution=${format(Number(entry.scoreContribution ?? 0))}`
+        )
+      : ['- unavailable']),
+    '',
+    '## Recommended Actions',
+    '',
+    ...(recommendations.length ? recommendations.map((entry) => `- ${entry}`) : ['- Continue current policy; no adverse efficiency deltas detected this week.']),
     '',
     '## Variance Alerts (Current Window)',
     '',

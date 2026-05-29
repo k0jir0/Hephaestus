@@ -13,6 +13,13 @@ export interface TaskEnvelopeDecision {
   recommendation: string;
 }
 
+export interface TaskEnvelopeQualityLint {
+  score: number;
+  actionable: boolean;
+  issues: string[];
+  recommendation: string;
+}
+
 const unsupportedPatterns = [
   /\bdeploy\b/i,
   /\bproduction\b/i,
@@ -112,6 +119,50 @@ export function supportedTaskEnvelopeSummary(): string {
     'Supported task classes: focused-code-change, test-repair, configuration-repair, documentation-update, ci-repair, repository-inspection.',
     'Defer deployment, merge, PR-opening, broad rewrite, production-operation, and unclear unbounded tasks to an operator.',
   ].join(' ');
+}
+
+export function lintTaskEnvelopeQuality(description: string): TaskEnvelopeQualityLint {
+  const normalized = description.trim();
+  const issues: string[] = [];
+  let score = 0;
+
+  if (normalized.length >= 12) {
+    score += 1;
+  } else {
+    issues.push('Description is too short to scope bounded implementation work.');
+  }
+
+  if (unsupportedPatterns.some((pattern) => pattern.test(normalized))) {
+    issues.push('Description includes broad delivery or production language that should be split.');
+  } else {
+    score += 1;
+  }
+
+  if (/\b(add|fix|implement|optimi[sz]e|refactor|remove|update|validate)\b/i.test(normalized)) {
+    score += 1;
+  } else {
+    issues.push('Description should include a concrete action verb.');
+  }
+
+  if (/\b(src\/|test\/|docs\/|scripts\/|runtime|ticket|metrics|ui|model)\b/i.test(normalized)) {
+    score += 1;
+  } else {
+    issues.push('Description should identify local scope (file, module, or subsystem).');
+  }
+
+  if (/\b(npm\s+run|npm\s+test|verify|validation|evidence|signal)\b/i.test(normalized)) {
+    score += 1;
+  } else {
+    issues.push('Description should include a verification command or expected signal.');
+  }
+
+  return {
+    score,
+    actionable: issues.length <= 2,
+    issues,
+    recommendation:
+      'Use: <action> <local scope> with <verification signal>. Example: "Implement src/task-store.ts dispatch pacing and verify with npm run build".',
+  };
 }
 
 function unsupported(reason: string): TaskEnvelopeDecision {

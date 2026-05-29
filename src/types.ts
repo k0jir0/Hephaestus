@@ -65,6 +65,7 @@ export interface TaskEvent {
     | 'created'
     | 'claimed'
     | 'completed'
+    | 'failed'
     | 'blocked'
     | 'stale-recovered'
     | 'cancelled'
