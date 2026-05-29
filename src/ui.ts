@@ -31,6 +31,7 @@ function buildStyles(): string {
       min-height: 100vh;
       font-family: "Trebuchet MS", "Aptos", sans-serif;
       color: var(--ink);
+      accent-color: var(--accent);
       background:
         radial-gradient(circle at top left, rgba(45, 212, 191, 0.24), transparent 35%),
         radial-gradient(circle at top right, rgba(14, 116, 144, 0.22), transparent 30%),
@@ -305,12 +306,14 @@ function buildStyles(): string {
       border: 1px solid rgba(120, 150, 184, 0.28);
       background: rgba(11, 17, 26, 0.88);
       box-shadow: inset 0 0 0 1px rgba(42, 59, 78, 0.45);
+      scrollbar-color: rgba(94, 234, 212, 0.45) rgba(12, 19, 30, 0.9);
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
       min-width: 720px;
+      table-layout: fixed;
     }
 
     th,
@@ -319,6 +322,7 @@ function buildStyles(): string {
       text-align: left;
       border-bottom: 1px solid rgba(100, 130, 162, 0.22);
       vertical-align: top;
+      overflow-wrap: anywhere;
     }
 
     th {
@@ -326,6 +330,7 @@ function buildStyles(): string {
       top: 0;
       z-index: 1;
       background: rgba(16, 24, 35, 0.98);
+      box-shadow: 0 1px 0 rgba(112, 141, 171, 0.24);
       font-size: 12px;
       text-transform: uppercase;
       letter-spacing: 0.09em;
@@ -338,12 +343,39 @@ function buildStyles(): string {
       transition: background var(--transition);
     }
 
+    tbody tr:nth-child(even) {
+      background: rgba(11, 18, 28, 0.42);
+    }
+
     tbody tr:hover {
       background: rgba(45, 212, 191, 0.12);
     }
 
     tbody tr.selected {
       background: rgba(45, 212, 191, 0.18);
+    }
+
+    .col-id {
+      width: 160px;
+    }
+
+    .col-status {
+      width: 130px;
+    }
+
+    .col-attempts {
+      width: 100px;
+    }
+
+    .col-updated {
+      width: 190px;
+    }
+
+    .ticket-description-cell,
+    .ticket-summary-cell {
+      max-width: 0;
+      white-space: normal;
+      line-height: 1.45;
     }
 
     .status-pill,
@@ -620,6 +652,10 @@ function buildStyles(): string {
         margin: 9px auto 18px;
       }
 
+      table {
+        min-width: 640px;
+      }
+
       .hero-copy,
       .hero-auth,
       .panel,
@@ -662,6 +698,15 @@ function buildClientScript(): string {
 
     function byId(id) {
       return document.getElementById(id);
+    }
+
+    function requireElement(id) {
+      const element = byId(id);
+      if (!element) {
+        throw new Error('Missing required UI element: ' + id);
+      }
+
+      return element;
     }
 
     function escapeHtml(value) {
@@ -794,16 +839,12 @@ function buildClientScript(): string {
     }
 
     function bindAuthForm() {
-      const tokenInput = byId('token-input');
-      const reviewerInput = byId('reviewer-input');
-      if (tokenInput) {
-        tokenInput.value = state.token;
-      }
-      if (reviewerInput) {
-        reviewerInput.value = state.reviewer;
-      }
+      const tokenInput = requireElement('token-input');
+      const reviewerInput = requireElement('reviewer-input');
+      tokenInput.value = state.token;
+      reviewerInput.value = state.reviewer;
 
-      byId('connect-button').addEventListener('click', async function () {
+      requireElement('connect-button').addEventListener('click', async function () {
         state.token = (tokenInput.value || '').trim();
         state.reviewer = (reviewerInput.value || '').trim();
         localStorage.setItem('hephaestusUIToken', state.token);
@@ -813,8 +854,8 @@ function buildClientScript(): string {
     }
 
     function bindForms() {
-      const statusFilter = byId('ticket-status-filter');
-      const queryFilter = byId('ticket-query-filter');
+      const statusFilter = requireElement('ticket-status-filter');
+      const queryFilter = requireElement('ticket-query-filter');
       statusFilter.value = state.filters.status;
       queryFilter.value = state.filters.query;
 
@@ -830,9 +871,9 @@ function buildClientScript(): string {
         refreshTickets().catch(handleError);
       });
 
-      byId('create-ticket-form').addEventListener('submit', async function (event) {
+      requireElement('create-ticket-form').addEventListener('submit', async function (event) {
         event.preventDefault();
-        const descriptionInput = byId('create-ticket-description');
+        const descriptionInput = requireElement('create-ticket-description');
         const description = (descriptionInput.value || '').trim();
         if (!description) {
           showToast('Ticket description is required.', 'error');
@@ -1090,16 +1131,16 @@ function buildClientScript(): string {
     }
 
     function renderOperationsTable(tickets) {
-      renderTicketRows('operations-table-body', tickets, function (ticket) {
+      renderTicketRows('operations-table-body', tickets, function (ticketId) {
         state.view = 'tickets';
-        state.selectedTicketId = ticket.id;
+        state.selectedTicketId = ticketId;
         switchView('tickets');
       });
     }
 
     function renderTicketsTable(tickets) {
-      renderTicketRows('tickets-table-body', tickets, function (ticket) {
-        refreshTicketDetail(ticket.id).catch(handleError);
+      renderTicketRows('tickets-table-body', tickets, function (ticketId) {
+        refreshTicketDetail(ticketId).catch(handleError);
       });
     }
 
@@ -1115,18 +1156,23 @@ function buildClientScript(): string {
           ? 'Approved and ready to resume'
           : (ticket.error || ticket.result || ticket.description);
         return '<tr data-ticket-id="' + escapeHtml(ticket.id) + '">' +
-          '<td class="mono">' + escapeHtml(ticket.id) + '</td>' +
-          '<td><span class="status-pill ' + escapeHtml(ticket.status) + '">' + escapeHtml(ticket.status.replace(/_/g, ' ')) + '</span></td>' +
-          '<td>' + escapeHtml(ticket.description) + '</td>' +
-          '<td>' + escapeHtml(summary) + '</td>' +
-          '<td>' + escapeHtml(String(ticket.attemptCount || 0)) + '</td>' +
-          '<td>' + escapeHtml(formatDate(ticket.updatedAt)) + '</td>' +
+          '<td class="mono col-id">' + escapeHtml(ticket.id) + '</td>' +
+          '<td class="col-status"><span class="status-pill ' + escapeHtml(ticket.status) + '">' + escapeHtml(ticket.status.replace(/_/g, ' ')) + '</span></td>' +
+          '<td class="ticket-description-cell">' + escapeHtml(ticket.description) + '</td>' +
+          '<td class="ticket-summary-cell">' + escapeHtml(summary) + '</td>' +
+          '<td class="col-attempts">' + escapeHtml(String(ticket.attemptCount || 0)) + '</td>' +
+          '<td class="col-updated">' + escapeHtml(formatDate(ticket.updatedAt)) + '</td>' +
         '</tr>';
       }).join('');
 
       target.querySelectorAll('tr[data-ticket-id]').forEach(function (row) {
         row.addEventListener('click', function () {
-          onSelect({ id: row.getAttribute('data-ticket-id') });
+          const ticketId = row.getAttribute('data-ticket-id');
+          if (!ticketId) {
+            return;
+          }
+
+          onSelect(ticketId);
         });
       });
 

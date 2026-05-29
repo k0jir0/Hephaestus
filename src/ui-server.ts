@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { access, constants, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
@@ -497,12 +497,14 @@ export class UIServer {
   }
 
   private async buildSessionResponse(role: UIRole): Promise<Record<string, unknown>> {
+    const permissions = getPermissionSet(role);
+
     return {
       role,
-      permissions: Object.entries(getPermissionSet(role))
+      permissions: Object.entries(permissions)
         .filter(([, enabled]) => enabled)
         .map(([permission]) => permission),
-      commands: getPermissionSet(role),
+      commands: permissions,
       server: this.serverName,
       projectionEnabled: config.taskBoardProjectionEnabled,
       baselineAvailable: await fileExists(this.baselineFile),
@@ -972,7 +974,7 @@ function buildMetricComparisons(
 
 async function fileExists(filePath: string): Promise<boolean> {
   try {
-    await readFile(filePath, 'utf-8');
+    await access(filePath, constants.F_OK);
     return true;
   } catch {
     return false;
