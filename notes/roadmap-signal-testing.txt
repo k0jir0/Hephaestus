@@ -1,0 +1,106 @@
+Roadmap Signal Testing Thesis
+
+Date: 2026-05-29
+Project: Hephaestus
+Document: roadmap-signal-testing.txt
+
+Thesis
+After migrating Hephaestus logs into logs/, the key strategic question shifted from raw ticket volume to signal quality. The observed gap was not a lack of ideas; it was ticket-to-execution distortion: high supersede churn, broad work packets, and queue decisions that masked real completion capability. This roadmap is designed to restore signal integrity by forcing bounded local scope, explicit verification commands, and staged admission so that terminal states end in completed more often than superseded.
+
+Questions Raised Since The Log Migration
+Q1. Was roadmap-upgrade-120tickets.txt finished?
+Q2. Was it diminished because Hephaestus was involved and it would be better without it?
+Q3. Would more code review and concrete changes have executed if the signal was not garbled into tickets that did not execute?
+
+Answer Synthesis
+These questions converge on one operational requirement: Hephaestus should act as a precision execution substrate, not a churn amplifier. The right response is not to remove Hephaestus, but to constrain it with stronger ticket quality, tighter scope boundaries, stricter verification evidence, and phased queue loading. This plan therefore seeds 60 concrete tickets with small blast radius and explicit evidence signals.
+
+Signal-First Delivery Protocol
+1. Seed in 12 waves of 5 tickets each.
+2. Only open next wave when prior wave completion rate >= 0.70 and superseded rate <= 0.20.
+3. Prefer test-backed tickets before broad refactors.
+4. Keep each ticket single-module or single-surface whenever possible.
+5. Use expected signal statements to reduce operator ambiguity.
+
+60 Concrete Tickets For Higher Complete-State Probability
+Format: TicketID | Stream | Ticket Description (ready for npm run tickets -- create)
+
+T001 | AR-01 | Review architecture boundaries in src/runtime.ts and src/task-store.ts, add module contract notes in docs/metrics/ep4-baseline-vs-after.md, and verify with npm run build with expected signal: zero TypeScript errors.
+T002 | AR-02 | Review dependency direction between src/watcher.ts and src/task-lifecycle.ts, document allowed call graph in docs/metrics/efficiency-weekly-report.md, and verify with npm run build with expected signal: no import-cycle edits needed after review.
+T003 | AR-03 | Review ticket state transition ownership in src/task-store.ts and src/repositories.ts, add explicit ownership comments where ambiguous, and verify with npm test with expected signal: task-store repository tests remain green.
+T004 | AR-04 | Review UI server boundary in src/ui-server.ts versus src/ui.ts, document transport versus presentation responsibilities in docs/metrics/efficiency-weekly-report.md, and verify with npm run build with expected signal: unchanged runtime API surface.
+T005 | AR-05 | Review logging architecture in src/logger.ts and src/cli.ts for single-source path control, document final path policy in README.md, and verify with npm run build with expected signal: logger compiles without path regressions.
+T006 | AR-06 | Review telemetry generation boundary in src/efficiency-metrics.ts and src/upgrade-telemetry.ts, align metric ownership comments, and verify with npm test with expected signal: telemetry tests remain green.
+
+T007 | DR-01 | Review CLI UX design in src/tickets.ts help output and update command wording for clarity, then verify with npm run build with expected signal: command signatures unchanged and compile passes.
+T008 | DR-02 | Review daemon startup flow design in src/cli.ts and simplify operator prompts for deterministic actions, then verify with npm run build with expected signal: startup code compiles and no new warnings.
+T009 | DR-03 | Review board rendering design in src/task-writer.ts for section readability, update formatting labels only, and verify with npm test with expected signal: board projection tests still pass.
+T010 | DR-04 | Review approval lifecycle wording in src/runtime.ts artifacts for operator readability, refine message templates, and verify with npm test with expected signal: approval flow tests pass unchanged.
+T011 | DR-05 | Review telemetry report structure in src/upgrade-telemetry.ts for decision-first narrative order, adjust report section ordering, and verify with npm test with expected signal: telemetry snapshot tests pass.
+T012 | DR-06 | Review metric naming consistency across src/efficiency-metrics.ts and src/efficiency-weekly-report.ts, normalize labels, and verify with npm run build with expected signal: no type-level name drift.
+
+T013 | FR-01 | Review stale recovery functionality in src/task-store.ts with deterministic guard conditions, add missing edge-case checks, and verify with npm test with expected signal: stale-recovery tests pass.
+T014 | FR-02 | Review retry admission functionality in src/runtime.ts for bounded retry escalation behavior, tighten conditions, and verify with npm test with expected signal: retry tests pass without increased flakiness.
+T015 | FR-03 | Review approval resume functionality in src/runtime.ts for token replay correctness, add defensive validation, and verify with npm test with expected signal: awaiting-approval resume tests pass.
+T016 | FR-04 | Review ticket list filtering functionality in src/tickets.ts --status parsing path, harden invalid argument handling, and verify with npm run build with expected signal: parser compiles and list behavior remains deterministic.
+T017 | FR-05 | Review policy denial functionality in src/runtime.ts reasonCode mapping, ensure actionable diagnostics are emitted, and verify with npm test with expected signal: denial taxonomy tests pass.
+T018 | FR-06 | Review side-effect outbox functionality in src/task-store.ts for idempotency guarantees, add duplicate-write guards, and verify with npm test with expected signal: side-effect persistence tests pass.
+T019 | FR-07 | Review board drift repair functionality in src/task-store.ts projection logic, tighten repair trigger conditions, and verify with npm test with expected signal: projection drift tests pass.
+T020 | FR-08 | Review autopilot queue functionality in src/ticket-autopilot.ts for idle seeding gates, refine guard clauses, and verify with npm test with expected signal: autopilot tests pass.
+
+T021 | TS-01 | Implement test in test/runtime.test.ts for bounded command allowlist denial artifact integrity and verify with npm test with expected signal: new test passes and suite stays green.
+T022 | TS-02 | Implement test in test/runtime.test.ts for risky patch approval snapshot persistence and verify with npm test with expected signal: approval artifact fields asserted.
+T023 | TS-03 | Implement test in test/task-store.test.ts for log path default behavior after logs directory migration and verify with npm test with expected signal: logger-path assertion passes.
+T024 | TS-04 | Implement test in test/task-store.test.ts for deterministic event ordering under rapid writes and verify with npm test with expected signal: ordering assertions pass consistently.
+T025 | TS-05 | Implement test in test/tickets.test.ts for create template rejection on broad descriptions and verify with npm test with expected signal: rejection messaging asserted.
+T026 | TS-06 | Implement test in test/tickets.test.ts for create acceptance on bounded descriptions with verification signals and verify with npm test with expected signal: template acceptance asserted.
+T027 | TS-07 | Implement test in test/ui-server.test.ts for health endpoint response contract and verify with npm test with expected signal: status and payload assertions pass.
+T028 | TS-08 | Implement test in test/ui-server.test.ts for server-sent event refresh event shape and verify with npm test with expected signal: SSE payload assertions pass.
+T029 | TS-09 | Implement test in test/upgrade-telemetry.test.ts for superseded-rate alert threshold triggers and verify with npm test with expected signal: threshold alert assertions pass.
+T030 | TS-10 | Implement test in test/upgrade-telemetry.test.ts for queue pressure index edge cases and verify with npm test with expected signal: boundary assertions pass.
+
+T031 | CR-01 | Review src/runtime.ts for duplicate conditional branches, remove one redundant path with equivalent behavior, and verify with npm run build with expected signal: identical public types and compile success.
+T032 | CR-02 | Review src/task-store.ts for repeated timestamp formatting logic, extract shared helper in local module scope, and verify with npm test with expected signal: repository tests pass.
+T033 | CR-03 | Review src/repositories.ts for interface documentation mismatches, align type comments with implementation, and verify with npm run build with expected signal: no interface drift warnings.
+T034 | CR-04 | Review src/task-lifecycle.ts for unreachable branch patterns, remove dead branch and verify with npm test with expected signal: lifecycle tests stay green.
+T035 | CR-05 | Review src/cli-utils.ts option parser for duplicate normalization steps, simplify parser flow, and verify with npm run build with expected signal: parser behavior unchanged.
+T036 | CR-06 | Review src/efficiency-metrics.ts for repeated metric clamp logic, centralize clamp helper, and verify with npm test with expected signal: efficiency metric tests pass.
+T037 | CR-07 | Review src/efficiency-weekly-report.ts markdown generation for repeated section templates, extract formatter helper, and verify with npm test with expected signal: report snapshot tests pass.
+T038 | CR-08 | Review src/upgrade-telemetry.ts for repeated alert string construction, factor helper function, and verify with npm test with expected signal: alert content tests pass.
+
+T039 | OP-01 | Optimize project context caching in src/runtime.ts by reducing redundant file index calls, then verify with npm test with expected signal: runtime tests pass and no cache invalidation regressions.
+T040 | OP-02 | Optimize git status cache checks in src/runtime.ts to avoid duplicate process invocations per ticket, then verify with npm test with expected signal: command execution tests pass.
+T041 | OP-03 | Optimize queue polling cadence in src/task-store.ts for active versus idle windows, then verify with npm test with expected signal: adaptive dispatch tests pass.
+T042 | OP-04 | Optimize telemetry aggregation loops in src/upgrade-telemetry.ts for single-pass counting, then verify with npm test with expected signal: telemetry tests pass with identical outputs.
+T043 | OP-05 | Optimize efficiency index calculations in src/efficiency-metrics.ts by reducing repeated derived math, then verify with npm test with expected signal: metric result snapshots unchanged.
+T044 | OP-06 | Optimize board projection writes in src/task-store.ts to avoid unnecessary file writes when unchanged, then verify with npm test with expected signal: projection tests pass.
+T045 | OP-07 | Optimize UI table data shaping in src/ui-server.ts to precompute stable fields once, then verify with npm run build with expected signal: API schema unchanged.
+T046 | OP-08 | Optimize markdown report writing in src/efficiency-weekly-report.ts with buffered assembly, then verify with npm test with expected signal: weekly report tests pass.
+
+T047 | RF-01 | Refine src/runtime.ts by removing obsolete comments that contradict current tool-call behavior, then verify with npm run build with expected signal: zero lint or type regressions.
+T048 | RF-02 | Refine src/task-store.ts by removing unused local constants in projection routines, then verify with npm run build with expected signal: compile succeeds with no missing references.
+T049 | RF-03 | Refine src/ui.ts by removing redundant style declarations that are overridden later, then verify with npm run build with expected signal: UI bundle compiles.
+T050 | RF-04 | Refine src/tickets.ts by removing dead helper logic no longer used by command paths, then verify with npm test with expected signal: tickets tests pass.
+
+T051 | UI-01 | Fix table alignment and overflow formatting in src/ui.ts ticket board layers for long descriptions, then verify with npm run build with expected signal: UI compile succeeds and table class names remain valid.
+T052 | UI-02 | Fix sticky header and row contrast formatting in src/ui.ts for readable layered sections, then verify with npm run build with expected signal: CSS template compiles without syntax errors.
+T053 | UI-03 | Fix panel spacing and container clipping in src/ui.ts for metrics and ticket detail layers, then verify with npm run build with expected signal: no visual container overflow styles remain.
+T054 | UI-04 | Fix monospace column rendering in src/ui.ts for ID and status tables under narrow widths, then verify with npm run build with expected signal: responsive style block compiles.
+
+T055 | DM-01 | Change web frontend CSS in src/ui.ts to darkmode appearance by default with high-contrast tokens, then verify with npm run build with expected signal: default theme variable set to dark palette.
+T056 | DM-02 | Change fallback UI colors in src/ui.ts to dark-safe defaults for table, card, and badge layers, then verify with npm run build with expected signal: no light-theme fallback remains in primary tokens.
+
+T057 | ME-01 | Review methodology in src/runtime.ts to replace broad planning retries with narrower file-target retries, implement minimal policy change, and verify with npm test with expected signal: retry tests pass with lower retry fan-out.
+T058 | ME-02 | Review methodology in src/ticket-autopilot.ts to replace queue-wide reseeding with bounded wave gating, implement gate checks, and verify with npm test with expected signal: autopilot tests pass with stable pending counts.
+
+T059 | EG-01 | Identify largest efficiency gain by instrumenting per-phase latency attribution in src/efficiency-metrics.ts and verify with npm test with expected signal: report includes top latency contributor section.
+T060 | EG-02 | Identify largest efficiency gain by instrumenting supersede-cause taxonomy in src/upgrade-telemetry.ts and verify with npm test with expected signal: telemetry alerts include top supersede causes.
+
+Seeding Procedure
+1. Seed these 60 tickets with npm run tickets -- create per ticket description.
+2. After each wave of 5, run npm run tickets -- metrics.
+3. Pause admission if superseded rate exceeds 0.20 or completion rate drops below 0.70.
+4. Continue only when queue health returns within thresholds.
+
+Expected Outcome
+With bounded scope, explicit verification, and wave-gated admission, this 60-ticket plan should raise terminal completion frequency, reduce superseded churn, and make execution signal legible enough for sustained optimization.
