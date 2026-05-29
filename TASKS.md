@@ -89,6 +89,15 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Change web frontend CSS in src/ui.ts to darkmode appearance by default with high-contrast tokens, then verify with npm run build with expected signal: default theme variable set to dark palette. <!-- hephaestus-ticket:ticket_5d39c0e037b3 -->
 - [x] Change fallback UI colors in src/ui.ts to dark-safe defaults for table, card, and badge layers, then verify with npm run build with expected signal: no light-theme fallback remains in primary tokens. <!-- hephaestus-ticket:ticket_2b3b2dee28a1 -->
 - [x] Review methodology in src/runtime.ts to replace broad planning retries with narrower file-target retries, implement minimal policy change, and verify with npm test with expected signal: retry tests pass with lower retry fan-out. <!-- hephaestus-ticket:ticket_29ef64484e64 -->
+- [x] Update src/plan-contract.ts structured-plan instructions to require one accepted verification command and expected signal; verify with npm run build; expected signal: build exits 0 with no TypeScript errors. <!-- hephaestus-ticket:ticket_8bfec8bdd4e9 -->
+- [x] Update src/task-envelope.ts lint messaging to recommend wave-sized bounded tickets and expected signal phrasing; verify with npm run build; expected signal: build exits 0 with no TypeScript errors. <!-- hephaestus-ticket:ticket_8f416a01156d -->
+- [x] Implement test in test/plan-contract.test.ts for verification command guidance and expected signal wording; verify with npm test; expected signal: tests pass. <!-- hephaestus-ticket:ticket_c8665a6d052d -->
+- [x] Update docs/metrics/efficiency-weekly-report.md with an operator wave-gate checklist and thresholds; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_f303e93064e4 -->
+- [x] Implement docs/metrics/efficiency-wave-gates.md with operator wave-gate thresholds, pause/resume protocol, and remediation-only wave rules; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_7fa790c8891a -->
+- [x] Implement docs/metrics/qwen-wave/w1-ticket-02-envelope-lint.md with envelope lint pass/fail checklist and remediation guidance; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_7ebe4527cb9a -->
+- [x] Implement docs/metrics/qwen-wave/w1-ticket-04-wave-admission-gates.md with threshold formulas and gate override policy; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_7589390b1ddd -->
+- [x] Implement docs/metrics/qwen-wave/w2-ticket-06-denial-taxonomy.md with stable denial reason families and operator mapping; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_64481873f6ce -->
+- [x] Implement docs/metrics/qwen-wave/w2-ticket-07-remediation-playbook.md with top-3 denial remediation loop and SLA windows; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_17caa37631d0 -->
 
 ## Blocked
 
@@ -120,6 +129,18 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [ ] Review methodology in src/ticket-autopilot.ts to replace queue-wide reseeding with bounded wave gating, implement gate checks, and verify with npm test with expected signal: autopilot tests pass with stable pending counts. <!-- hephaestus-ticket:ticket_92cd34671884 -->
 - [ ] Identify largest efficiency gain by instrumenting per-phase latency attribution in src/efficiency-metrics.ts and verify with npm test with expected signal: report includes top latency contributor section. <!-- hephaestus-ticket:ticket_075a39847181 -->
 - [ ] Identify largest efficiency gain by instrumenting supersede-cause taxonomy in src/upgrade-telemetry.ts and verify with npm test with expected signal: telemetry alerts include top supersede causes. <!-- hephaestus-ticket:ticket_53f5d8cda4d4 -->
+- [ ] Implement docs/metrics/qwen-wave/w1-ticket-01-admission-contract.md with bounded ticket contract and expected-signal template; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_54ecefe9793f -->
+- [ ] Implement docs/metrics/qwen-wave/w1-ticket-03-allowlist-command-shapes.md with accepted command shapes and denied examples; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_d1e81b6f929d -->
+- [ ] Implement docs/metrics/qwen-wave/w1-ticket-05-ticket-quality-score.md with quality score rubric and reject conditions; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_fc40c53c2cb3 -->
+- [ ] Implement docs/metrics/qwen-wave/w2-ticket-08-blocked-unblock-protocol.md with blocked-state triage protocol and retry gates; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_d27c6a5382a0 -->
+- [ ] Implement docs/metrics/qwen-wave/w2-ticket-09-supersede-governance.md with supersede trigger policy and stale cleanup thresholds; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_c8444f8c3d02 -->
+- [ ] Implement docs/metrics/qwen-wave/w2-ticket-10-verification-normalization.md with canonical verification command policy and signal grammar; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_56f97af80b7c -->
+- [ ] Implement docs/metrics/qwen-wave/w3-ticket-11-wave-slot-accounting.md with wave slot accounting and carry-over rules; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_1984efbe5eb9 -->
+- [ ] Implement docs/metrics/qwen-wave/w3-ticket-12-active-queue-cap.md with active queue cap algorithm and promotion rules; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_fcee59e60fa3 -->
+- [ ] Implement docs/metrics/qwen-wave/w3-ticket-13-admission-pause-resume.md with pause/resume governance under threshold breaches; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_373c852e7bc2 -->
+- [ ] Review src/ticket-template.ts ticket envelope scoring for broad multi-surface requests, tighten boundedness checks, and verify with npm test -- test/ticket-template.test.ts with expected signal: template tests pass. <!-- hephaestus-ticket:ticket_56127e05bd7b -->
+- [ ] Edit src/runtime.ts to improve undeclared-file plan-binding error text by appending a short declared-files preview and actionable next step; verify with npm test -- test/runtime.test.ts; expected signal: tests pass and error message includes declared plan files. <!-- hephaestus-ticket:ticket_ca81ce8e9292 -->
+- [ ] Edit src/tool-runtime.ts to improve allowlist denial diagnostics by including normalized command-shape hint text in the denial message; verify with npm test -- test/runtime.test.ts; expected signal: tests pass and denial text contains normalized hint. <!-- hephaestus-ticket:ticket_34ce62898a97 -->
 
 ## Cancelled
 
@@ -311,6 +332,13 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] UTP-T6: Add telemetry regression test coverage for upgrade snapshot calculations. <!-- hephaestus-ticket:ticket_b0730df3acc8 -->
 - [x] UTP-T7: Capture post-queue telemetry snapshot and compare alert deltas. <!-- hephaestus-ticket:ticket_60fdeae3d421 -->
 - [x] UTP-T8: Publish telemetry execution findings to docs/metrics/upgrade-telemetry-report.md workflow. <!-- hephaestus-ticket:ticket_3d6da31d0f93 -->
+- [x] Implement docs/metrics/qwen-wave/w3-ticket-14-remediation-only-wave.md with remediation-only wave definition and exit criteria; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_7787e7b0de8c -->
+- [x] Implement docs/metrics/qwen-wave/w3-ticket-15-operator-escalation-ladder.md with escalation ladder for persistent gate failures; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_84cef5c49f49 -->
+- [x] Implement docs/metrics/qwen-wave/w4-ticket-16-efficiency-kpi-spec.md with throughput/latency/churn KPI definitions and formulas; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_8e8ecb2ad357 -->
+- [x] Implement docs/metrics/qwen-wave/w4-ticket-17-mutation-evidence-schema.md with mutation evidence schema and required fields; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_07db35ed2ba9 -->
+- [x] Implement docs/metrics/qwen-wave/w4-ticket-18-weekly-burndown-template.md with weekly burn-down template for top deny/supersede/retry causes; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_504973412786 -->
+- [x] Implement docs/metrics/qwen-wave/w4-ticket-19-gate-audit-log-template.md with gate-audit log template and approval notes format; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_a079e99913bc -->
+- [x] Implement docs/metrics/qwen-wave/w4-ticket-20-qwen-efficiency-summary-template.md with final wave summary template for manual-vs-assisted comparisons; verify with npm run build; expected signal: build exits 0. <!-- hephaestus-ticket:ticket_38b18d42292b -->
 
 ---
 

@@ -1,0 +1,75 @@
+Clarity Fix Roadmap
+
+Date: 2026-05-29
+Project: Hephaestus
+Document: notes/clarity-fix.txt
+
+Abstract
+Hephaestus is currently losing efficiency because completion semantics are too permissive and failure signals are too coarse. Tickets can complete without producing intended mutations, while plan-binding errors consume global safety budget and can cascade admission failures. This roadmap restores clarity by making completion evidence explicit, binding failures actionable, and safety accounting proportional to failure class.
+
+Problem Statement
+Observed behavior in recent runs indicates three compounding issues:
+1. Completion ambiguity: tasks with mutable intended files can complete even when no governed mutation is applied.
+2. Binding opacity: plan mismatch errors are technically correct but operationally unclear and repetitive.
+3. Error-budget coupling: plan-shape mistakes count against the same global threshold as runtime/system failures.
+
+Thesis
+Efficiency recovery requires contract clarity across planning, execution, and completion:
+- tasks with mutable intent must prove mutation in declared targets
+- plan-binding denials must include direct corrective context
+- local plan-quality failures must not poison global runtime health
+
+Roadmap
+
+Phase 0: Completion Contract Hardening
+Goal: prevent false-positive completions.
+- Require mutation evidence before marking a task complete when plan includes non-inspect files.
+- Reject completion when observed mutations do not intersect declared mutable paths.
+- Emit explicit blocker reason with declared and observed path sets.
+Success Signal:
+- completed tickets with mutable plans always include target-path mutation evidence.
+
+Phase 1: Plan-Binding Clarity
+Goal: reduce operator ambiguity and shorten repair loops.
+- Normalize path matching (slash and case normalization) for plan-binding checks.
+- Expand file-read binding errors to include declared plan files preview.
+- Preserve denied reason codes and actionable wording in artifacts.
+Success Signal:
+- lower repeat blocking from path-format drift and clearer remediation paths.
+
+Phase 2: Safety Budget Decoupling
+Goal: stop ticket-local plan errors from tripping global execution shutdown.
+- Classify binding/contract errors as local quality failures.
+- Exclude local quality failures from global consecutive-error threshold accounting.
+- Keep runtime/system failures (timeouts, transport, crashes, unsafe operations) in global safety budget.
+Success Signal:
+- fewer queue-wide halts caused by ticket-shape errors.
+
+Phase 3: Wave Discipline (Manual Ops)
+Goal: recover compounding efficiency without Hephaestus orchestration loops.
+- Run 3-5 ticket waves manually.
+- Admit next wave only if:
+  - >= 70% completed
+  - completion tickets with mutable intent all show mutation evidence
+  - blocked growth <= +2 per wave
+- pause and remediate when gates fail.
+Success Signal:
+- positive trend in delivered-target mutations per wave.
+
+Manual Implementation Completed (No Hephaestus Ticket Execution)
+
+Implemented in code:
+- src/runtime.ts
+  - Added completion mutation-evidence gate for plans with mutable intended files.
+  - Added observed mutation-path aggregation across governed tool execution.
+  - Improved file-read binding error clarity with declared file preview.
+  - Normalized plan path comparisons for patch/file binding checks.
+  - Added local error classification so plan/binding quality failures do not increment global safety consecutive errors.
+
+Implemented in tests:
+- test/runtime.test.ts
+  - Updated runtime behavior test to assert mutable plans without governed mutation evidence are blocked, not completed.
+  - Added assertion that these local clarity failures do not increment global safety error budget.
+
+Expected Outcome
+These changes shift Hephaestus from activity-first to evidence-first execution. Completion now tracks intended product movement, and failure semantics are clearer for operators. This should reduce false completion, reduce queue-wide safety cascades from local plan errors, and support steady efficiency increases through smaller validated waves.

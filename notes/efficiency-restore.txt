@@ -204,3 +204,55 @@ Observed baseline snapshot from this execution:
 Interpretation
 - The efficiency score threshold (53.38) is currently exceeded in the latest snapshot.
 - The ~53% throughput improvement claim is not considered re-proven yet until the A/B protocol (Control A vs Assisted B) is run and documented with operator-hour-normalized throughput evidence.
+
+Execution Log: Remediation-First Wave (2026-05-29)
+
+Objective
+- Execute the recovery plan with Hephaestus as the required execution engine while reducing queue friction.
+
+Actions Executed
+1) Baseline queue read
+- listed pending and blocked tickets
+- captured pre-wave metrics
+
+2) Hephaestus execution passes
+- ran single-pass execution with qwen3-coder:30b
+- ran single-pass execution with codellama:latest for faster turnaround under stall conditions
+
+3) Remediation wave seeding
+- created bounded remediation tickets focused on top failure families:
+  - plan-binding denial diagnostics (src/runtime.ts)
+  - ticket envelope boundedness checks (src/ticket-template.ts)
+  - allowlist mismatch diagnostics (src/tool-runtime.ts)
+
+4) Queue gating intervention
+- cancelled stalled in-progress qwen-wave tickets
+- deferred/cancelled remaining high-friction qwen doc tickets in this wave
+- prioritized remediation tickets in pending queue
+
+Observed Outcomes
+- total tickets: 316
+- total attempts: 205
+- completed tickets: 83
+- blocked tickets: 38
+- efficiency score: 60.93
+- throughput/day: 55
+- completion rate: 0.263
+- retry rate: 0.076
+
+Top blocker families observed during this run
+- file.read ENOENT on missing docs/metrics/qwen-wave files
+- mutable completion without governed mutation evidence
+- unsupported task envelope
+- command allowlist denials
+
+Interpretation Of This Execution
+- The score threshold condition (>=53.38) remains satisfied (60.93).
+- Throughput gain restoration is still not proven because completion quality gates remain below target and blocked volume increased.
+- The run did successfully execute the roadmap mechanics (wave execution, queue gating, remediation seeding) using Hephaestus.
+
+Immediate Next Wave (deterministic)
+1) Run only remediation tickets (no qwen-wave doc tickets).
+2) Require explicit intended files + one allowed verification command before admission.
+3) Keep wave size at 2-3 tickets until blocked growth stabilizes.
+4) Recompute metrics after each wave and continue only if gates improve.

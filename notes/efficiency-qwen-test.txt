@@ -1,0 +1,179 @@
+Efficiency Qwen Test
+
+Date: 2026-05-29
+Project: Hephaestus
+Document: notes/efficiency-qwen-test.txt
+
+Abstract
+This paper defines a Qwen-driven recovery program to restore Hephaestus as a net engineering efficiency multiplier. The plan matches the complexity level of prior roadmap papers by combining admission hardening, policy-friction burn-down, wave-gated operations, and telemetry-driven remediation. The implementation target is 20 tickets executed through Hephaestus with Qwen as the active local model. Success is measured by effective code mutation per ticket, not just queue-state transitions.
+
+Problem Statement
+Recent assisted runs exposed a persistent gap between orchestration activity and delivered code mutation:
+- tickets can reach completed state with low or zero meaningful repository mutation
+- denial and envelope friction consumes execution budget
+- queue-state files change while product/runtime surfaces stay flat
+
+The core objective is to convert control-plane activity into measurable delivered changes while preserving governance safety.
+
+Thesis
+Efficiency can recover if Hephaestus is operated as a constrained mutation pipeline:
+1. high-quality bounded admission
+2. wave-gated release of work
+3. low-friction verification policy
+4. mandatory mutation evidence per ticket
+5. explicit post-wave efficiency accounting
+
+Roadmap: Qwen Efficiency Recovery Program
+
+Phase 0: Baseline and Guardrails
+Goal: establish hard reference points and prevent noisy execution.
+- Freeze unrestricted bulk seeding.
+- Require explicit expected signal in every ticket.
+- Define mutation evidence policy:
+  - each completed ticket must identify touched paths and verification command outcome
+- Gate thresholds:
+  - completion rate >= 0.70
+  - superseded rate <= 0.20
+  - blocked growth <= +5 per wave
+  - allowlist denial rate <= 0.08
+Outcome: deterministic operating envelope before new wave admission.
+
+Phase 1: Admission Contract Tightening
+Goal: prevent low-quality tickets from entering execution.
+- Enforce action-verb ticket syntax and single-scope targeting.
+- Require exactly one accepted verification command per ticket.
+- Add expected-signal sentence in canonical form.
+- Reject mixed multi-surface tickets and auto-split broad intents.
+Outcome: higher completion probability and lower retry fan-out.
+
+Phase 2: Policy Friction Reduction
+Goal: reduce avoidable blocked/denied attempts.
+- Normalize accepted verification command variants.
+- Track stable reason-code buckets for denial families.
+- Prioritize remediation tickets for top denial causes.
+Outcome: less time spent in non-mutating blocked paths.
+
+Phase 3: Wave-Gated Throughput Control
+Goal: produce compounding output without queue churn.
+- Run four waves of 5 tickets (20 total).
+- Admit next wave only after gate checks.
+- If any gate fails, run remediation-only tickets.
+Outcome: bounded queue pressure with measurable delivery per wave.
+
+Phase 4: Mutation-Centric Telemetry
+Goal: optimize for delivered repository change, not activity volume.
+- Track per-wave:
+  - completed tickets
+  - files mutated
+  - insertions/deletions in targeted scope
+  - effective mutation per completed ticket
+- Compare against manual and prior assisted baselines.
+Outcome: direct efficiency accountability.
+
+20-Ticket Implementation Backlog (Qwen Run)
+Wave 1 (Admission/Contract)
+1. Implement docs/metrics/qwen-wave/w1-ticket-01-admission-contract.md with bounded ticket contract and expected-signal template; verify with npm run build; expected signal: build exits 0.
+2. Implement docs/metrics/qwen-wave/w1-ticket-02-envelope-lint.md with envelope lint pass/fail checklist and remediation guidance; verify with npm run build; expected signal: build exits 0.
+3. Implement docs/metrics/qwen-wave/w1-ticket-03-allowlist-command-shapes.md with accepted command shapes and denied examples; verify with npm run build; expected signal: build exits 0.
+4. Implement docs/metrics/qwen-wave/w1-ticket-04-wave-admission-gates.md with threshold formulas and gate override policy; verify with npm run build; expected signal: build exits 0.
+5. Implement docs/metrics/qwen-wave/w1-ticket-05-ticket-quality-score.md with quality score rubric and reject conditions; verify with npm run build; expected signal: build exits 0.
+
+Wave 2 (Friction Burn-down)
+6. Implement docs/metrics/qwen-wave/w2-ticket-06-denial-taxonomy.md with stable denial reason families and operator mapping; verify with npm run build; expected signal: build exits 0.
+7. Implement docs/metrics/qwen-wave/w2-ticket-07-remediation-playbook.md with top-3 denial remediation loop and SLA windows; verify with npm run build; expected signal: build exits 0.
+8. Implement docs/metrics/qwen-wave/w2-ticket-08-blocked-unblock-protocol.md with blocked-state triage protocol and retry gates; verify with npm run build; expected signal: build exits 0.
+9. Implement docs/metrics/qwen-wave/w2-ticket-09-supersede-governance.md with supersede trigger policy and stale cleanup thresholds; verify with npm run build; expected signal: build exits 0.
+10. Implement docs/metrics/qwen-wave/w2-ticket-10-verification-normalization.md with canonical verification command policy and signal grammar; verify with npm run build; expected signal: build exits 0.
+
+Wave 3 (Queue Throughput)
+11. Implement docs/metrics/qwen-wave/w3-ticket-11-wave-slot-accounting.md with wave slot accounting and carry-over rules; verify with npm run build; expected signal: build exits 0.
+12. Implement docs/metrics/qwen-wave/w3-ticket-12-active-queue-cap.md with active queue cap algorithm and promotion rules; verify with npm run build; expected signal: build exits 0.
+13. Implement docs/metrics/qwen-wave/w3-ticket-13-admission-pause-resume.md with pause/resume governance under threshold breaches; verify with npm run build; expected signal: build exits 0.
+14. Implement docs/metrics/qwen-wave/w3-ticket-14-remediation-only-wave.md with remediation-only wave definition and exit criteria; verify with npm run build; expected signal: build exits 0.
+15. Implement docs/metrics/qwen-wave/w3-ticket-15-operator-escalation-ladder.md with escalation ladder for persistent gate failures; verify with npm run build; expected signal: build exits 0.
+
+Wave 4 (Telemetry + Reporting)
+16. Implement docs/metrics/qwen-wave/w4-ticket-16-efficiency-kpi-spec.md with throughput/latency/churn KPI definitions and formulas; verify with npm run build; expected signal: build exits 0.
+17. Implement docs/metrics/qwen-wave/w4-ticket-17-mutation-evidence-schema.md with mutation evidence schema and required fields; verify with npm run build; expected signal: build exits 0.
+18. Implement docs/metrics/qwen-wave/w4-ticket-18-weekly-burndown-template.md with weekly burn-down template for top deny/supersede/retry causes; verify with npm run build; expected signal: build exits 0.
+19. Implement docs/metrics/qwen-wave/w4-ticket-19-gate-audit-log-template.md with gate-audit log template and approval notes format; verify with npm run build; expected signal: build exits 0.
+20. Implement docs/metrics/qwen-wave/w4-ticket-20-qwen-efficiency-summary-template.md with final wave summary template for manual-vs-assisted comparisons; verify with npm run build; expected signal: build exits 0.
+
+Execution Method
+1. Set active model to qwen3-coder:30b.
+2. Seed exactly 20 tickets from the backlog above.
+3. Execute Hephaestus in single-pass run mode until no pending tickets remain.
+4. Capture ticket outcomes and repository mutation evidence.
+5. Compare effective code changes with:
+   - last manual baseline
+   - previous assisted baseline
+
+Measurement Framework
+Primary metric: effective mutation volume in targeted scope.
+- Targeted scope: docs/metrics/qwen-wave/**
+- Effective change: files created/updated plus insertion/deletion counts in targeted scope.
+
+Secondary metrics:
+- completion rate in 20-ticket wave
+- mutation-per-completed-ticket ratio
+- governance churn indicators (blocked/superseded)
+
+Baseline References
+- Manual baseline (commit dcf82a8): 3 files, +128/-28 (156 total line deltas).
+- Previous assisted baseline: targeted code/doc scope yielded 0 effective deltas; queue-state deltas observed in AGENT.md and TASKS.md.
+
+Success Criteria For This Qwen Test
+- At least 14 of 20 tickets complete.
+- Non-zero targeted mutation in qwen-wave scope.
+- Mutation-per-completed-ticket improves over previous assisted baseline.
+- Evidence supports equal or better operational efficiency than prior assisted run.
+
+Conclusion
+This roadmap restores efficiency by coupling strict admission quality with mutation evidence and wave-gated control. The decisive signal is not how many tickets are processed, but how much validated repository change is produced per completed ticket under governance constraints.
+
+Execution Results: Hephaestus + Qwen (20-ticket target)
+
+Run Configuration
+- Backend: ollama
+- Active model during execution: qwen3-coder:30b
+- Ticket target: 20 (docs/metrics/qwen-wave/*)
+
+Observed Ticket Outcomes
+- Completed: 4 of 20
+- Blocked: 8 of 20
+- In progress: 0 of 20
+- Pending: 8 of 20
+
+Effective Mutation Evidence (Qwen Run)
+- Targeted scope diff (`docs/metrics/qwen-wave/**`): 0 files, 0 line deltas.
+- Queue-state files changed:
+  - AGENT.md: +49 / -3
+  - TASKS.md: +25 / -1
+
+Baseline Comparison
+1) Last manual run (commit dcf82a8)
+- 3 files changed
+- +128 / -28 (156 total line deltas)
+- Direct source/doc mutations in intended files.
+
+2) Previous assisted run (prior cycle)
+- Targeted implementation scope: 0 effective file deltas
+- Queue-state deltas only (AGENT.md and TASKS.md)
+
+3) This Qwen-assisted 20-ticket attempt
+- Targeted implementation scope: 0 effective file deltas
+- Queue-state deltas present (AGENT.md and TASKS.md)
+- Completion ratio against target: 20% (4/20)
+
+Efficiency Determination
+Efficiency did not increase for the 20-ticket target run.
+
+Reason:
+- mutation-per-completed-ticket in the intended target scope remained 0
+- completed ticket count remained low versus target
+- most queue movement occurred in control-plane/state artifacts rather than intended roadmap deliverables
+
+Next Remediation Direction
+- enforce mutation-required acceptance checks per ticket
+- auto-fail completion when no targeted file diff is present
+- run smaller waves (5 tickets) with hard gate checks before admitting the next wave

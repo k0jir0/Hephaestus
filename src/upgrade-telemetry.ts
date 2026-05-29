@@ -47,6 +47,11 @@ interface UpgradeTelemetrySnapshot {
     allowlistDenialRate: number;
     topFailureBuckets: Array<{ bucket: string; count: number }>;
   };
+  rootCauses: {
+    topDenyReasons: Array<{ bucket: string; count: number }>;
+    topSupersedeReasons: Array<{ bucket: string; count: number }>;
+    topRetryReasons: Array<{ bucket: string; count: number }>;
+  };
   observationTargets: {
     supersededRateMax: number;
     allowlistDenialRateMax: number;
@@ -99,6 +104,19 @@ function normalizeFailureBucket(error: string): string {
   const normalized = error.trim().toLowerCase();
   const bucket = normalized.split(/[:.;]/, 1)[0] ?? normalized;
   return bucket.replace(/\s+/g, ' ').slice(0, 72);
+}
+
+function topBuckets(entries: Iterable<string>, limit = 3): Array<{ bucket: string; count: number }> {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    const bucket = normalizeFailureBucket(entry);
+    counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, limit)
+    .map(([bucket, count]) => ({ bucket, count }));
 }
 
 function countTicketsByStatus(tickets: TaskTicket[], status: TaskStatus): number {
@@ -167,6 +185,24 @@ export function buildUpgradeTelemetrySnapshot(input: {
     .slice(0, 7)
     .map(([bucket, count]) => ({ bucket, count }));
 
+  const topDenyReasons = topBuckets(
+    attempts
+      .filter((attempt) => /allowlist|allowlisted/i.test(attempt.error ?? ''))
+      .map((attempt) => attempt.error ?? 'allowlisted')
+  );
+
+  const topSupersedeReasons = topBuckets(
+    tickets
+      .filter((ticket) => ticket.status === 'superseded')
+      .map((ticket) => ticket.error ?? ticket.result ?? ticket.description)
+  );
+
+  const topRetryReasons = topBuckets(
+    tickets
+      .filter((ticket) => ticket.attemptCount > 1)
+      .map((ticket) => ticket.error ?? ticket.result ?? ticket.description)
+  );
+
   const queuePressureIndex = round(
     (pending + inProgress * 1.4 + awaitingApproval * 1.15 + blocked * 0.8 + failed * 0.8 + stale * 0.8) /
       Math.max(1, tickets.length)
@@ -206,6 +242,11 @@ export function buildUpgradeTelemetrySnapshot(input: {
       allowlistDenialCount,
       allowlistDenialRate: round(allowlistDenialCount / Math.max(1, attempts.length)),
       topFailureBuckets,
+    },
+    rootCauses: {
+      topDenyReasons,
+      topSupersedeReasons,
+      topRetryReasons,
     },
     observationTargets: {
       supersededRateMax: 0.18,
@@ -273,6 +314,17 @@ function renderReport(snapshot: UpgradeTelemetrySnapshot): string {
     ...(snapshot.policy.topFailureBuckets.length > 0
       ? snapshot.policy.topFailureBuckets.map((entry) => `- Failure bucket ${entry.bucket}: ${entry.count}`)
       : ['- Failure buckets: none observed']),
+    '',
+    '## Root Causes (Top-3)',
+    ...(snapshot.rootCauses.topDenyReasons.length > 0
+      ? snapshot.rootCauses.topDenyReasons.map((entry) => `- Deny reason ${entry.bucket}: ${entry.count}`)
+      : ['- Deny reasons: none observed']),
+    ...(snapshot.rootCauses.topSupersedeReasons.length > 0
+      ? snapshot.rootCauses.topSupersedeReasons.map((entry) => `- Supersede reason ${entry.bucket}: ${entry.count}`)
+      : ['- Supersede reasons: none observed']),
+    ...(snapshot.rootCauses.topRetryReasons.length > 0
+      ? snapshot.rootCauses.topRetryReasons.map((entry) => `- Retry reason ${entry.bucket}: ${entry.count}`)
+      : ['- Retry reasons: none observed']),
     '',
     '## Alerts',
     ...(snapshot.alerts.length > 0 ? snapshot.alerts.map((entry) => `- ${entry}`) : ['- none']),

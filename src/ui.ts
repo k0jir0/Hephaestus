@@ -56,6 +56,7 @@ function buildStyles(): string {
       margin: 20px auto 28px;
       display: grid;
       gap: 18px;
+      min-width: 0;
     }
 
     .hero {
@@ -166,6 +167,7 @@ function buildStyles(): string {
       grid-template-columns: 280px minmax(0, 1fr);
       gap: 18px;
       align-items: start;
+      min-width: 0;
     }
 
     .sidebar {
@@ -214,6 +216,7 @@ function buildStyles(): string {
     .content {
       display: grid;
       gap: 18px;
+      min-width: 0;
     }
 
     .view {
@@ -276,6 +279,8 @@ function buildStyles(): string {
       padding: 18px;
       display: grid;
       gap: 16px;
+      min-width: 0;
+      max-width: 100%;
     }
 
     .panel-header,
@@ -292,12 +297,21 @@ function buildStyles(): string {
       grid-template-columns: minmax(320px, 0.95fr) minmax(0, 1.25fr);
       gap: 18px;
       align-items: start;
+      min-width: 0;
     }
 
     .split-tight {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 16px;
+      min-width: 0;
+    }
+
+    .split > *,
+    .split-tight > *,
+    .operations-secondary > * {
+      min-width: 0;
+      max-width: 100%;
     }
 
     .operations-secondary {
@@ -305,6 +319,7 @@ function buildStyles(): string {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 18px;
       align-items: start;
+      min-width: 0;
     }
 
     .table-wrap {
@@ -314,6 +329,8 @@ function buildStyles(): string {
       background: rgba(11, 17, 26, 0.88);
       box-shadow: inset 0 0 0 1px rgba(42, 59, 78, 0.45);
       scrollbar-color: rgba(94, 234, 212, 0.45) rgba(12, 19, 30, 0.9);
+      max-width: 100%;
+      min-width: 0;
     }
 
     table {
@@ -330,6 +347,7 @@ function buildStyles(): string {
       border-bottom: 1px solid rgba(100, 130, 162, 0.22);
       vertical-align: top;
       overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     th {
@@ -429,6 +447,7 @@ function buildStyles(): string {
     .detail-grid {
       display: grid;
       gap: 12px;
+      min-width: 0;
     }
 
     .detail-block {
@@ -438,6 +457,15 @@ function buildStyles(): string {
       padding: 14px;
       display: grid;
       gap: 10px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .detail-block h2,
+    .detail-block h3,
+    .detail-item > div {
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .detail-list {
@@ -466,6 +494,8 @@ function buildStyles(): string {
     .meta-list {
       display: grid;
       gap: 10px;
+      min-width: 0;
+      max-width: 100%;
     }
 
     .timeline-item,
@@ -479,6 +509,61 @@ function buildStyles(): string {
       background: rgba(12, 19, 30, 0.8);
       display: grid;
       gap: 6px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .meta-item > div {
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .meta-item .mono,
+    .meta-item .helper {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
+    }
+
+    .meta-item .action-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      gap: 8px;
+    }
+
+    .meta-item .action-row > span:not(.status-pill) {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
+    }
+
+    .status-pill,
+    .role-pill,
+    .signal-pill {
+      max-width: 100%;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .timeline-item > div,
+    .event-item > div {
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .timeline-item .mono,
+    .event-item .mono,
+    .timeline-item .helper,
+    .event-item .helper {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
     }
 
     .approval-item.selected {
@@ -545,6 +630,13 @@ function buildStyles(): string {
       flex-wrap: wrap;
       gap: 10px;
       align-items: center;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .action-row > * {
+      min-width: 0;
+      max-width: 100%;
     }
 
     .action-button,
@@ -1273,6 +1365,7 @@ function buildClientScript(): string {
             '<div class="action-row">' + actionButtons.join('') + '</div>' +
           '</div>' +
           approvalSummary +
+          renderCompletionEvidence(detail) +
           renderRecoveryBlock(detail) +
           renderPatchBlock(detail) +
           '<div class="split-tight">' +
@@ -1286,6 +1379,75 @@ function buildClientScript(): string {
         '</div>';
 
       wireActionButtons();
+    }
+
+    function normalizePath(pathValue) {
+      return String(pathValue || '').replace(/\\/g, '/').trim().toLowerCase();
+    }
+
+    function renderCompletionEvidence(detail) {
+      const ticket = detail.ticket || {};
+      const plan = ticket.plan || {};
+      const intendedFiles = Array.isArray(plan.intendedFiles) ? plan.intendedFiles : [];
+      const mutableTargets = intendedFiles
+        .filter(function (file) {
+          return file && file.changeType !== 'inspect' && typeof file.path === 'string';
+        })
+        .map(function (file) {
+          return file.path;
+        });
+
+      if (!mutableTargets.length) {
+        return '<div class="detail-block"><h3>Completion Evidence</h3><div class="empty-state">No mutable intended files were declared for this ticket plan.</div></div>';
+      }
+
+      const patchDeltas = detail.derived && Array.isArray(detail.derived.patchDeltas)
+        ? detail.derived.patchDeltas
+        : [];
+      const observedMutations = [];
+      patchDeltas.forEach(function (delta) {
+        const applyState = String(delta && delta.apply ? delta.apply : '').toLowerCase();
+        if (!applyState.startsWith('success')) {
+          return;
+        }
+
+        const paths = Array.isArray(delta.mutatedPaths) ? delta.mutatedPaths : [];
+        paths.forEach(function (pathValue) {
+          if (typeof pathValue === 'string' && observedMutations.indexOf(pathValue) === -1) {
+            observedMutations.push(pathValue);
+          }
+        });
+      });
+
+      const normalizedObserved = observedMutations.map(function (pathValue) {
+        return normalizePath(pathValue);
+      });
+      const hasTargetIntersection = mutableTargets
+        .map(function (pathValue) {
+          return normalizePath(pathValue);
+        })
+        .some(function (candidate) {
+          return normalizedObserved.indexOf(candidate) !== -1;
+        });
+
+      const errorText = typeof ticket.error === 'string' ? ticket.error : '';
+      const failedEvidenceGate = /No governed mutation evidence|do not intersect mutable intended files|Completion requires/i.test(errorText);
+
+      let gateStatus = 'pending evidence';
+      if (failedEvidenceGate) {
+        gateStatus = 'failed evidence gate';
+      } else if (hasTargetIntersection) {
+        gateStatus = 'mutation evidence present';
+      } else if (ticket.status === 'completed') {
+        gateStatus = 'completed without visible mutation evidence';
+      }
+
+      return '<div class="detail-block"><h3>Completion Evidence</h3><div class="detail-list">' +
+        detailItem('Gate Status', gateStatus) +
+        detailItem('Mutable Targets', mutableTargets.join(', ')) +
+        detailItem('Observed Mutations', observedMutations.length ? observedMutations.join(', ') : '-') +
+        detailItem('Gate Reason', failedEvidenceGate ? errorText : '-') +
+      '</div></div>';
     }
 
     function renderPatchBlock(detail) {

@@ -610,11 +610,14 @@ describe('HephaestusRuntime', () => {
     assert.deepEqual(calls.failed, []);
   });
 
-  it('executes inspect and verification plan steps through the tool runtime and persists artifacts', async () => {
+  it('blocks completion when mutable intended files have no governed mutation evidence', async () => {
     const task = makeTask('Plan the runtime');
     const calls = {
       tools: [] as Array<{ tool: string; subject: string }>,
       artifacts: [] as string[],
+      completed: 0,
+      blocked: 0,
+      safetyErrors: 0,
     };
 
     const runtime = new HephaestusRuntime({
@@ -633,8 +636,12 @@ describe('HephaestusRuntime', () => {
           return [task];
         },
         async markTaskInProgress() {},
-        async markTaskCompleted() {},
-        async markTaskBlocked() {},
+        async markTaskCompleted() {
+          calls.completed += 1;
+        },
+        async markTaskBlocked() {
+          calls.blocked += 1;
+        },
         async appendTaskAttemptArtifacts(_ticketId, artifacts) {
           calls.artifacts.push(...artifacts);
         },
@@ -691,7 +698,9 @@ describe('HephaestusRuntime', () => {
           return { allowed: true };
         },
         recordSuccess() {},
-        recordError() {},
+        recordError() {
+          calls.safetyErrors += 1;
+        },
         recordTaskCompletion() {},
         recordTokenUsage() {},
         shouldAutoCommit() {
@@ -715,7 +724,10 @@ describe('HephaestusRuntime', () => {
       { tool: 'file.read', subject: 'README.md' },
       { tool: 'command.run', subject: 'npm' },
     ]);
-    assert.equal(calls.artifacts.length, 5);
+    assert.equal(calls.completed, 0);
+    assert.equal(calls.blocked, 1);
+    assert.equal(calls.safetyErrors, 0);
+    assert.ok(calls.artifacts.length >= 6);
     assert.ok(calls.artifacts.some((artifact) => /file\.read README\.md -> success/.test(artifact)));
     assert.ok(calls.artifacts.some((artifact) => /deferred-mutation update src\/runtime\.ts/.test(artifact)));
     assert.ok(calls.artifacts.some((artifact) => /command\.run npm test -> success/.test(artifact)));

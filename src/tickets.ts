@@ -32,7 +32,7 @@ Usage:
   npm run tickets -- list [--status <status>]
   npm run tickets -- show <ticket-id>
   npm run tickets -- retry <ticket-id> [--amend <description>]
-  npm run tickets -- autopilot [--include-cancelled] [--no-self-audit] [--self-audit-limit <count>] [--max-attempts <count>] [--dry-run]
+  npm run tickets -- autopilot [--include-cancelled] [--no-self-audit] [--self-audit-limit <count>] [--max-attempts <count>] [--wave-size <count>] [--max-active <count>] [--min-completion-rate <ratio>] [--max-superseded-rate <ratio>] [--max-blocked <count>] [--max-allowlist-denial-rate <ratio>] [--dry-run]
   npm run tickets -- approve <ticket-id> <reviewer> [reason]
   npm run tickets -- reject <ticket-id> <reviewer> [reason]
   npm run tickets -- resume <ticket-id>
@@ -90,6 +90,19 @@ function parseStatusesArgument(value: string | undefined): TaskStatus[] | undefi
 
 function formatTimestamp(value: Date | undefined): string {
   return value ? value.toISOString() : '-';
+}
+
+function parseRatioOption(value: string | undefined, name: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    throw new Error(`${name} must be a number between 0 and 1.`);
+  }
+
+  return parsed;
 }
 
 async function main(): Promise<void> {
@@ -234,6 +247,12 @@ async function main(): Promise<void> {
           '--self-audit-limit'
         );
         const maxAttempts = parsePositiveInteger(parseOption(args, '--max-attempts'), '--max-attempts');
+        const waveSize = parsePositiveInteger(parseOption(args, '--wave-size'), '--wave-size');
+        const maxActiveTickets = parsePositiveInteger(parseOption(args, '--max-active'), '--max-active');
+        const maxBlockedTickets = parsePositiveInteger(parseOption(args, '--max-blocked'), '--max-blocked');
+        const minCompletionRate = parseRatioOption(parseOption(args, '--min-completion-rate'), '--min-completion-rate');
+        const maxSupersededRate = parseRatioOption(parseOption(args, '--max-superseded-rate'), '--max-superseded-rate');
+        const maxAllowlistDenialRate = parseRatioOption(parseOption(args, '--max-allowlist-denial-rate'), '--max-allowlist-denial-rate');
         const result = await runTicketAutopilot(
           {
             repository,
@@ -245,11 +264,26 @@ async function main(): Promise<void> {
             seedSelfAuditWhenIdle,
             selfAuditLimit,
             maxAttempts,
+            waveSize,
+            maxActiveTickets,
+            maxBlockedTickets,
+            minCompletionRate,
+            maxSupersededRate,
+            maxAllowlistDenialRate,
           }
         );
 
         console.log(`Existing runnable tickets: ${result.runnableTicketCount}`);
         console.log(`Awaiting approval tickets: ${result.awaitingApprovalCount}`);
+        console.log(`Active tickets: ${result.activeTicketCount}`);
+        console.log(`Wave slots available: ${result.availableWaveSlots}`);
+
+        if (result.blockedByGates) {
+          console.log('Autopilot paused by efficiency gates:');
+          for (const failure of result.gateFailures) {
+            console.log(`Gate fail ${failure}`);
+          }
+        }
 
         for (const ticket of result.resumed) {
           console.log(`${dryRun ? 'Would resume' : 'Resumed'} ${ticket.id} ${ticket.description}`);
@@ -276,7 +310,9 @@ async function main(): Promise<void> {
           }
         }
 
-        if (result.queueReady) {
+        if (result.blockedByGates) {
+          console.log('Autopilot halted queue priming; run remediation tickets before admitting new waves.');
+        } else if (result.queueReady) {
           console.log(
             dryRun
               ? 'Autopilot would leave runnable work in the queue. If the daemon is already running, it would begin processing automatically.'

@@ -11,9 +11,9 @@ This file stores the agent's long-term context and memory.
 
 ## Current State
 
-- **Status**: Idle
-- **Current Task**: None
-- **Last Activity**: 2026-05-29T04:39:02.704Z
+- **Status**: Blocked
+- **Current Task**: Edit src/tool-runtime.ts to improve allowlist denial diagnostics by including normalized command-shape hint text in the denial message; verify with npm test -- test/runtime.test.ts; expected signal: tests pass and denial text contains normalized hint.
+- **Last Activity**: 2026-05-29T12:40:26.159Z
 
 ## Working Context
 
@@ -102,6 +102,15 @@ This file stores the agent's long-term context and memory.
 | 2026-05-29 | Change web frontend CSS in src/ui.ts to darkmod... | Plan ready |
 | 2026-05-29 | Change fallback UI colors in src/ui.ts to dark-... | Plan ready |
 | 2026-05-29 | Review methodology in src/runtime.ts to replace... | Plan ready |
+| 2026-05-29 | Update src/plan-contract.ts structured-plan ins... | Plan ready |
+| 2026-05-29 | Update src/task-envelope.ts lint messaging to r... | Plan ready |
+| 2026-05-29 | Implement test in test/plan-contract.test.ts fo... | Plan ready |
+| 2026-05-29 | Update docs/metrics/efficiency-weekly-report.md... | Plan ready |
+| 2026-05-29 | Implement docs/metrics/efficiency-wave-gates.md... | Plan ready |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w1-ticket-02-e... | Plan ready |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w1-ticket-04-w... | Plan ready |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w2-ticket-06-d... | Plan ready |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w2-ticket-07-r... | Plan ready |
 
 ### Blockers Encountered
 | Date | Blocker | Resolution |
@@ -3276,6 +3285,41 @@ ok 21 - TaskWatcher
 | 2026-05-29 | Review methodology in src/ticket-autopilot.ts to replace queue-wide reseeding with bounded wave gating, implement gate checks, and verify with npm test with expected signal: autopilot tests pass with stable pending counts. | Command is not allowlisted: npm test -- --testPathPattern=src/ticket-autopilot |
 | 2026-05-29 | Identify largest efficiency gain by instrumenting per-phase latency attribution in src/efficiency-metrics.ts and verify with npm test with expected signal: report includes top latency contributor section. | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. Lint score=4/5. |
 | 2026-05-29 | Identify largest efficiency gain by instrumenting supersede-cause taxonomy in src/upgrade-telemetry.ts and verify with npm test with expected signal: telemetry alerts include top supersede causes. | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. Lint score=4/5. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w1-ticket-01-admission-contract.md with bounded ticket contract and expected-signal template; verify with npm run build; expected signal: build exits 0. | File read target docs/metrics/qwen-wave/w1-ticket-01-admission-contract.md is not declared in the validated plan. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w1-ticket-03-allowlist-command-shapes.md with accepted command shapes and denied examples; verify with npm run build; expected signal: build exits 0. | File read target docs/metrics/qwen-wave/w1-ticket-03-allowlist-command-shapes.md is not declared in the validated plan. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w1-ticket-05-ticket-quality-score.md with quality score rubric and reject conditions; verify with npm run build; expected signal: build exits 0. | File read target docs/metrics/qwen-wave/w1-ticket-05-ticket-quality-score.md is not declared in the validated plan. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w2-ticket-08-blocked-unblock-protocol.md with blocked-state triage protocol and retry gates; verify with npm run build; expected signal: build exits 0. | File read target docs/metrics/qwen-wave/w2-ticket-08-blocked-unblock-protocol.md is not declared in the validated plan. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w2-ticket-09-supersede-governance.md with supersede trigger policy and stale cleanup thresholds; verify with npm run build; expected signal: build exits 0. | file.read failed.: ENOENT: no such file or directory, open 'C:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\src\ticket-lifecycle.ts' |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w2-ticket-10-verification-normalization.md with canonical verification command policy and signal grammar; verify with npm run build; expected signal: build exits 0. | File read target docs/metrics/qwen-wave/w2-ticket-10-verification-normalization.md is not declared in the validated plan. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w3-ticket-11-wave-slot-accounting.md with wave slot accounting and carry-over rules; verify with npm run build; expected signal: build exits 0. | File read target docs/metrics/qwen-wave/w3-ticket-11-wave-slot-accounting.md is not declared in the validated plan. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w3-ticket-12-active-queue-cap.md with active queue cap algorithm and promotion rules; verify with npm run build; expected signal: build exits 0. | File read target docs/metrics/qwen-wave/w3-ticket-12-active-queue-cap.md is not declared in the validated plan. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w3-ticket-13-admission-pause-resume.md with pause/resume governance under threshold breaches; verify with npm run build; expected signal: build exits 0. | Error threshold (5) exceeded [admission_8dc758e34d05] |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w3-ticket-14-remediation-only-wave.md with remediation-only wave definition and exit criteria; verify with npm run build; expected signal: build exits 0. | Error threshold (5) exceeded [admission_712c099aa39f] |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w3-ticket-15-operator-escalation-ladder.md with escalation ladder for persistent gate failures; verify with npm run build; expected signal: build exits 0. | Error threshold (5) exceeded [admission_a148e6ea26a3] |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-16-efficiency-kpi-spec.md with throughput/latency/churn KPI definitions and formulas; verify with npm run build; expected signal: build exits 0. | Error threshold (5) exceeded [admission_e1df8fdfaf34] |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-17-mutation-evidence-schema.md with mutation evidence schema and required fields; verify with npm run build; expected signal: build exits 0. | Error threshold (5) exceeded [admission_34fc47f65bff] |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-18-weekly-burndown-template.md with weekly burn-down template for top deny/supersede/retry causes; verify with npm run build; expected signal: build exits 0. | Error threshold (5) exceeded [admission_5761b7334aea] |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-19-gate-audit-log-template.md with gate-audit log template and approval notes format; verify with npm run build; expected signal: build exits 0. | Error threshold (5) exceeded [admission_e12a0dfaea68] |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-20-qwen-efficiency-summary-template.md with final wave summary template for manual-vs-assisted comparisons; verify with npm run build; expected signal: build exits 0. | Error threshold (5) exceeded [admission_f0295245e354] |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w3-ticket-13-admission-pause-resume.md with pause/resume governance under threshold breaches; verify with npm run build; expected signal: build exits 0. | No governed mutation evidence was recorded for mutable intended files (src/admission.ts). Completion requires at least one applied mutation in declared targets. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w3-ticket-15-operator-escalation-ladder.md with escalation ladder for persistent gate failures; verify with npm run build; expected signal: build exits 0. | file.read failed.: ENOENT: no such file or directory, open 'C:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\docs\metrics\qwen-wave\w3-ticket-15-operator-escalation-ladder.md' |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-16-efficiency-kpi-spec.md with throughput/latency/churn KPI definitions and formulas; verify with npm run build; expected signal: build exits 0. | file.read failed.: ENOENT: no such file or directory, open 'C:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\docs\metrics\qwen-wave\w4-ticket-16-efficiency-kpi-spec.md' |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w3-ticket-14-remediation-only-wave.md with remediation-only wave definition and exit criteria; verify with npm run build; expected signal: build exits 0. | File read target docs/metrics/qwen-wave/w3-ticket-14-remediation-only-wave.md is not declared in the validated plan. Declared plan files: src/upgrade-telemetry.ts, docs/metrics/upgrade-telemetry-report.md. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w3-ticket-15-operator-escalation-ladder.md with escalation ladder for persistent gate failures; verify with npm run build; expected signal: build exits 0. | Invalid task transition in ticket ticket_84cef5c49f49: blocked -> in_progress |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-16-efficiency-kpi-spec.md with throughput/latency/churn KPI definitions and formulas; verify with npm run build; expected signal: build exits 0. | Invalid task transition in ticket ticket_8e8ecb2ad357: blocked -> in_progress |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-17-mutation-evidence-schema.md with mutation evidence schema and required fields; verify with npm run build; expected signal: build exits 0. | No governed mutation evidence was recorded for mutable intended files (src/runtime.ts, src/tool-runtime.ts, test/runtime.test.ts). Completion requires at least one applied mutation in declared targets. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-17-mutation-evidence-schema.md with mutation evidence schema and required fields; verify with npm run build; expected signal: build exits 0. | File read target docs/metrics/qwen-wave/w4-ticket-17-mutation-evidence-schema.md is not declared in the validated plan. Declared plan files: src/types.ts, src/efficiency-metrics.ts, src/upgrade-telemetry.ts. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-18-weekly-burndown-template.md with weekly burn-down template for top deny/supersede/retry causes; verify with npm run build; expected signal: build exits 0. | No governed mutation evidence was recorded for mutable intended files (docs/metrics/qwen-wave/w4-ticket-18-weekly-burndown-template.md). Completion requires at least one applied mutation in declared targets. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-19-gate-audit-log-template.md with gate-audit log template and approval notes format; verify with npm run build; expected signal: build exits 0. | file.read failed.: ENOENT: no such file or directory, open 'C:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\docs\metrics\qwen-wave\w4-ticket-19-gate-audit-log-template.md' |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-18-weekly-burndown-template.md with weekly burn-down template for top deny/supersede/retry causes; verify with npm run build; expected signal: build exits 0. | File read target docs/metrics/efficiency-weekly-report.md is not declared in the validated plan. Declared plan files: docs/metrics/qwen-wave/w4-ticket-18-weekly-burndown-template.md. |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-19-gate-audit-log-template.md with gate-audit log template and approval notes format; verify with npm run build; expected signal: build exits 0. | Invalid task transition in ticket ticket_a079e99913bc: blocked -> in_progress |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-20-qwen-efficiency-summary-template.md with final wave summary template for manual-vs-assisted comparisons; verify with npm run build; expected signal: build exits 0. | file.read failed.: ENOENT: no such file or directory, open 'C:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\docs\metrics\qwen-wave\w4-ticket-20-qwen-efficiency-summary-template.md' |
+| 2026-05-29 | Implement docs/metrics/qwen-wave/w4-ticket-20-qwen-efficiency-summary-template.md with final wave summary template for manual-vs-assisted comparisons; verify with npm run build; expected signal: build exits 0. | File read target docs/metrics/efficiency-weekly-report.md is not declared in the validated plan. Declared plan files: docs/metrics/qwen-wave/w4-ticket-20-qwen-efficiency-summary-template.md. |
+| 2026-05-29 | Review src/runtime.ts plan-binding denial message clarity for undeclared file reads, improve actionable guidance, and verify with npm test -- test/runtime.test.ts with expected signal: runtime tests pass. | No governed mutation evidence was recorded for mutable intended files (src/runtime.ts). Completion requires at least one applied mutation in declared targets. |
+| 2026-05-29 | Review src/ticket-template.ts ticket envelope scoring for broad multi-surface requests, tighten boundedness checks, and verify with npm test -- test/ticket-template.test.ts with expected signal: template tests pass. | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. Lint score=4/5. |
+| 2026-05-29 | Review src/tool-runtime.ts allowlist mismatch diagnostics for denied commands, add normalized command-shape hinting, and verify with npm test -- test/runtime.test.ts with expected signal: denial diagnostics tests pass. | Error threshold (5) exceeded [admission_22ce2625ae45] |
+| 2026-05-29 | Review src/tool-runtime.ts allowlist mismatch diagnostics for denied commands, add normalized command-shape hinting, and verify with npm test -- test/runtime.test.ts with expected signal: denial diagnostics tests pass. | No governed mutation evidence was recorded for mutable intended files (src/tool-runtime.ts, test/runtime.test.ts). Completion requires at least one applied mutation in declared targets. |
+| 2026-05-29 | Edit src/tool-runtime.ts to improve allowlist denial diagnostics by including normalized command-shape hint text in the denial message; verify with npm test -- test/runtime.test.ts; expected signal: tests pass and denial text contains normalized hint. | Unsupported task envelope: The task does not clearly fit a supported bounded engineering task class. Recommendation: Split the work into a small local engineering ticket with explicit files, expected behavior, and verification steps. Lint score=4/5. |
 
 ## Preferences
 
@@ -3582,6 +3626,52 @@ ok 21 - TaskWatcher
 - [2026-05-29T04:38:47.193Z] Blocked: Identify largest efficiency gain by instrumenting supersede-cause taxonomy in src/upgrade-telemetry.ts and verify with npm test with expected signal: telemetry alerts include top supersede causes.
 - [2026-05-29T04:38:47.219Z] Single-pass run complete
 - [2026-05-29T04:39:02.693Z] Single-pass run found no pending tasks
+- [2026-05-29T05:05:43.655Z] Planned: Update src/plan-contract.ts structured-plan instructions to require one accepted verification command and expected signal; verify with npm run build; expected signal: build exits 0 with no TypeScript errors.
+- [2026-05-29T05:05:58.606Z] Planned: Update src/task-envelope.ts lint messaging to recommend wave-sized bounded tickets and expected signal phrasing; verify with npm run build; expected signal: build exits 0 with no TypeScript errors.
+- [2026-05-29T05:06:24.127Z] Planned: Implement test in test/plan-contract.test.ts for verification command guidance and expected signal wording; verify with npm test; expected signal: tests pass.
+- [2026-05-29T05:06:36.412Z] Planned: Update docs/metrics/efficiency-weekly-report.md with an operator wave-gate checklist and thresholds; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:06:36.430Z] Single-pass run complete
+- [2026-05-29T05:07:45.732Z] Single-pass run found no pending tasks
+- [2026-05-29T05:08:08.492Z] Planned: Implement docs/metrics/efficiency-wave-gates.md with operator wave-gate thresholds, pause/resume protocol, and remediation-only wave rules; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:08:08.509Z] Single-pass run complete
+- [2026-05-29T05:18:46.439Z] Blocked: Implement docs/metrics/qwen-wave/w1-ticket-01-admission-contract.md with bounded ticket contract and expected-signal template; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:20:48.056Z] Planned: Implement docs/metrics/qwen-wave/w1-ticket-02-envelope-lint.md with envelope lint pass/fail checklist and remediation guidance; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:23:07.863Z] Blocked: Implement docs/metrics/qwen-wave/w1-ticket-03-allowlist-command-shapes.md with accepted command shapes and denied examples; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:24:12.333Z] Planned: Implement docs/metrics/qwen-wave/w1-ticket-04-wave-admission-gates.md with threshold formulas and gate override policy; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:25:15.575Z] Blocked: Implement docs/metrics/qwen-wave/w1-ticket-05-ticket-quality-score.md with quality score rubric and reject conditions; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:26:23.220Z] Planned: Implement docs/metrics/qwen-wave/w2-ticket-06-denial-taxonomy.md with stable denial reason families and operator mapping; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:28:19.075Z] Planned: Implement docs/metrics/qwen-wave/w2-ticket-07-remediation-playbook.md with top-3 denial remediation loop and SLA windows; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:29:18.919Z] Blocked: Implement docs/metrics/qwen-wave/w2-ticket-08-blocked-unblock-protocol.md with blocked-state triage protocol and retry gates; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:30:17.106Z] Blocked: Implement docs/metrics/qwen-wave/w2-ticket-09-supersede-governance.md with supersede trigger policy and stale cleanup thresholds; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:31:20.617Z] Blocked: Implement docs/metrics/qwen-wave/w2-ticket-10-verification-normalization.md with canonical verification command policy and signal grammar; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:32:07.047Z] Blocked: Implement docs/metrics/qwen-wave/w3-ticket-11-wave-slot-accounting.md with wave slot accounting and carry-over rules; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:33:10.256Z] Blocked: Implement docs/metrics/qwen-wave/w3-ticket-12-active-queue-cap.md with active queue cap algorithm and promotion rules; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T05:33:10.585Z] Single-pass run complete
+- [2026-05-29T06:10:13.057Z] Blocked: Implement docs/metrics/qwen-wave/w3-ticket-13-admission-pause-resume.md with pause/resume governance under threshold breaches; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:10:35.655Z] Blocked: Implement docs/metrics/qwen-wave/w3-ticket-15-operator-escalation-ladder.md with escalation ladder for persistent gate failures; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:15:25.898Z] Blocked: Implement docs/metrics/qwen-wave/w4-ticket-16-efficiency-kpi-spec.md with throughput/latency/churn KPI definitions and formulas; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:15:27.914Z] Blocked: Implement docs/metrics/qwen-wave/w3-ticket-14-remediation-only-wave.md with remediation-only wave definition and exit criteria; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:15:30.309Z] Blocked: Implement docs/metrics/qwen-wave/w3-ticket-15-operator-escalation-ladder.md with escalation ladder for persistent gate failures; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:15:32.193Z] Blocked: Implement docs/metrics/qwen-wave/w4-ticket-16-efficiency-kpi-spec.md with throughput/latency/churn KPI definitions and formulas; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:15:53.963Z] Blocked: Implement docs/metrics/qwen-wave/w4-ticket-17-mutation-evidence-schema.md with mutation evidence schema and required fields; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:17:32.387Z] Blocked: Implement docs/metrics/qwen-wave/w4-ticket-17-mutation-evidence-schema.md with mutation evidence schema and required fields; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:17:35.132Z] Blocked: Implement docs/metrics/qwen-wave/w4-ticket-18-weekly-burndown-template.md with weekly burn-down template for top deny/supersede/retry causes; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:17:58.285Z] Blocked: Implement docs/metrics/qwen-wave/w4-ticket-19-gate-audit-log-template.md with gate-audit log template and approval notes format; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:19:53.299Z] Blocked: Implement docs/metrics/qwen-wave/w4-ticket-18-weekly-burndown-template.md with weekly burn-down template for top deny/supersede/retry causes; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:19:55.430Z] Blocked: Implement docs/metrics/qwen-wave/w4-ticket-19-gate-audit-log-template.md with gate-audit log template and approval notes format; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:22:04.372Z] Blocked: Implement docs/metrics/qwen-wave/w4-ticket-20-qwen-efficiency-summary-template.md with final wave summary template for manual-vs-assisted comparisons; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:24:01.074Z] Blocked: Implement docs/metrics/qwen-wave/w4-ticket-20-qwen-efficiency-summary-template.md with final wave summary template for manual-vs-assisted comparisons; verify with npm run build; expected signal: build exits 0.
+- [2026-05-29T06:24:01.181Z] Single-pass run complete
+- [2026-05-29T06:24:05.592Z] Blocked: Review src/runtime.ts plan-binding denial message clarity for undeclared file reads, improve actionable guidance, and verify with npm test -- test/runtime.test.ts with expected signal: runtime tests pass.
+- [2026-05-29T06:24:05.794Z] Blocked: Review src/ticket-template.ts ticket envelope scoring for broad multi-surface requests, tighten boundedness checks, and verify with npm test -- test/ticket-template.test.ts with expected signal: template tests pass.
+- [2026-05-29T06:24:05.988Z] Single-pass run complete
+- [2026-05-29T06:33:45.169Z] Blocked: Review src/tool-runtime.ts allowlist mismatch diagnostics for denied commands, add normalized command-shape hinting, and verify with npm test -- test/runtime.test.ts with expected signal: denial diagnostics tests pass.
+- [2026-05-29T06:33:45.718Z] Single-pass run complete
+- [2026-05-29T06:34:33.727Z] Single-pass run found no pending tasks
+- [2026-05-29T06:34:38.952Z] Single-pass run found no pending tasks
+- [2026-05-29T06:34:43.682Z] Single-pass run found no pending tasks
+- [2026-05-29T12:40:26.148Z] Blocked: Edit src/tool-runtime.ts to improve allowlist denial diagnostics by including normalized command-shape hint text in the denial message; verify with npm test -- test/runtime.test.ts; expected signal: tests pass and denial text contains normalized hint.
+- [2026-05-29T12:40:26.176Z] Single-pass run complete
 
 ---
 

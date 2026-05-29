@@ -11,11 +11,22 @@ const broadPatterns = [
   /\brewrite\s+(the\s+)?entire\b/i,
   /\bwhole\s+repo\b/i,
   /\beverything\b/i,
+  /\bend[-\s]?to[-\s]?end\b/i,
+  /\bplatform\b/i,
+  /\ball\s+modules\b/i,
+  /\ball\s+files\b/i,
 ];
 
 const actionPattern = /\b(add|apply|capture|fix|implement|improve|optimize|refactor|remove|repair|review|update|validate)\b/i;
 const scopePattern = /\b(src\/|test\/|docs\/|scripts\/|README|TASKS\.md|package\.json|runtime|ticket|metrics|ui|model)\b/i;
-const verificationPattern = /\b(npm\s+run|npm\s+test|verify|validation|expected|prove|evidence|signal)\b/i;
+const deterministicVerificationPattern = /\b(npm\s+test|npm\s+run\s+test|npm\s+run\s+build|npm\s+run\s+lint|npm\s+run\s+validate:config|npm\s+run\s+preflight|npm\s+run\s+start:once|node\s+scripts\/run-tests\.mjs)\b/i;
+const expectedSignalPattern = /\bexpected\s+signal\b/i;
+const fileScopePattern = /\b(?:src|test|docs|scripts)\/[\w./-]+/gi;
+
+function countFileScopes(description: string): number {
+  const matches = description.match(fileScopePattern);
+  return matches ? matches.length : 0;
+}
 
 export function assessTicketTemplate(description: string): TicketTemplateAssessment {
   const normalized = description.trim();
@@ -46,18 +57,31 @@ export function assessTicketTemplate(description: string): TicketTemplateAssessm
     issues.push('Description should include local scope (file, module, or subsystem).');
   }
 
-  if (verificationPattern.test(normalized)) {
+  if (deterministicVerificationPattern.test(normalized)) {
     score += 1;
   } else {
-    issues.push('Description should include expected verification signal or command.');
+    issues.push('Description should include one accepted verification command (npm run build/test/lint/validate:config/preflight/start:once or node scripts/run-tests.mjs).');
+  }
+
+  if (expectedSignalPattern.test(normalized)) {
+    score += 1;
+  } else {
+    issues.push('Description should include an "expected signal" statement for deterministic validation.');
+  }
+
+  const fileScopeCount = countFileScopes(normalized);
+  if (fileScopeCount <= 2) {
+    score += 1;
+  } else {
+    issues.push(`Description references ${fileScopeCount} file scopes; split into smaller tickets with <=2 scoped files.`);
   }
 
   return {
-    valid: issues.length === 0 || (issues.length <= 2 && !issues.some((issue) => /broad|too short/i.test(issue))),
+    valid: issues.length === 0,
     score,
     issues,
     recommendation:
-      'Use: <action> <local scope/file> with <verification command/signal>. Example: "Optimize src/runtime.ts queue scheduling and verify with npm run build".',
+      'Use: <action> <single scope/file> with one accepted verification command and an expected signal. Example: "Optimize src/runtime.ts queue scheduling, verify with npm run build, expected signal: build exits 0 with no TypeScript errors."',
   };
 }
 

@@ -101,6 +101,7 @@ export interface RuntimeSelfAuditSeeder {
 
 interface PlannedToolExecutionOutcome {
   artifacts: string[];
+  observedMutatedPaths?: string[];
   failureReason?: string;
   awaitingApprovalReason?: string;
   pendingToolCalls?: ToolCall[];
@@ -585,6 +586,18 @@ export class HephaestusRuntime {
           return 'failed';
         }
 
+        const mutationEvidenceFailure = this.validateCompletionMutationEvidence(
+          result.plan,
+          toolExecution.observedMutatedPaths ?? []
+        );
+        if (mutationEvidenceFailure) {
+          task.error = mutationEvidenceFailure;
+          await this.handleBlockedTask(task, mutationEvidenceFailure, taskMarkedInProgress, {
+            forceBlocked: true,
+          });
+          return 'failed';
+        }
+
         await this.tasks.markTaskCompleted(task);
         if (canTransitionTaskStatus(task.status, 'completed')) {
           Object.assign(task, transitionTask(task, 'completed'));
@@ -749,6 +762,7 @@ export class HephaestusRuntime {
     }
 
     const artifacts: string[] = [];
+    const observedMutatedPaths = new Set<string>();
 
     const policySnapshot = this.toolRuntime.getPolicySnapshot?.();
     if (policySnapshot) {
@@ -808,10 +822,14 @@ export class HephaestusRuntime {
     for (const [index, toolCall] of toolCalls.entries()) {
       const execution = await this.executeGovernedToolCall(plan, toolCall, correlationId);
       artifacts.push(...execution.artifacts);
+      for (const mutatedPath of execution.observedMutatedPaths ?? []) {
+        observedMutatedPaths.add(mutatedPath);
+      }
 
       if (execution.awaitingApprovalReason || execution.failureReason) {
         return {
           artifacts,
+          observedMutatedPaths: Array.from(observedMutatedPaths),
           awaitingApprovalReason: execution.awaitingApprovalReason,
           failureReason: execution.failureReason,
           approvalState: execution.approvalState,
@@ -826,7 +844,43 @@ export class HephaestusRuntime {
       artifactCount: artifacts.length,
     });
 
-    return { artifacts };
+    return {
+      artifacts,
+      observedMutatedPaths: Array.from(observedMutatedPaths),
+    };
+  }
+
+  private normalizePlanPath(candidate: string): string {
+    return candidate.replace(/\\/g, '/').trim().toLowerCase();
+  }
+
+  private validateCompletionMutationEvidence(
+    plan: TaskPlan | undefined,
+    observedMutatedPaths: string[]
+  ): string | null {
+    if (!plan) {
+      return null;
+    }
+
+    const plannedMutablePaths = plan.intendedFiles
+      .filter((file) => file.changeType !== 'inspect')
+      .map((file) => this.normalizePlanPath(file.path));
+
+    if (plannedMutablePaths.length === 0) {
+      return null;
+    }
+
+    const observedSet = new Set(observedMutatedPaths.map((candidate) => this.normalizePlanPath(candidate)));
+    if (observedSet.size === 0) {
+      return `No governed mutation evidence was recorded for mutable intended files (${plannedMutablePaths.join(', ')}). Completion requires at least one applied mutation in declared targets.`;
+    }
+
+    const hasPlannedMutation = plannedMutablePaths.some((candidate) => observedSet.has(candidate));
+    if (!hasPlannedMutation) {
+      return `Observed mutations (${Array.from(observedSet).join(', ')}) do not intersect mutable intended files (${plannedMutablePaths.join(', ')}). Completion requires declared-target mutations.`;
+    }
+
+    return null;
   }
 
   private async executeGovernedToolCall(
@@ -861,7 +915,7 @@ export class HephaestusRuntime {
               artifacts,
               failureReason: `${result.summary}${result.error ? `: ${result.error}` : ''}`,
             }
-          : { artifacts };
+            : { artifacts, observedMutatedPaths: [] };
       }
 
       case 'patch.apply': {
@@ -917,6 +971,7 @@ export class HephaestusRuntime {
         if (applyResult.status === 'denied' && applyResult.reasonCode === 'approval-required') {
           return {
             artifacts,
+            observedMutatedPaths: [],
             awaitingApprovalReason: applyResult.summary,
             approvalState: this.buildApprovalState(correlationId, applyResult),
           };
@@ -925,11 +980,12 @@ export class HephaestusRuntime {
         if (applyResult.status === 'failure' || applyResult.status === 'denied') {
           return {
             artifacts,
+            observedMutatedPaths: [],
             failureReason: `${applyResult.summary}${applyResult.error ? `: ${applyResult.error}` : ''}`,
           };
         }
 
-        return { artifacts };
+        return { artifacts, observedMutatedPaths: applyResult.mutatedPaths };
       }
 
       case 'command.run': {
@@ -969,7 +1025,7 @@ export class HephaestusRuntime {
               artifacts,
               failureReason: `${result.summary}${result.error ? `: ${result.error}` : ''}`,
             }
-          : { artifacts };
+            : { artifacts, observedMutatedPaths: [] };
       }
 
       case 'file.read': {
@@ -1004,7 +1060,7 @@ export class HephaestusRuntime {
               artifacts,
               failureReason: `${result.summary}${result.error ? `: ${result.error}` : ''}`,
             }
-          : { artifacts };
+            : { artifacts, observedMutatedPaths: [] };
       }
 
       default:
@@ -1012,6 +1068,7 @@ export class HephaestusRuntime {
           artifacts: [
             `[${correlationId}] denied ${toolCall.name}: governed runtime does not yet bind this tool call to the plan.`
           ],
+          observedMutatedPaths: [],
           failureReason: `Tool call ${toolCall.name} is not yet supported by the governed runtime.`,
         };
     }
@@ -1088,14 +1145,14 @@ export class HephaestusRuntime {
     const allowedPaths = new Set(
       plan.intendedFiles
         .filter((file) => file.changeType !== 'inspect')
-        .map((file) => file.path.replace(/\\/g, '/'))
+        .map((file) => this.normalizePlanPath(file.path))
     );
 
     if (allowedPaths.size === 0) {
       return 'Patch tool calls require at least one non-inspect intended file in the plan.';
     }
 
-    for (const mutatedPath of mutatedPaths.map((candidate) => candidate.replace(/\\/g, '/'))) {
+    for (const mutatedPath of mutatedPaths.map((candidate) => this.normalizePlanPath(candidate))) {
       if (!allowedPaths.has(mutatedPath)) {
         return `Patch touches ${mutatedPath}, which is not declared as a mutable intended file.`;
       }
@@ -1124,9 +1181,31 @@ export class HephaestusRuntime {
       return 'File read tool calls require a validated plan.';
     }
 
-    return plan.intendedFiles.some((candidate) => candidate.path === targetPath)
-      ? null
-      : `File read target ${targetPath} is not declared in the validated plan.`;
+    const normalizedTargetPath = this.normalizePlanPath(targetPath);
+    const declaredPaths = plan.intendedFiles.map((candidate) => candidate.path);
+    const isDeclared = plan.intendedFiles
+      .map((candidate) => this.normalizePlanPath(candidate.path))
+      .includes(normalizedTargetPath);
+
+    if (isDeclared) {
+      return null;
+    }
+
+    const preview = declaredPaths.length > 0
+      ? declaredPaths.slice(0, 6).join(', ')
+      : 'none';
+    return `File read target ${targetPath} is not declared in the validated plan. Declared plan files: ${preview}.`;
+  }
+
+  private shouldCountAgainstGlobalErrorBudget(reason: string): boolean {
+    return ![
+      /is not declared in the validated plan/i,
+      /is not declared in the validated plan commands/i,
+      /no governed mutation evidence/i,
+      /do not intersect mutable intended files/i,
+      /requires at least one non-inspect intended file/i,
+      /patch touches .* not declared/i,
+    ].some((pattern) => pattern.test(reason));
   }
 
   private buildCommandRepairArtifacts(
@@ -1248,7 +1327,14 @@ export class HephaestusRuntime {
     taskMarkedInProgress: boolean,
     options: { forceBlocked?: boolean } = {}
   ): Promise<void> {
-    this.safety.recordError(reason);
+    if (this.shouldCountAgainstGlobalErrorBudget(reason)) {
+      this.safety.recordError(reason);
+    } else {
+      logger.info('Blocked task excluded from global safety error threshold', {
+        ticketId: task.id,
+        reason,
+      });
+    }
     const hardBlocked = this.shouldEscalateToBlocked(task, reason, options.forceBlocked === true);
 
     this.state.status = hardBlocked ? 'blocked' : 'error';

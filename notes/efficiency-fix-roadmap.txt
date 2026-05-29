@@ -1,0 +1,117 @@
+Efficiency Fix Roadmap
+
+Date: 2026-05-29
+Project: Hephaestus
+Document: notes/efficiency-fix-roadmap.txt
+
+Abstract
+Hephaestus can still deliver efficiency increases, but recent runs showed orchestration friction overwhelming code-delivery throughput. The strongest regressions came from oversized ticket batches, broad task envelopes, allowlist mismatch on verification commands, and elevated supersede/block churn. This paper proposes a controlled recovery roadmap that re-centers efficiency on bounded execution, low-friction policy enforcement, and disciplined queue sizing.
+
+Problem Statement
+Observed execution behavior indicates that work visibility remained high while work completion quality degraded:
+- high blocked/superseded churn relative to completed output
+- policy denials and envelope rejects consuming execution budget
+- ticket volume scaling (up to 120) increasing queue noise faster than meaningful throughput
+
+This means Hephaestus was functioning as a workflow tracker, but not consistently as a code-shipping accelerator.
+
+Core Thesis
+The fix is not to remove Hephaestus. The fix is to operate it under stricter throughput-preserving constraints:
+1. smaller bounded tickets
+2. deterministic verification commands
+3. wave-gated admission
+4. aggressive friction reduction on top denial reasons
+5. right-sized ticket volume instead of high-volume seeding
+
+Roadmap To Restore Efficiency Increases
+
+Phase 0: Stabilize The Baseline (1-2 days)
+Goal: stop efficiency bleed and restore predictable queue behavior.
+- Freeze large-batch seeding temporarily.
+- Run only remediation tickets for top failure buckets.
+- Capture baseline telemetry snapshot before any new wave.
+- Define hard stop conditions:
+  - superseded rate > 0.20
+  - blocked growth > +5 per wave
+  - allowlist denial rate > 0.08
+Outcome: a known-good operational baseline with controlled queue pressure.
+
+Phase 1: Admission And Ticket Quality Hardening (2-4 days)
+Goal: prevent broad or ambiguous tickets from entering execution.
+- Enforce stricter ticket template requirements:
+  - single subsystem/file focus
+  - one clear action verb
+  - one accepted verification command
+  - expected signal sentence
+- Auto-split broad requests into bounded children before queue admission.
+- Reject tickets with mixed multi-surface objectives in one envelope.
+Outcome: higher completion probability per admitted ticket.
+
+Phase 2: Policy Friction Reduction (2-3 days)
+Goal: reduce avoidable blocked states from command and envelope mismatch.
+- Normalize verification command patterns and permit known-safe bounded variants.
+- Add explicit allowlist entries for commonly needed targeted test invocations.
+- Emit canonical reason codes for all denials and route to a weekly burn-down list.
+Outcome: fewer non-code blockers, higher effective execution rate.
+
+Phase 3: Wave-Gated Execution Control (ongoing)
+Goal: execute in controlled throughput waves rather than bulk churn.
+- Run work in waves of 5-10 tickets.
+- Open the next wave only if all gates pass:
+  - completion rate >= 0.70
+  - superseded rate <= 0.20
+  - blocked growth <= 5
+  - denial rate <= 0.08
+- If a gate fails, pause and run only friction-remediation tickets.
+Outcome: stable throughput with bounded queue risk.
+
+Phase 4: Efficiency-Centric Observability (ongoing)
+Goal: optimize with direct causality between changes and outcomes.
+- Maintain dual scorecards:
+  - delivery score (completed/day, latency, completion ratio)
+  - governance friction score (denial rate, envelope rejects, supersede causes)
+- Publish top-3 root causes weekly:
+  - top deny reason
+  - top supersede reason
+  - top retry reason
+- Require each fix wave to target at least one of these top-3 causes.
+Outcome: measurable and compounding efficiency gains.
+
+Should We Use Fewer Tickets Overall?
+Yes. The 60 and 120 experiments indicate that higher ticket volume does not linearly increase useful output under current policy/runtime constraints.
+
+Volume Guidance
+- 120-ticket batches: too large for current friction profile; increases management churn and supersede pressure.
+- 60-ticket batches: better than 120, but still too coarse when policy mismatch is unresolved.
+- Recommended operating range now: 20-40 active tickets max, admitted in waves of 5-10.
+
+Why smaller is better now
+- Lower queue pressure improves operator signal clarity.
+- Faster feedback loops on deny/blocked root causes.
+- Less supersede churn from stale or broad backlog items.
+- More deterministic relation between intervention and metric movement.
+
+Target Operating Policy
+- Keep a shallow active queue and a deeper backlog queue.
+- Promote tickets from backlog to active only when wave gates pass.
+- Prefer completion reliability over intake volume.
+
+Execution Playbook
+1. Snapshot current metrics.
+2. Run a 5-ticket wave.
+3. Evaluate gate thresholds.
+4. If pass, run next 5-ticket wave.
+5. If fail, stop and execute remediation tickets only.
+6. Re-snapshot and compare deltas.
+7. Repeat until sustained positive trend over 3 consecutive waves.
+
+Success Criteria
+Hephaestus is back to efficiency-increase mode when, over a rolling 7-day window:
+- completion rate >= 0.70
+- superseded rate <= 0.20
+- allowlist denial rate <= 0.08
+- blocked-retry success ratio trends upward week-over-week
+- efficiency score trend is positive for at least 3 consecutive snapshots
+
+Conclusion
+Hephaestus should be treated as a governed execution multiplier, not a high-volume ticket sink. The fastest route back to net efficiency gains is to reduce active ticket volume, tighten admission quality, eliminate policy-command mismatch, and use strict wave gating. Under these controls, the system can recover completion reliability and translate orchestration into real delivered code velocity.

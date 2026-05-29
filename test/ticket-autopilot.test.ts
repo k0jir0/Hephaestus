@@ -198,4 +198,113 @@ describe('runTicketAutopilot', () => {
     assert.equal(result.queueReady, false);
     assert.equal(result.selfAudit, null);
   });
+
+  it('limits queue priming to available wave slots', async () => {
+    const calls = {
+      retried: [] as string[],
+    };
+
+    const result = await runTicketAutopilot(
+      {
+        repository: {
+          async listTickets() {
+            return [
+              makeTicket('active_1', 'pending'),
+              makeTicket('active_2', 'pending'),
+              makeTicket('active_3', 'pending'),
+              makeTicket('blocked_1', 'blocked'),
+              makeTicket('blocked_2', 'blocked'),
+              makeTicket('blocked_3', 'blocked'),
+            ];
+          },
+          async retryTicket(ticketId: string) {
+            calls.retried.push(ticketId);
+            return makeTicket(ticketId, 'pending');
+          },
+          async resumeApprovedTicket() {
+            throw new Error('resumeApprovedTicket should not be called in this test');
+          },
+        },
+      },
+      {
+        waveSize: 2,
+        maxActiveTickets: 7,
+      }
+    );
+
+    assert.deepEqual(calls.retried, ['blocked_1']);
+    assert.equal(result.availableWaveSlots, 1);
+    assert.equal(result.requeued.length, 1);
+    assert.equal(result.blockedByGates, false);
+  });
+
+  it('halts queue priming when efficiency gates fail', async () => {
+    const calls = {
+      retried: 0,
+      resumed: 0,
+    };
+
+    const result = await runTicketAutopilot(
+      {
+        repository: {
+          async listTickets() {
+            return [
+              makeTicket('done_1', 'completed'),
+              makeTicket('done_2', 'completed'),
+              makeTicket('sup_1', 'superseded'),
+              makeTicket('sup_2', 'superseded'),
+              makeTicket('sup_3', 'superseded'),
+              makeTicket('sup_4', 'superseded'),
+              makeTicket('sup_5', 'superseded'),
+              makeTicket('can_1', 'cancelled'),
+              makeTicket('blk_1', 'blocked'),
+              makeTicket('blk_2', 'blocked'),
+              makeTicket('blk_3', 'blocked'),
+              makeTicket('blk_4', 'blocked'),
+              makeTicket('blk_5', 'blocked'),
+              makeTicket('blk_6', 'blocked'),
+              {
+                ...makeTicket('err_1', 'failed'),
+                error: 'Command is not allowlisted: npm run strange-test',
+              },
+              {
+                ...makeTicket('err_2', 'failed'),
+                error: 'Command is not allowlisted: npm run strange-test',
+              },
+              {
+                ...makeTicket('err_3', 'failed'),
+                error: 'Command is not allowlisted: npm run strange-test',
+              },
+              {
+                ...makeTicket('err_4', 'failed'),
+                error: 'Command is not allowlisted: npm run strange-test',
+              },
+              {
+                ...makeTicket('err_5', 'failed'),
+                error: 'Command is not allowlisted: npm run strange-test',
+              },
+            ];
+          },
+          async retryTicket() {
+            calls.retried += 1;
+            throw new Error('retryTicket should not be called when gates fail');
+          },
+          async resumeApprovedTicket() {
+            calls.resumed += 1;
+            throw new Error('resumeApprovedTicket should not be called when gates fail');
+          },
+        },
+      },
+      {
+        maxBlockedTickets: 5,
+        maxSupersededRate: 0.2,
+      }
+    );
+
+    assert.equal(calls.retried, 0);
+    assert.equal(calls.resumed, 0);
+    assert.equal(result.blockedByGates, true);
+    assert.ok(result.gateFailures.length > 0);
+    assert.equal(result.availableWaveSlots, 0);
+  });
 });

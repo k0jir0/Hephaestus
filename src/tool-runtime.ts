@@ -93,6 +93,9 @@ const defaultProtectedPathPrefixes = [
 const defaultCommandAllowlist: CommandAllowlistEntry[] = [
   { command: 'npm', args: ['test'] },
   { command: 'npm', args: ['run', 'test'] },
+  { command: 'npm', args: ['test', '--', '--testPathPattern=*'] },
+  { command: 'npm', args: ['test', '--', '--select=*'] },
+  { command: 'npm', args: ['test', '--', 'test/*'] },
   { command: 'npm', args: ['run', 'lint'] },
   { command: 'npm', args: ['run', 'build'] },
   { command: 'npm', args: ['run', 'validate:config'] },
@@ -558,9 +561,32 @@ export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
     const normalizedCommand = normalizeCommandForPolicy(command);
     return this.commandAllowlist.some((entry) =>
       normalizeCommandForPolicy(entry.command) === normalizedCommand &&
-      entry.args.length === args.length &&
-      entry.args.every((expectedArg, index) => expectedArg === args[index])
+      this.argumentsMatchAllowlist(entry.args, args)
     );
+  }
+
+  private argumentsMatchAllowlist(expectedArgs: string[], actualArgs: string[]): boolean {
+    if (expectedArgs.length !== actualArgs.length) {
+      return false;
+    }
+
+    for (const [index, expected] of expectedArgs.entries()) {
+      const actual = actualArgs[index] ?? '';
+      if (expected === actual) {
+        continue;
+      }
+
+      if (expected.endsWith('*')) {
+        const prefix = expected.slice(0, -1);
+        if (actual.startsWith(prefix)) {
+          continue;
+        }
+      }
+
+      return false;
+    }
+
+    return true;
   }
 
   private extractPatchPaths(patch: string): string[] {

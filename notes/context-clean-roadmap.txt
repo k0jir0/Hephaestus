@@ -1,0 +1,70 @@
+Context Clean Roadmap
+
+Date: 2026-05-29
+Project: Hephaestus
+Document: notes/context-clean-roadmap.txt
+
+Goal
+Reduce context noise and disk churn while preserving runtime correctness.
+Primary focus: large rotating logs, stale artifacts, and oversized operator memory surfaces.
+
+Why this matters
+- Large logs increase retrieval noise and make troubleshooting slower.
+- Old run artifacts create false context signals for operators and model prompts.
+- Keeping only fresh operational data improves signal quality in UI and CLI workflows.
+
+Current findings (largest deletable context contributors)
+- logs/hephaestus.log was the largest runtime log file.
+- logs/error.log and logs/ollama-stream.out were additional stale growth points.
+- Database files (.hephaestus-tickets.db and .wal) are large but should not be deleted as part of routine context cleanup.
+
+Roadmap
+
+Phase 1: Log hygiene (immediate)
+- Rotate or reset high-growth logs:
+  - logs/hephaestus.log
+  - logs/error.log
+  - logs/ollama-stream.out
+- Keep file names in place (truncate/reset) so existing scripts do not break.
+
+Phase 2: Artifact retention policy (daily)
+- Keep only the latest operational logs needed for active debugging.
+- Move or purge stale .out/.err snapshots older than retention window.
+- Avoid deleting live DB and WAL files during active operation.
+
+Phase 3: Prompt/context hygiene (weekly)
+- Keep notes focused to active roadmaps and current evidence.
+- Archive obsolete papers and duplicate notes into an archive folder.
+- Keep AGENT/TASKS readable by reducing repetitive, non-actionable historical noise.
+
+Phase 4: Automated cleanup guardrail (optional)
+- Add a script task to reset selected logs safely.
+- Run after each completed wave or when logs exceed size threshold.
+
+Demonstration executed in this run
+
+Action
+- Reset (delete+recreate empty) the three high-growth log files:
+  - logs/hephaestus.log
+  - logs/error.log
+  - logs/ollama-stream.out
+
+Measured result
+- Before total logs bytes: 8,913,707
+- Bytes in the three target logs: 8,903,245
+- After total logs bytes: 10,462
+- Reclaimed bytes: 8,903,245
+
+Interpretation
+- Context and storage noise was reduced immediately by about 8.49 MB from logs alone.
+- Cleanup was performed without deleting source code, test files, or ticket store data.
+
+Safety rules for future cleanup
+- Do not delete:
+  - .hephaestus-tickets.db
+  - .hephaestus-tickets.db-wal
+  - source, test, docs in active roadmap scope
+- Prefer truncate/reset for active log filenames over permanent path removal.
+
+Recommended next step
+- Add a recurring cleanup command that resets only approved logs and prints before/after byte totals.

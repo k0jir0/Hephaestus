@@ -1,67 +1,79 @@
 {
-  "timestamp": "2026-05-29T03:37:47.312Z",
+  "timestamp": "2026-05-29T12:40:32.987Z",
   "totals": {
-    "tickets": 100,
-    "attempts": 113,
-    "completed": 41,
-    "blocked": 0,
+    "tickets": 316,
+    "attempts": 208,
+    "completed": 83,
+    "blocked": 38,
     "awaitingApproval": 0,
-    "pending": 12,
+    "pending": 0,
     "inProgress": 0,
-    "cancelled": 10
+    "cancelled": 17
   },
   "throughput": {
-    "completedLast24h": 13,
-    "completedPerDay": 13
+    "completedLast24h": 55,
+    "completedPerDay": 55
   },
   "latencyMs": {
     "admissionToStart": {
-      "p50": 71379,
-      "p95": 9992303,
-      "p99": 101983060,
-      "average": 4251883.403,
-      "sampleCount": 62
+      "p50": 483140,
+      "p95": 3715731,
+      "p99": 101982974,
+      "average": 2260559.22,
+      "sampleCount": 150
     },
     "startToComplete": {
-      "p50": 25375,
-      "p95": 7253016,
+      "p50": 19981,
+      "p95": 4190341,
       "p99": 7292965,
-      "average": 1007312.286,
-      "sampleCount": 28
+      "average": 419919.2,
+      "sampleCount": 70
     },
     "admissionToComplete": {
-      "p50": 101432,
-      "p95": 7293959,
+      "p50": 468009,
+      "p95": 5508794,
       "p99": 104750292,
-      "average": 4784007.214,
-      "sampleCount": 28
+      "average": 2252265.286,
+      "sampleCount": 70
     }
   },
   "quality": {
-    "retryRate": 0.19,
-    "blockRate": 0,
+    "retryRate": 0.082,
+    "blockRate": 0.12,
     "approvalRate": 0,
-    "completionRate": 0.41
+    "completionRate": 0.263
   },
   "policy": {
-    "allowlistDenialCount": 0,
-    "allowlistDenialRate": 0,
-    "allowlistDenialTaxonomyTop": []
+    "allowlistDenialCount": 4,
+    "allowlistDenialRate": 0.013,
+    "allowlistDenialTaxonomyTop": [
+      {
+        "bucket": "command is not allowlisted",
+        "count": 4
+      }
+    ]
   },
   "efficiencyIndex": {
-    "score": 53.375,
+    "score": 60.867,
     "targetScore": 70,
     "status": "below-target",
     "components": {
-      "throughputScore": 0.813,
-      "latencyScore": 0.247,
-      "completionScore": 0.41,
-      "retryPenaltyScore": 0.81
+      "throughputScore": 1,
+      "latencyScore": 0.327,
+      "completionScore": 0.263,
+      "retryPenaltyScore": 0.918
     },
     "attribution": {
       "topCohorts": [
         {
-          "cohort": "IMPLEMENT",
+          "cohort": "FIX",
+          "ticketCount": 4,
+          "completionRate": 1,
+          "retryRate": 0,
+          "scoreContribution": 100
+        },
+        {
+          "cohort": "UPDATE",
           "ticketCount": 3,
           "completionRate": 1,
           "retryRate": 0,
@@ -75,21 +87,14 @@
           "scoreContribution": 100
         },
         {
+          "cohort": "CHANGE",
+          "ticketCount": 2,
+          "completionRate": 1,
+          "retryRate": 0,
+          "scoreContribution": 100
+        },
+        {
           "cohort": "BUILD",
-          "ticketCount": 1,
-          "completionRate": 1,
-          "retryRate": 0,
-          "scoreContribution": 100
-        },
-        {
-          "cohort": "TRANSFORM",
-          "ticketCount": 1,
-          "completionRate": 1,
-          "retryRate": 0,
-          "scoreContribution": 100
-        },
-        {
-          "cohort": "DOCUMENT",
           "ticketCount": 1,
           "completionRate": 1,
           "retryRate": 0,
@@ -99,14 +104,14 @@
     }
   },
   "variance": {
-    "sampleCount": 6,
+    "sampleCount": 11,
     "alerts": [],
     "deltas": {
       "completedPerDayDelta": 0,
       "p95AdmissionToCompleteDeltaMs": 0,
       "completionRateDelta": 0,
-      "retryRateDelta": 0,
-      "efficiencyScoreDelta": 0
+      "retryRateDelta": 0.003,
+      "efficiencyScoreDelta": -0.031
     }
   }
 }

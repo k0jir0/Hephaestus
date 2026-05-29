@@ -4,6 +4,7 @@
  */
 
 import winston from 'winston';
+import fs from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -11,8 +12,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Get log file path from environment or use default
-const logFile = process.env.LOG_FILE || 'hephaestus.log';
 const logLevel = process.env.LOG_LEVEL || 'info';
+const logsDir = path.join(__dirname, '..', 'logs');
+
+function resolveLogPath(candidate: string | undefined, fallbackName: string): string {
+  if (candidate && candidate.trim()) {
+    return path.isAbsolute(candidate)
+      ? candidate
+      : path.resolve(__dirname, '..', candidate);
+  }
+
+  return path.join(logsDir, fallbackName);
+}
+
+fs.mkdirSync(logsDir, { recursive: true });
+
+const logFile = resolveLogPath(process.env.LOG_FILE, 'hephaestus.log');
+const errorLogFile = resolveLogPath(process.env.ERROR_LOG_FILE, 'error.log');
 
 // Custom format for console output
 const consoleFormat = winston.format.combine(
@@ -41,12 +57,12 @@ export const logger = winston.createLogger({
     }),
     // File transport for errors
     new winston.transports.File({
-      filename: path.join(__dirname, '..', 'error.log'),
+      filename: errorLogFile,
       level: 'error'
     }),
     // General log file
     new winston.transports.File({
-      filename: path.join(__dirname, '..', logFile),
+      filename: logFile,
       maxsize: 10 * 1024 * 1024, // 10MB
       maxFiles: 5
     })
