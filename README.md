@@ -6,7 +6,7 @@ In the current self-hosted operator workflow, running Hephaestus in parallel wit
 
 This repository is configured to run Hephaestus on itself by default. That makes it useful as a GitHub-ready demonstration of governed AI engineering workflow instead of an opaque "magic agent" claim.
 
-## Current State (2026-05-28)
+## Current State (2026-05-29)
 
 Hephaestus has progressed from a queue-driven planning demo into a local operator control plane with durable workflow state, governed execution, reliability tooling, and an operator-facing UI.
 
@@ -21,7 +21,20 @@ Current implemented state includes:
 - startup and shutdown orchestration for the managed local stack on Windows
 - reliability harnesses, SLO metrics, and published baseline/reporting flows
 
-## Validated Today (2026-05-28)
+## D2 Progress Snapshot (2026-05-29)
+
+Since the last README update, D2 (Event and Evidence Spine) advanced with the following implemented increments:
+
+- source-grounding policy enforcement for blueprint/D2+ tickets in template and envelope gates
+- source-grounding metrics and report pipeline with persisted snapshots under `docs/metrics/`
+- explicit source-evidence drift gate via `npm run tickets -- audit-source-evidence`
+- strict audit alias via `npm run metrics:source-grounding:audit`
+- additive canonical D2 schema start in SQLite with `domain_events` and `event_evidence`
+- dual-write from lifecycle event recording into both legacy `ticket_events` and canonical D2 event tables
+
+Current D2 status: approximately 60% complete toward D3 handoff, with replay reconstruction and canonical-read cutover work remaining.
+
+## Validated Today (2026-05-29)
 
 Hephaestus was run on itself (`TARGET_PROJECT=.`) and validated end-to-end through both CLI and UI paths:
 
@@ -128,6 +141,8 @@ That means the agent reads and reasons about this repository itself. To point it
 - `npm run models:report` prints the active model profile, installed Ollama models, and upgrade recommendations
 - `npm run models:smoke -- <model>` checks whether a local Ollama model can return strict JSON
 - `npm run models:benchmark -- --models codellama:latest,gpt-oss:20b,qwen3-coder:30b` compares candidate models on small agent-discipline checks
+- `npm run metrics:source-grounding` writes source-grounding snapshots and markdown reports
+- `npm run metrics:source-grounding:audit` runs strict source-evidence drift and missing-evidence gates
 - `npm test` runs contract, repository, runtime, and smoke tests
 
 ## Task Lifecycle
@@ -172,6 +187,7 @@ npm run tickets -- cancel ticket_abc123 "Superseded by ticket_456"
 npm run tickets -- supersede ticket_abc123 "Covered by a newer ticket"
 npm run tickets -- export-bundle ticket_abc123
 npm run tickets -- attempts ticket_abc123
+npm run tickets -- audit-source-evidence --max-drifted 0 --max-missing-evidence 0
 npm run tickets -- render-board
 ```
 
