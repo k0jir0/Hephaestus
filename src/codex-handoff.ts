@@ -5,6 +5,14 @@ import type { TaskAttempt, TaskEvent, TaskStatus, TaskTicket } from './types.js'
 
 export type CodexExecutionLane = 'fast' | 'deep';
 
+export interface CodexRoutingEvidence {
+  score: number;
+  threshold: number;
+  signals: string[];
+  localRetryCap: number;
+  recommendedLane: CodexExecutionLane;
+}
+
 export interface CodexHandoffRepository {
   listTickets(status: TaskStatus | 'all'): Promise<TaskTicket[]>;
   listAttempts(ticketId: string): Promise<TaskAttempt[]>;
@@ -18,6 +26,7 @@ export interface CodexHandoffBundle {
   generatedAt: string;
   lane: CodexExecutionLane;
   laneReason: string;
+  routingEvidence: CodexRoutingEvidence;
   ticket: {
     id: string;
     description: string;
@@ -34,6 +43,11 @@ export interface CodexHandoffBundle {
       details?: string;
     }>;
     pendingToolCalls: string[];
+    localAssistedHandoff: {
+      attemptedCommands: string[];
+      failedActions: string[];
+      recommendedNextStep: string;
+    };
   };
 }
 
@@ -61,8 +75,9 @@ export function routeCodexExecutionLane(
   ticket: TaskTicket,
   attempts: TaskAttempt[],
   events: TaskEvent[]
-): { lane: CodexExecutionLane; reason: string } {
+): { lane: CodexExecutionLane; reason: string; score: number; threshold: number; signals: string[] } {
   let score = 0;
+  const threshold = 4;
   const reasons: string[] = [];
 
   if (ticket.status === 'awaiting_approval' || ticket.status === 'blocked') {
@@ -94,12 +109,18 @@ export function routeCodexExecutionLane(
     return {
       lane: 'deep',
       reason: reasons.length > 0 ? reasons.join(', ') : 'risk/complexity threshold met',
+      score,
+      threshold,
+      signals: reasons,
     };
   }
 
   return {
     lane: 'fast',
     reason: reasons.length > 0 ? reasons.join(', ') : 'low-complexity ticket with limited risk signals',
+    score,
+    threshold,
+    signals: reasons,
   };
 }
 
@@ -126,6 +147,11 @@ export function buildCodexHandoffBundle(
       details: event.details,
     }));
   const pendingToolCalls = (ticket.toolCalls ?? []).map((toolCall) => toolCall.name);
+  const allArtifacts = attempts.flatMap((attempt) => attempt.artifacts);
+  const attemptedCommands = extractAttemptedCommands(allArtifacts);
+  const failedActions = allArtifacts
+    .filter((artifact) => /->\s*(denied|failure)|command is not allowlisted|approval-required/i.test(artifact))
+    .slice(-8);
 
   const lanePrompt = laneDecision.lane === 'fast'
     ? 'Use a minimal-change fast lane: prioritize the smallest safe patch and one narrow verification command.'
@@ -136,6 +162,13 @@ export function buildCodexHandoffBundle(
     generatedAt: generatedAt.toISOString(),
     lane: laneDecision.lane,
     laneReason: laneDecision.reason,
+    routingEvidence: {
+      score: laneDecision.score,
+      threshold: laneDecision.threshold,
+      signals: laneDecision.signals,
+      localRetryCap: 2,
+      recommendedLane: laneDecision.lane,
+    },
     ticket: {
       id: ticket.id,
       description: ticket.description,
@@ -153,6 +186,14 @@ export function buildCodexHandoffBundle(
       recentArtifacts,
       recentEvents,
       pendingToolCalls,
+      localAssistedHandoff: {
+        attemptedCommands,
+        failedActions,
+        recommendedNextStep:
+          laneDecision.lane === 'deep'
+            ? 'Escalate to Codex deep lane with phased checkpoints and explicit verification.'
+            : 'Stay in fast lane for a minimal patch and one narrow verification command.',
+      },
     },
   };
 }
@@ -190,4 +231,16 @@ export async function exportCodexHandoffBundles(
 
 function sanitizeFileSegment(value: string): string {
   return value.replace(/[^A-Za-z0-9_.-]/g, '_');
+}
+
+function extractAttemptedCommands(artifacts: string[]): string[] {
+  const commands: string[] = [];
+  for (const artifact of artifacts) {
+    const match = artifact.match(/command\.run\s+(.+?)\s+->/i);
+    if (match?.[1]) {
+      commands.push(match[1].trim());
+    }
+  }
+
+  return Array.from(new Set(commands)).slice(-8);
 }

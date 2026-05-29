@@ -929,6 +929,9 @@ export class HephaestusRuntime {
         });
         const subject = [command, ...args].join(' ');
         const artifacts = [this.formatToolArtifact(correlationId, 'command.run', subject, result)];
+        if (result.status === 'failure' || result.status === 'denied') {
+          artifacts.push(...this.buildCommandRepairArtifacts(correlationId, subject, result, plan));
+        }
         return result.status === 'failure' || result.status === 'denied'
           ? {
               artifacts,
@@ -1092,6 +1095,36 @@ export class HephaestusRuntime {
     return plan.intendedFiles.some((candidate) => candidate.path === targetPath)
       ? null
       : `File read target ${targetPath} is not declared in the validated plan.`;
+  }
+
+  private buildCommandRepairArtifacts(
+    correlationId: string,
+    command: string,
+    result: EngineeringToolResult,
+    plan: TaskPlan | undefined
+  ): string[] {
+    const artifacts: string[] = [];
+
+    if (result.reasonCode === 'command-not-allowlisted') {
+      const allowlisted = this.toolRuntime
+        .getPolicySnapshot?.()
+        .commandAllowlist
+        .slice(0, 8)
+        .join(', ') ?? 'none';
+      const plannedCommands = plan?.commands.map((entry) => entry.command).join(', ') ?? 'none';
+      artifacts.push(
+        `[${correlationId}] command.repair ${command}: denied by allowlist. Allowed commands include: ${allowlisted}. Planned commands: ${plannedCommands}. Rewrite with an allowlisted verification command or escalate.`
+      );
+      return artifacts;
+    }
+
+    if (result.status === 'failure') {
+      artifacts.push(
+        `[${correlationId}] command.repair ${command}: command failed. Inspect stderr/output artifacts, narrow command scope, and retry with one explicit expected outcome.`
+      );
+    }
+
+    return artifacts;
   }
 
   private getResumableApprovedToolCalls(task: Task): ToolCall[] | null {

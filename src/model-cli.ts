@@ -56,6 +56,12 @@ async function printReport(): Promise<void> {
   for (const recommendation of status.recommendations) {
     console.log(`- ${recommendation.model}: ${recommendation.installed ? 'installed' : 'not installed'} - ${recommendation.reason}`);
   }
+
+  console.log('Routing policy evidence:');
+  console.log(`- Local preferred task class: ${status.routingPolicy.localPreferredTaskClass}`);
+  console.log(`- Max local retries: ${status.routingPolicy.maxLocalRetries}`);
+  console.log(`- Escalation triggers: ${status.routingPolicy.escalationTriggers.join('; ')}`);
+  console.log(`- Codex handoff summary: ${status.routingPolicy.codexHandoffSummary}`);
 }
 
 async function runSmoke(args: string[]): Promise<void> {

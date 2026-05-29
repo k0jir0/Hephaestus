@@ -15,6 +15,14 @@ export interface ModelStatus {
   profile: ResolvedModelProfile;
   summary: string;
   recommendations: ModelRecommendation[];
+  routingPolicy: ModelRoutingPolicyEvidence;
+}
+
+export interface ModelRoutingPolicyEvidence {
+  localPreferredTaskClass: string;
+  maxLocalRetries: number;
+  escalationTriggers: string[];
+  codexHandoffSummary: string;
 }
 
 export interface ModelInventory {
@@ -82,6 +90,7 @@ export function buildModelStatus(config: Config, inventory: ModelInventory = emp
     profile,
     summary: summarizeModelProfile(activeModel, config.aiBackend),
     recommendations: recommendModel(inventory.models),
+    routingPolicy: buildRoutingPolicyEvidence(profile),
   };
 }
 
@@ -362,4 +371,25 @@ function defaultModelForBackend(backend: string): string {
   }
 
   return 'default';
+}
+
+function buildRoutingPolicyEvidence(profile: ResolvedModelProfile): ModelRoutingPolicyEvidence {
+  const taskClass = profile.profile.recommendedTaskClass;
+  const localPreferredTaskClass =
+    taskClass === 'repository-coding' || taskClass === 'agentic-reasoning'
+      ? 'focused-code-change, documentation-update, test-repair'
+      : 'documentation-update, repository-inspection';
+
+  return {
+    localPreferredTaskClass,
+    maxLocalRetries: 2,
+    escalationTriggers: [
+      'task status is blocked or awaiting_approval',
+      'retry count exceeds local retry cap',
+      'destructive or policy-denied action required',
+      'ticket implies architecture, security, or broad migration scope',
+    ],
+    codexHandoffSummary:
+      'When escalation is required, handoff should include recent artifacts, denied actions, and the next recommended lane (fast/deep).',
+  };
 }

@@ -11,9 +11,9 @@ This file stores the agent's long-term context and memory.
 
 ## Current State
 
-- **Status**: Working
-- **Current Task**: Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports
-- **Last Activity**: 2026-05-29T02:15:24.383Z
+- **Status**: Blocked
+- **Current Task**: Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles
+- **Last Activity**: 2026-05-29T02:16:33.431Z
 
 ## Working Context
 
@@ -63,6 +63,7 @@ This file stores the agent's long-term context and memory.
 | 2026-05-28 | Upgrade Roadmap 1 P1: upgrade the Ollama backen... | Plan ready |
 | 2026-05-28 | Upgrade Roadmap 1 P2: expose active model profi... | Plan ready |
 | 2026-05-29 | Upgrade Roadmap 1 P3: add strict action schema ... | Plan ready |
+| 2026-05-29 | Upgrade Roadmap 1 P4: expand model benchmark to... | Plan ready |
 
 ### Blockers Encountered
 | Date | Blocker | Resolution |
@@ -3176,6 +3177,7 @@ ok 21 - TaskWatcher
 | 2026-05-29 | Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports | Error threshold (5) exceeded [admission_1f9716fe877b] |
 | 2026-05-29 | Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles | Error threshold (5) exceeded [admission_31c02923d0c6] |
 | 2026-05-29 | Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context | Command is not allowlisted: npm run test:unit src/admission.ts -- -t Add support for invalid command repair guidance and artifacts |
+| 2026-05-29 | Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles | Command is not allowlisted: npm run start:once |
 
 ## Preferences
 
@@ -3378,6 +3380,9 @@ ok 21 - TaskWatcher
 - [2026-05-28T21:59:43.206Z] Single-pass run complete
 - [2026-05-29T02:15:06.512Z] Planned: Upgrade Roadmap 1 P3: add strict action schema validation with phases, evidence requirements, and escalation fields
 - [2026-05-29T02:15:24.332Z] Blocked: Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context
+- [2026-05-29T02:15:54.415Z] Planned: Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports
+- [2026-05-29T02:16:13.072Z] Single-pass run found no pending tasks
+- [2026-05-29T02:16:33.421Z] Blocked: Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles
 
 ---
 

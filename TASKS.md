@@ -5,12 +5,12 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 ## Queue
 
 <!-- Tasks are processed top-to-bottom. Add new tasks at the bottom. -->
-- [ ] Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles <!-- hephaestus-ticket:ticket_0a0f99ff3e57 -->
+- (empty)
 
 ## In Progress
 
 <!-- Currently working on these tasks -->
-- [ ] Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports <!-- hephaestus-ticket:ticket_ac70f1716648 -->
+- (empty)
 
 ## Completed
 
@@ -50,22 +50,12 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Upgrade Roadmap 1 P1: upgrade the Ollama backend to prefer /api/chat with structured JSON controls and telemetry while preserving generate fallback <!-- hephaestus-ticket:ticket_7171f50e7505 -->
 - [x] Upgrade Roadmap 1 P2: expose active model profile, installed models, and upgrade recommendations in the operator UI and health API <!-- hephaestus-ticket:ticket_7c32c5c18ee6 -->
 - [x] Upgrade Roadmap 1 P3: add strict action schema validation with phases, evidence requirements, and escalation fields <!-- hephaestus-ticket:ticket_2e1efc233451 -->
+- [x] Upgrade Roadmap 1 P4: expand model benchmark to ten Hephaestus SWE-bench-lite cases and persist baseline reports <!-- hephaestus-ticket:ticket_ac70f1716648 -->
 
 ## Blocked
 
 <!-- Tasks that need operator attention before they should be retried -->
-- [ ] Extend the plan contract and executor prompt so plans can declare executable edit operations, verification commands, and approval requirements in a machine-runnable format <!-- hephaestus-ticket:ticket_a612151dbdd0 -->
-- [ ] Self-audit [high/startup]: Add a /health endpoint to the UI server and update smoke checks to use it <!-- hephaestus-ticket:ticket_3d876b0f11c5 -->
 - [ ] Add end-to-end self-hosting tests that exercise ticket ingestion from TASKS.md, planning, projection rewrites, blocked retries, and store-backed recovery <!-- hephaestus-ticket:ticket_ecb969cec9d4 -->
-- [ ] CLI validation ticket 2026-05-28T14:01:04 <!-- hephaestus-ticket:ticket_92dce2c6d60a -->
-- [ ] CLI validation ticket 2026-05-28T14:01:51 <!-- hephaestus-ticket:ticket_860896e72375 -->
-- [ ] "CLI validation ticket 2026-05-28T18:03:11.611Z" <!-- hephaestus-ticket:ticket_a1787a295da6 -->
-- [ ] "CLI validation ticket 2026-05-28T18:04:39.301Z" <!-- hephaestus-ticket:ticket_0687c2abaf14 -->
-- [ ] "CLI validation ticket 2026-05-28T18:05:20.102Z" <!-- hephaestus-ticket:ticket_d10babe05507 -->
-- [ ] Upgrade Roadmap 1 P0: add model profiles for codellama, qwen3-coder, and gpt-oss with capability metadata and config visibility <!-- hephaestus-ticket:ticket_2e4b2b042e83 -->
-- [ ] Upgrade Roadmap 1 P1: add Ollama model inventory, smoke test, and benchmark CLI so local models are promoted by evidence <!-- hephaestus-ticket:ticket_c3d298bbcf5a -->
-- [ ] Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking <!-- hephaestus-ticket:ticket_142bf6d52cb5 -->
-- [ ] Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context <!-- hephaestus-ticket:ticket_c7b1678b8697 -->
 
 ## Cancelled
 
@@ -75,6 +65,13 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Self-audit [medium/tooling]: Add a stop_all script that terminates daemon and UI processes from PID files <!-- hephaestus-ticket:ticket_8652a997cf85 -->
 - [x] Self-audit [medium/general]: Implement a `/health` endpoint for the UI server and update smoke tests to use it. This would allow us to monitor the health of the application more easily and ensure that it is always available. <!-- hephaestus-ticket:ticket_dad5faf01c0e -->
 - [x] Self-audit [medium/general]: Add a `stop_all` script that terminates the daemon and UI processes from PID files. This would make it easier to shut down the application when needed, and ensure that all processes are properly terminated. <!-- hephaestus-ticket:ticket_cda9c04eebbc -->
+- [x] Extend the plan contract and executor prompt so plans can declare executable edit operations, verification commands, and approval requirements in a machine-runnable format <!-- hephaestus-ticket:ticket_a612151dbdd0 -->
+- [x] Self-audit [high/startup]: Add a /health endpoint to the UI server and update smoke checks to use it <!-- hephaestus-ticket:ticket_3d876b0f11c5 -->
+- [x] CLI validation ticket 2026-05-28T14:01:04 <!-- hephaestus-ticket:ticket_92dce2c6d60a -->
+- [x] CLI validation ticket 2026-05-28T14:01:51 <!-- hephaestus-ticket:ticket_860896e72375 -->
+- [x] "CLI validation ticket 2026-05-28T18:03:11.611Z" <!-- hephaestus-ticket:ticket_a1787a295da6 -->
+- [x] "CLI validation ticket 2026-05-28T18:04:39.301Z" <!-- hephaestus-ticket:ticket_0687c2abaf14 -->
+- [x] "CLI validation ticket 2026-05-28T18:05:20.102Z" <!-- hephaestus-ticket:ticket_d10babe05507 -->
 - [x] "CLI validation ticket 2026-05-28T18:06:00.708Z" <!-- hephaestus-ticket:ticket_937107667b91 -->
 - [x] "CLI validation ticket 2026-05-28T18:08:53.097Z" <!-- hephaestus-ticket:ticket_439b35330b93 -->
 - [x] Run self-check: summarize current blocked tickets and suggest retry order. <!-- hephaestus-ticket:ticket_b9e9f1b254b8 -->
@@ -86,6 +83,11 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Efficiency Roadmap 2: Add aggregate ticket count and bounded recent-event store APIs for cheap UI health and recent activity reads <!-- hephaestus-ticket:ticket_0b0ba8d9f494 -->
 - [x] Efficiency Roadmap 2: Make efficiency metrics avoid loading the full event log by using ticket created/started/completed timestamps <!-- hephaestus-ticket:ticket_1d68e6ff8f33 -->
 - [x] Efficiency Roadmap 2: Optimize Codex handoff export with bulk attempts and bounded per-ticket event history so ChatGPT receives faster handoff context <!-- hephaestus-ticket:ticket_b3a5ae08b832 -->
+- [x] Upgrade Roadmap 1 P0: add model profiles for codellama, qwen3-coder, and gpt-oss with capability metadata and config visibility <!-- hephaestus-ticket:ticket_2e4b2b042e83 -->
+- [x] Upgrade Roadmap 1 P1: add Ollama model inventory, smoke test, and benchmark CLI so local models are promoted by evidence <!-- hephaestus-ticket:ticket_c3d298bbcf5a -->
+- [x] Upgrade Roadmap 1 P2: document candidate model installation and add package scripts for model reporting, smoke testing, and benchmarking <!-- hephaestus-ticket:ticket_142bf6d52cb5 -->
+- [x] Upgrade Roadmap 1 P3: add invalid command repair guidance and artifacts so policy denials produce actionable retry context <!-- hephaestus-ticket:ticket_c7b1678b8697 -->
+- [x] Upgrade Roadmap 1 P4: add local versus Codex routing policy evidence to model diagnostics and handoff bundles <!-- hephaestus-ticket:ticket_0a0f99ff3e57 -->
 
 ---
 

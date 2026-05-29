@@ -31,6 +31,7 @@ export type TaskAttemptStatus =
 export type AgentStatus = 'idle' | 'working' | 'error' | 'shutdown' | 'blocked' | 'paused';
 
 export type PlannedFileChangeType = 'create' | 'update' | 'delete' | 'inspect';
+export type TaskExecutionPhase = 'inspect' | 'localize' | 'edit' | 'verify' | 'summarize' | 'escalate';
 
 export interface Task {
   id: string;
@@ -169,12 +170,26 @@ export interface PlannedCommand {
   expectedOutcome?: string;
 }
 
+export interface TaskVerificationContract {
+  commands: string[];
+  expectedSignal: string;
+}
+
+export interface TaskActionContract {
+  phase: TaskExecutionPhase;
+  intent: string;
+  actions: ToolCall[];
+  verification: TaskVerificationContract;
+  escalationReason?: string;
+}
+
 export interface TaskPlan {
   summary: string;
   intendedFiles: PlannedFileChange[];
   commands: PlannedCommand[];
   verification: string[];
   risks: string[];
+  actionContract?: TaskActionContract;
 }
 
 export interface AIResponse {

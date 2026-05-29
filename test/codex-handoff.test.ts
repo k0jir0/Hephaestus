@@ -61,23 +61,39 @@ describe('codex handoff bundles', () => {
       version: string;
       lane: string;
       laneReason: string;
+      routingEvidence: { score: number; threshold: number; recommendedLane: string };
+      codexContext: { localAssistedHandoff: { recommendedNextStep: string } };
       ticket: { id: string };
     };
     const deepBundle = JSON.parse(await fs.readFile(deepBundlePath!, 'utf-8')) as {
       version: string;
       lane: string;
       laneReason: string;
+      routingEvidence: { score: number; threshold: number; recommendedLane: string };
+      codexContext: {
+        localAssistedHandoff: {
+          attemptedCommands: string[];
+          failedActions: string[];
+          recommendedNextStep: string;
+        };
+      };
       ticket: { id: string };
     };
 
     assert.equal(fastBundle.version, 'hephaestus-codex-handoff/v1');
     assert.equal(fastBundle.ticket.id, fastTicket.id);
     assert.equal(fastBundle.lane, 'fast');
+    assert.equal(fastBundle.routingEvidence.recommendedLane, 'fast');
+    assert.equal(fastBundle.routingEvidence.threshold, 4);
+    assert.match(fastBundle.codexContext.localAssistedHandoff.recommendedNextStep, /fast lane/i);
 
     assert.equal(deepBundle.version, 'hephaestus-codex-handoff/v1');
     assert.equal(deepBundle.ticket.id, deepTicket.id);
     assert.equal(deepBundle.lane, 'deep');
     assert.match(deepBundle.laneReason, /blocked|complexity|retry|approval/i);
+    assert.equal(deepBundle.routingEvidence.recommendedLane, 'deep');
+    assert.ok(deepBundle.routingEvidence.score >= deepBundle.routingEvidence.threshold);
+    assert.match(deepBundle.codexContext.localAssistedHandoff.recommendedNextStep, /Codex deep lane/i);
 
     await repository.stop();
   });
@@ -162,6 +178,15 @@ describe('codex handoff bundles', () => {
     assert.equal(calls.listAttempts, 0);
     assert.equal(calls.listRecentEvents, 2);
     assert.equal(calls.listEvents, 0);
+
+    const sample = JSON.parse(
+      await fs.readFile(exported[0]!.outputFile, 'utf-8')
+    ) as {
+      codexContext: { localAssistedHandoff: { failedActions: string[] } };
+      routingEvidence: { threshold: number };
+    };
+    assert.equal(Array.isArray(sample.codexContext.localAssistedHandoff.failedActions), true);
+    assert.equal(sample.routingEvidence.threshold, 4);
   });
 });
 

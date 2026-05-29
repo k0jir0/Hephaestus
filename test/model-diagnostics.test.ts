@@ -67,6 +67,8 @@ describe('model diagnostics', () => {
     assert.equal(status.profile.known, true);
     assert.equal(status.recommendations[1]?.model, 'gpt-oss:20b');
     assert.equal(status.recommendations[1]?.installed, true);
+    assert.equal(status.routingPolicy.maxLocalRetries, 2);
+    assert.match(status.routingPolicy.codexHandoffSummary, /handoff/i);
   });
 
   it('runs a structured smoke test through the Ollama chat API', async () => {
