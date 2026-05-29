@@ -1,0 +1,206 @@
+Efficiency Restore: Reproducing the ~53% Throughput Gain with ChatGPT + Hephaestus
+
+Date: 2026-05-29
+Project: Hephaestus
+Document: notes/efficiency-restore.txt
+
+Objective
+Reproduce the previously reported operator-workflow uplift:
+- estimated effective throughput improvement: ~53%
+- reference efficiency score: 53.38
+
+Part I: How The Prior Gain Was Achieved
+
+The prior gain came from a workflow shift, not a single algorithm change.
+The winning pattern was parallel execution with strict governance boundaries:
+
+1) Parallel lane split (core mechanism)
+- Lane A (Hephaestus): bounded tickets, queue triage, policy-gated execution, verification, durable state updates.
+- Lane B (ChatGPT + operator): high-ambiguity coding, decomposition, ticket rewrites, fast remediation of blocked causes.
+- Result: queue never stalled waiting for one tool path.
+
+2) Lower orchestration tax
+- Tickets had explicit intended files, one verification command, and expected signal.
+- Ambiguous envelopes were rejected or split before consuming attempt budget.
+- Result: less time lost to retries and policy denial loops.
+
+3) Tighter feedback loop cadence
+- Work was run in small waves with stop/go gates between waves.
+- Metrics snapshots were reviewed after each wave, then backlog was adjusted.
+- Result: correction latency dropped from "end-of-run" to "end-of-wave".
+
+4) Queue-level prioritization discipline
+- Remediation and unblock work was prioritized when friction metrics crossed thresholds.
+- Large bulk seeding was avoided in active execution windows.
+- Result: higher completion density per operator hour.
+
+5) Mutation-evidence mindset
+- Value was judged by effective repository mutation plus successful verification, not ticket transitions alone.
+- Result: reduced false-positive "progress" from control-plane-only churn.
+
+Part II: Execution Roadmap To Prove The Same Gain Now
+
+Hypothesis
+If the same lane split, wave gates, and mutation-evidence criteria are enforced, Hephaestus + ChatGPT can again reach >= 53% throughput improvement and >= 53.38 efficiency score.
+
+Experiment Design (A/B)
+- Control (A): operator + ChatGPT only, no Hephaestus autopilot execution.
+- Assisted (B): operator + ChatGPT + Hephaestus in parallel lanes.
+- Workload: same 20-ticket backlog class and complexity profile.
+- Time-box: equal time budget for A and B.
+
+Primary Proof Metrics
+1) Throughput improvement (%)
+   improvement = ((B_effective_throughput - A_effective_throughput) / A_effective_throughput) * 100
+
+2) Effective throughput definition
+   effective_throughput = validated_completed_tickets / operator_hours
+
+3) Efficiency score target
+- efficiencyIndex.score >= 53.38
+- sustained for at least 3 consecutive snapshots
+
+4) Quality gates (must also pass)
+- completion rate >= 0.70
+- superseded rate <= 0.20
+- blocked growth <= +5 per wave
+- allowlist denial rate <= 0.08
+
+Roadmap Phases
+
+Phase 0: Baseline Capture (Day 0)
+- Capture current ticket/metrics snapshot.
+- Freeze new broad ticket intake.
+- Confirm active model and policy settings.
+
+Commands
+- npm run build
+- npm run tickets -- metrics
+- npm run metrics:efficiency
+- npm run metrics:efficiency:weekly
+
+Artifacts
+- docs/metrics/efficiency-latest.json
+- docs/metrics/efficiency-history.jsonl
+- docs/metrics/efficiency-weekly-report.md
+
+Phase 1: Workload Normalization (Day 0)
+- Prepare 20 bounded tickets with:
+  - single subsystem focus
+  - one accepted verification command
+  - explicit expected signal
+  - intended files list
+- Label tickets by wave (W1..W4, 5 tickets each).
+
+Phase 2: Control Run A (Day 1)
+- Execute workload using operator + ChatGPT only.
+- Hephaestus may track tickets, but autopilot execution remains disabled for A.
+- Record completion count, cycle times, retries, and operator hours.
+
+Phase 3: Assisted Run B (Day 2)
+- Enable Hephaestus execution lane for bounded tickets.
+- Use ChatGPT lane for:
+  - ticket decomposition
+  - blocker remediation
+  - high-ambiguity tasks
+- Execute in four 5-ticket waves with hard gates between waves.
+
+Per-wave gate check
+- If all gates pass: admit next wave.
+- If any gate fails: run remediation-only tickets until gate recovery.
+
+Phase 4: Analysis + Proof (Day 2 end)
+- Compute A vs B effective throughput.
+- Confirm B improvement >= 53%.
+- Confirm efficiency score >= 53.38 (3 consecutive snapshots).
+- Publish failure analysis if either condition is missed.
+
+Operating Protocol: ChatGPT + Hephaestus
+
+Hephaestus lane owns
+- deterministic bounded execution
+- policy-safe tool invocation
+- canonical attempt/event/side-effect persistence
+- wave gate enforcement
+
+ChatGPT lane owns
+- ticket quality upgrades before admission
+- fast root-cause fixes for top deny/supersede/retry families
+- architectural or cross-cutting patches that should not block queue flow
+
+Operator owns
+- wave admission decisions
+- approval and resume controls
+- evidence sign-off
+
+Evidence Package Required For Claim Acceptance
+
+1) A/B run ledger
+- workload definition and ticket IDs
+- start/end times and operator-hours
+
+2) Metric snapshots
+- before/after for A and B
+- efficiency score time series
+
+3) Diff evidence
+- mutation summary in intended files
+- verification command outcomes
+
+4) Queue behavior evidence
+- blocked/superseded/denial trend by wave
+
+Execution Commands (Assisted Run B)
+
+Preparation
+- npm run build
+- npm run validate:config
+- npm run models:report
+
+Run loop
+- npm run ui
+- npm run tickets -- list --status pending
+- npm run start:once
+- npm run tickets -- metrics
+- npm run metrics:efficiency
+
+Wave transition checks
+- npm run tickets -- list --status blocked
+- npm run tickets -- list --status superseded
+- npm run metrics:efficiency:weekly
+
+Success Criteria (Formal)
+The claim is restored only if all conditions hold:
+1) B throughput improvement >= 53%
+2) efficiencyIndex.score >= 53.38 for 3 consecutive snapshots
+3) all quality gates pass
+4) proof package is complete and reproducible from repository artifacts
+
+Fallback If Target Is Missed
+- Do not claim restoration.
+- Run a remediation wave targeting top 3 friction causes.
+- Repeat only the failed phase with identical workload controls.
+
+Expected Outcome
+With strict bounded tickets, wave-gated execution, and explicit ChatGPT/Hephaestus lane ownership, the system should recover prior efficiency behavior and produce auditable evidence for the ~53% uplift claim.
+
+Execution Setup Performed (2026-05-29)
+
+The roadmap setup steps above were executed in this repository to establish a fresh baseline and reporting artifacts:
+- npm run build
+- npm run tickets -- metrics
+- npm run metrics:efficiency
+- npm run metrics:efficiency:weekly
+
+Observed baseline snapshot from this execution:
+- total tickets: 313
+- completed tickets: 83
+- blocked tickets: 35
+- efficiency score: 61.101
+- throughput/day: 55
+- completion rate: 0.265
+- retry rate: 0.064
+
+Interpretation
+- The efficiency score threshold (53.38) is currently exceeded in the latest snapshot.
+- The ~53% throughput improvement claim is not considered re-proven yet until the A/B protocol (Control A vs Assisted B) is run and documented with operator-hour-normalized throughput evidence.
