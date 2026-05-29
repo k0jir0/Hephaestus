@@ -53,11 +53,11 @@ Generated artifacts:
 
 ## Exit Criteria Checklist
 
-- [ ] Build passes (`npm run build`)
-- [ ] Tests pass (`npm test`)
-- [ ] D2 strict verifier passes (`npm run metrics:d2:verify`)
-- [ ] D2 closure report decision is PASS (`npm run metrics:d2:closure`)
-- [ ] No unexpected D2 failures during burn-in runs of autopilot/review-wave
+- [x] Build passes (`npm run build`)
+- [x] Tests pass (`npm test`)
+- [x] D2 strict verifier passes (`npm run metrics:d2:verify`)
+- [x] D2 closure report decision is PASS (`npm run metrics:d2:closure`)
+- [x] No unexpected D2 failures during burn-in runs of autopilot/review-wave
 - [ ] D2 default policy decision recorded (stay opt-in or make default)
 
 ## Burn-In Log
@@ -67,8 +67,8 @@ Record each burn-in run with timestamp and result.
 | Timestamp (UTC) | Command | Decision | Failure tokens |
 | --- | --- | --- | --- |
 | 2026-05-29T17:51:14Z | `npm run metrics:d2:closure` | PASS | none |
-| _pending_ | `npm run tickets -- autopilot --dry-run --enforce-d2` | _pending_ | _pending_ |
-| _pending_ | `npm run tickets -- review-wave --enforce-d2` | _pending_ | _pending_ |
+| 2026-05-29T17:55:19Z | `npm run tickets -- autopilot --dry-run --enforce-d2` | PASS (D2) | none (non-D2 gates: completion/superseded/blocked) |
+| 2026-05-29T17:55:22Z | `npm run tickets -- review-wave --enforce-d2` | PASS (D2) | none (non-D2 gates: efficiency/blocked/p95/backend reliability) |
 
 ## Final Sign-Off
 
