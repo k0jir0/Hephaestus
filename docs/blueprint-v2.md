@@ -629,7 +629,6 @@ Library anchors:
   snapshots.
 - `Helland2007LifeBeyondDistributedTransactions`: compensation-oriented,
   append-first workflow thinking.
-- `Verraes2019`: event-stream versus projection boundaries and vocabulary.
 
 ### D3: Policy and Command Catalog
 
@@ -745,7 +744,7 @@ This upgrades D2+ planning from "collect references later" to
 Required D2+ grounding by phase:
 
 - D2 event/evidence spine: `ChandyLamport1985`,
-  `Helland2007LifeBeyondDistributedTransactions`, `Verraes2019`
+  `Helland2007LifeBeyondDistributedTransactions`
 - D3 policy and command catalog: `Schick2023Toolformer`, `Yao2023ReAct`,
   `Yang2024SWEAgent`, `Zhang2023RepoCoder`
 - D4 isolated execution and bounded retries: `Shinn2023Reflexion`,

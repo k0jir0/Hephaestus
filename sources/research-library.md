@@ -49,10 +49,6 @@ Do **not** store unauthorized copies of copyrighted PDFs on the drive. If a pape
   Relevance: frames append-only evidence, event logs, and projection thinking well for Hephaestus.
   Acquisition: local copy preferred if licensed or open through your access path.
 
-- `[Verraes2019]` Verraes, G., and Vernon, V. (2019). `Event Sourcing.` Queue, 17(1).
-  Relevance: not the only way to build D2, but useful for vocabulary around canonical events and projections.
-  Acquisition: local copy preferred.
-
 ### Human Oversight and Control Plane Design
 
 - `[Endsley1995]` Endsley, M. R. (1995). `Toward a Theory of Situation Awareness in Dynamic Systems.` Human Factors, 37(1), 32-64.
@@ -194,7 +190,8 @@ To keep the library useful instead of decorative:
 
 If the team wants a disciplined sequence rather than opportunistic collection, use this order:
 
-1. D2 event and evidence work: `ChandyLamport1985`, `Helland2015`, `Verraes2019`
+1. D2 event and evidence work: `ChandyLamport1985`, `Helland2015`,
+   `Helland2007LifeBeyondDistributedTransactions`
 2. approval and operator workflow work: `Endsley1995`, `LeeSee2004`, `Woods1996`
 3. agent-planning and tool-selection work: `Yang2024SWEAgent`, `Zhang2023RepoCoder`, `Schick2023Toolformer`, `Shinn2023Reflexion`
 4. safety and verification work: `Amodei2016`, `ClaessenHughes2000`
@@ -206,8 +203,7 @@ copies in `sources/papers/`), D2+ should be treated as source-grounded
 engineering work, not citation backlog work.
 
 - D2 event and evidence spine:
-  `ChandyLamport1985`, `Helland2007LifeBeyondDistributedTransactions`,
-  `Verraes2019`
+  `ChandyLamport1985`, `Helland2007LifeBeyondDistributedTransactions`
 - D3 policy and command catalog:
   `Schick2023Toolformer`, `Yao2023ReAct`, `Yang2024SWEAgent`,
   `Zhang2023RepoCoder`

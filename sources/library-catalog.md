@@ -10,7 +10,6 @@ been converted into project-usable notes.
 - `note`: source has a local project note
 - `copy+note`: source has a lawful local copy and a note
 - `deferred`: source is worth keeping on the backlog but is not active
-- `quarantine`: citation could not be validated and must not ground design work
 
 ## Implemented Library Snapshot
 
@@ -26,7 +25,6 @@ been converted into project-usable notes.
 | --- | --- | --- | --- | --- | --- |
 | `ChandyLamport1985` | event reconstruction | snapshots, replay, state reconstruction | `D2` | `copy+note` | `copy+note` |
 | `Helland2015` | immutability and evidence | append-only event thinking and projections | `D2` | `copy+note` | `note` |
-| `Verraes2019` | event sourcing vocabulary | event stream vs projection language | `D2` | `note` | `quarantine` |
 | `Endsley1995` | operator awareness | approval queues, cockpit clarity, state visibility | `D6` | `note` | `note` |
 | `LeeSee2004` | trust in automation | escalation thresholds and approval boundaries | `D3-D6` | `note` | `note` |
 | `Woods1996` | automation complexity | autopilot restraint and control-plane realism | `D3-D6` | `note` | `note` |

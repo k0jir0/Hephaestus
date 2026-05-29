@@ -19,16 +19,9 @@ obviously fabricated.
 
 ## Summary
 
-- Active catalog entries checked: 24
+- Active catalog entries checked: 23
 - Verified real sources: 23
-- Quarantined entries: 1
-- High-risk hallucination found: `Verraes2019`
-
-## Quarantined Entry
-
-| Key | Current Citation | Finding | Action |
-| --- | --- | --- | --- |
-| `Verraes2019` | Verraes, G., and Vernon, V. (2019). Event Sourcing. Queue, 17(1). | I could not verify this citation in ACM Queue, DOI indexes, or general scholarly search. ACM Queue volume 17 issue 1 exists, but the relevant event-log article found there is `Online Event Processing` by Martin Kleppmann, Alastair R. Beresford, and Boerge Svingen, not a Verraes/Vernon article titled `Event Sourcing`. | Keep quarantined. Do not cite for D2 design work until replaced by a verified source such as Fowler's `Event Sourcing` article, Kleppmann et al.'s `Online Event Processing`, or another real event-sourcing source. |
+- Quarantined entries: 0
 
 ## Active Catalog Results
 
@@ -36,7 +29,6 @@ obviously fabricated.
 | --- | --- | --- |
 | `ChandyLamport1985` | verified | DOI and Lamport public PDF verify `Distributed Snapshots: Determining Global States of Distributed Systems`. |
 | `Helland2015` | verified | ACM Queue verifies `Immutability Changes Everything` by Pat Helland. |
-| `Verraes2019` | quarantine | No verified landing page found for the cited ACM Queue paper. |
 | `Endsley1995` | verified | Sage verifies `Toward a Theory of Situation Awareness in Dynamic Systems`, Human Factors 37(1), 32-64. |
 | `LeeSee2004` | verified | Sage verifies `Trust in Automation: Designing for Appropriate Reliance`, Human Factors 46(1), 50-80. |
 | `Woods1996` | verified chapter | Taylor & Francis verifies the book and table-of-contents entry `Decomposing Automation: Apparent Simplicity, Real Complexity` by David D. Woods. |
@@ -80,7 +72,6 @@ Notable classification reminders:
 
 - Chandy and Lamport 1985: https://doi.org/10.1145/214451.214456 and https://lamport.azurewebsites.net/pubs/chandy.pdf
 - Helland 2015: https://queue.acm.org/detail.cfm?id=2884038
-- ACM Queue 17(1) counter-evidence for `Verraes2019`: https://queue.acm.org/detail.cfm?id=3321612
 - Endsley 1995: https://doi.org/10.1518/001872095779049543
 - Lee and See 2004: https://doi.org/10.1518/hfes.46.1.50_30392
 - Woods 1996 chapter: https://www.taylorfrancis.com/chapters/mono/10.1201/9781315137957-1/decomposing-automation-apparent-simplicity-real-complexity-david-woods

@@ -51,8 +51,8 @@ must privilege durable facts over mutable views. Chandy and Lamport show that a
 system state worth trusting is not whatever happens to be visible in the moment,
 but a state that can be reconstructed from a disciplined capture model. Helland
 pushes the same instinct toward immutability: once facts are recorded, later
-views may change, but the facts should not. Verraes provides the practical
-vocabulary for separating event streams from projections.
+views may change, but the facts should not. Helland's distributed-workflow work
+adds the practical vocabulary for separating durable events from derived views.
 
 For Hephaestus, this means that the control plane, task lists, approval queues,
 and summary dashboards should be treated as projections over a more stable

@@ -7,7 +7,6 @@ export const SOURCE_GROUNDING_KEYS = [
   'ChandyLamport1985',
   'Helland2015',
   'Helland2007LifeBeyondDistributedTransactions',
-  'Verraes2019',
   'Yang2024SWEAgent',
   'Zhang2023RepoCoder',
   'Schick2023Toolformer',

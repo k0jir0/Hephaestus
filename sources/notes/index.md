@@ -8,7 +8,6 @@ These notes translate papers into Hephaestus design language. The goal is not bi
 - ChandyLamport1985.md
 - Helland2007LifeBeyondDistributedTransactions.md
 - Helland2015.md
-- Verraes2019.md
 - Endsley1995.md
 - LeeSee2004.md
 - Woods1996.md

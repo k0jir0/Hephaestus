@@ -1,6 +1,6 @@
 # Source Grounding Report
 
-Generated: 2026-05-29T20:34:39.331Z
+Generated: 2026-05-29T23:03:49.389Z
 
 ## Coverage
 - Total tickets: 316
