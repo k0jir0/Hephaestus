@@ -167,6 +167,7 @@ export interface PlannedFileChange {
 }
 
 export interface PlannedCommand {
+  commandId?: string;
   command: string;
   purpose: string;
   expectedOutcome?: string;

@@ -25,6 +25,7 @@ function makePlan(): TaskPlan {
     ],
     commands: [
       {
+        commandId: 'npm.test',
         command: 'npm test -- test/runtime.test.ts',
         purpose: 'Verify runtime behavior',
       },
@@ -96,6 +97,20 @@ describe('plan binding policy', () => {
       code: 'command-not-declared',
       reason: 'Command npm run lint is not declared in the validated plan commands.',
     });
+
+    assert.deepEqual(
+      decideCommandPlanBinding(makePlan(), 'npm', ['test'], 'npm.test'),
+      { allowed: true }
+    );
+
+    assert.deepEqual(
+      decideCommandPlanBinding(makePlan(), 'npm', ['test'], 'unknown.command.id'),
+      {
+        allowed: false,
+        code: 'command-id-unknown',
+        reason: 'Command ID unknown.command.id is not defined in the command catalog.',
+      }
+    );
   });
 
   it('allows file reads only for declared plan files', () => {
@@ -117,7 +132,7 @@ describe('plan binding policy', () => {
         policySnapshot: makePolicySnapshot(),
       }),
       [
-        '[admission_demo] command.repair npm run strange-test: denied by allowlist. Allowed commands include: npm run lint, npm test. Planned commands: npm test -- test/runtime.test.ts. Rewrite with an allowlisted verification command or escalate.',
+        '[admission_demo] command.repair npm run strange-test: denied by allowlist. Allowed commands include: npm run lint, npm test. Planned commands: npm.test => npm test -- test/runtime.test.ts. Rewrite with an allowlisted verification command or escalate.',
       ]
     );
     assert.deepEqual(

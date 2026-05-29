@@ -852,6 +852,114 @@ describe('HephaestusRuntime', () => {
     assert.ok(calls.artifacts.some((artifact) => /repo\.search updateStatus -> success/.test(artifact)));
   });
 
+  it('rejects unknown command IDs before command execution', async () => {
+    const task = makeTask(
+      'Implement src/runtime.ts command catalog verification and verify with npm test; expected signal: unknown command IDs block before execution.'
+    );
+    const calls = {
+      tools: [] as Array<{ tool: string; subject: string }>,
+      artifacts: [] as string[],
+      completed: 0,
+      blocked: 0,
+    };
+
+    const runtime = new HephaestusRuntime({
+      memory: {
+        async initialize() {},
+        async updateStatus() {},
+        async recordTaskCompletion() {},
+        async recordBlocker() {},
+        async addToTaskHistory() {},
+        async addSessionSummary() {},
+      },
+      tasks: {
+        async start() {},
+        async stop() {},
+        async getPendingTasks() {
+          return [task];
+        },
+        async markTaskInProgress() {},
+        async markTaskCompleted() {
+          calls.completed += 1;
+        },
+        async markTaskBlocked() {
+          calls.blocked += 1;
+        },
+        async appendTaskAttemptArtifacts(_ticketId, artifacts) {
+          calls.artifacts.push(...artifacts);
+        },
+      },
+      toolRuntime: {
+        async checkReadiness() {
+          return { available: true, message: 'ok' };
+        },
+        async execute(request) {
+          calls.tools.push({
+            tool: request.tool,
+            subject: request.tool === 'command.run' ? request.command : '',
+          });
+          return {
+            status: 'success',
+            summary: `${request.tool} completed`,
+            mutatedPaths: [],
+          };
+        },
+      },
+      executor: {
+        async executeTask() {
+          return {
+            success: true,
+            content: 'Use command IDs for verification.',
+            plan: {
+              summary: 'Use command IDs for verification.',
+              intendedFiles: [],
+              commands: [
+                {
+                  commandId: 'unknown.command.id',
+                  command: 'npm test',
+                  purpose: 'Verify runtime behavior',
+                },
+              ],
+              verification: ['Ensure command ID is known before execution'],
+              risks: [],
+            },
+          } satisfies AIResponse;
+        },
+        async checkHealth() {
+          return { available: true, message: 'ok' };
+        },
+      },
+      safety: {
+        async shouldContinue() {
+          return { allowed: true };
+        },
+        recordSuccess() {},
+        recordError() {},
+        recordTaskCompletion() {},
+        recordTokenUsage() {},
+        shouldAutoCommit() {
+          return false;
+        },
+        async performAutoCommit() {
+          return false;
+        },
+        getStatusSummary() {
+          return 'ok';
+        },
+        resetDailyCounters() {},
+      },
+      preflightRunner: async () => ({ ok: true, issues: [] }),
+      contextProvider: async () => 'README excerpt',
+    });
+
+    await runtime.run({ runOnce: true });
+
+    assert.deepEqual(calls.tools, []);
+    assert.equal(calls.completed, 0);
+    assert.equal(calls.blocked, 1);
+    assert.ok(calls.artifacts.some((artifact) => /Command ID unknown\.command\.id is not defined/.test(artifact)));
+  });
+
   it('executes low-risk patch tool calls through dry-run and apply with persisted policy artifacts', async () => {
     const task = makeTask('Apply a safe patch');
     const calls = {

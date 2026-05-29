@@ -8,6 +8,10 @@ import type {
   EngineeringToolName,
 } from './types.js';
 import { supportedTaskEnvelopeSummary } from './task-envelope.js';
+import {
+  listCommandCatalogEntries,
+  resolveCommandCatalogEntry,
+} from './domain/policy/command-catalog-policy.js';
 
 const changeTypes: PlannedFileChangeType[] = ['create', 'update', 'delete', 'inspect'];
 const changeTypeAliases: Record<string, PlannedFileChangeType> = {
@@ -269,7 +273,26 @@ function parsePlannedCommand(value: unknown, index: number): PlannedCommand {
     throw new Error(`commands[${index}] must be an object.`);
   }
 
-  const command = requireString(value.command, `commands[${index}].command`);
+  const commandId = getOptionalStringFromKeys(
+    value,
+    ['commandId', 'command_id', 'id'],
+    `commands[${index}].commandId`
+  );
+
+  let command: string;
+  const rawCommand = value.command;
+  if (typeof rawCommand === 'string' && rawCommand.trim().length > 0) {
+    command = rawCommand.trim();
+  } else if (commandId) {
+    const catalogEntry = resolveCommandCatalogEntry(commandId);
+    if (!catalogEntry) {
+      throw new Error(`commands[${index}].commandId references unknown command catalog id: ${commandId}`);
+    }
+    command = [catalogEntry.command, ...catalogEntry.args].join(' ');
+  } else {
+    throw new Error(`commands[${index}] must provide either commandId or command.`);
+  }
+
   let purpose = getDefaultCommandPurpose(command);
   try {
     purpose = requireStringFromKeys(
@@ -282,6 +305,7 @@ function parsePlannedCommand(value: unknown, index: number): PlannedCommand {
   }
 
   return {
+    commandId,
     command,
     purpose,
     expectedOutcome: getOptionalStringFromKeys(
@@ -339,6 +363,11 @@ export function buildStructuredPlanPrompt(task: Task, context: string | undefine
     ? `Context:\n${context}\n\n`
     : '';
 
+  const commandCatalogEntries = listCommandCatalogEntries();
+  const commandCatalogSummary = commandCatalogEntries
+    .map((entry) => `${entry.id} => ${[entry.command, ...entry.args].join(' ')}`)
+    .join('; ');
+
   return [
     `Task: ${task.description}`,
     '',
@@ -352,7 +381,7 @@ export function buildStructuredPlanPrompt(task: Task, context: string | undefine
     '    { "path": "src/example.ts", "changeType": "update", "purpose": "why this file matters" }',
     '  ],',
     '  "commands": [',
-    '    { "command": "npm test", "purpose": "what this command validates", "expectedOutcome": "what success looks like" }',
+    '    { "commandId": "npm.test", "command": "npm test", "purpose": "what this command validates", "expectedOutcome": "what success looks like" }',
     '  ],',
     '  "toolCalls": [',
     '    { "name": "file.read", "arguments": { "path": "src/example.ts", "startLine": 1, "endLine": 40 } }',
@@ -366,6 +395,8 @@ export function buildStructuredPlanPrompt(task: Task, context: string | undefine
     '- Return JSON only. Do not wrap it in markdown unless the client forces it.',
     '- Use relative file paths when possible.',
     '- Keep commands limited to the smallest useful set.',
+    '- Prefer command IDs from the command catalog when possible and include commandId with each command.',
+    `- Command catalog IDs: ${commandCatalogSummary}.`,
     '- If no files need changes, return an empty intendedFiles array.',
     '- If no commands are needed, return an empty commands array.',
     '- toolCalls may be empty when execution should remain plan-only.',

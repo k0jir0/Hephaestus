@@ -46,6 +46,7 @@ import {
   validatePatchCallAgainstPlan,
   validateReadCallAgainstPlan,
 } from './domain/policy/plan-binding-policy.js';
+import { resolveCommandCatalogEntry } from './domain/policy/command-catalog-policy.js';
 import { formatCommandInvocation, parseCommandPlan } from './domain/plans/command-plan.js';
 import { buildApprovedResumeToolCalls } from './domain/tickets/approval-resume-policy.js';
 import { decideTaskCompletion } from './domain/tickets/completion-policy.js';
@@ -802,7 +803,23 @@ export class HephaestusRuntime {
       }
 
       for (const commandPlan of plan.commands) {
-        const parsedCommand = parseCommandPlan(commandPlan.command);
+        let parsedCommand = parseCommandPlan(commandPlan.command);
+        if (commandPlan.commandId) {
+          const catalogEntry = resolveCommandCatalogEntry(commandPlan.commandId);
+          if (!catalogEntry) {
+            const reason = `Command ID ${commandPlan.commandId} is not defined in the command catalog.`;
+            artifacts.push(formatDeniedToolArtifact(correlationId, `command.id ${commandPlan.commandId}`, reason));
+            return {
+              artifacts,
+              failureReason: reason,
+            };
+          }
+          parsedCommand = {
+            command: catalogEntry.command,
+            args: [...catalogEntry.args],
+          };
+        }
+
         if (!parsedCommand) {
           artifacts.push(
             formatDeniedToolArtifact(
@@ -996,35 +1013,70 @@ export class HephaestusRuntime {
       }
 
       case 'command.run': {
+        const commandId = typeof toolCall.arguments.commandId === 'string'
+          ? toolCall.arguments.commandId.trim()
+          : '';
         const command = typeof toolCall.arguments.command === 'string'
           ? toolCall.arguments.command
           : null;
         const args = Array.isArray(toolCall.arguments.args)
           ? toolCall.arguments.args.filter((candidate): candidate is string => typeof candidate === 'string')
           : [];
-        if (!command) {
+
+        let resolvedCommand = command;
+        let resolvedArgs = args;
+        if (commandId) {
+          const catalogEntry = resolveCommandCatalogEntry(commandId);
+          if (!catalogEntry) {
+            return {
+              artifacts: [
+                formatDeniedToolArtifact(
+                  correlationId,
+                  `command.run ${commandId}`,
+                  `Command ID ${commandId} is not defined in the command catalog.`
+                ),
+              ],
+              failureReason: `Command ID ${commandId} is not defined in the command catalog.`,
+            };
+          }
+          resolvedCommand = catalogEntry.command;
+          resolvedArgs = [...catalogEntry.args, ...args];
+        }
+
+        if (!resolvedCommand) {
           return {
             artifacts: [
-              formatDeniedToolArtifact(correlationId, 'command.run', 'tool call is missing a command string.'),
+              formatDeniedToolArtifact(
+                correlationId,
+                'command.run',
+                'tool call is missing a command string or commandId.'
+              ),
             ],
-            failureReason: 'Tool call command.run must provide a command string.',
+            failureReason: 'Tool call command.run must provide a command string or commandId.',
           };
         }
 
-        const bindingError = validateCommandCallAgainstPlan(plan, command, args);
+        const bindingError = validateCommandCallAgainstPlan(
+          plan,
+          resolvedCommand,
+          resolvedArgs,
+          commandId || undefined
+        );
         if (bindingError) {
           return {
-            artifacts: [formatDeniedToolArtifact(correlationId, `command.binding ${command}`, bindingError)],
+            artifacts: [formatDeniedToolArtifact(correlationId, `command.binding ${resolvedCommand}`, bindingError)],
             failureReason: bindingError,
           };
         }
 
         const result = await this.toolRuntime.execute({
           tool: 'command.run',
-          command,
-          args,
+          command: resolvedCommand,
+          args: resolvedArgs,
         });
-        const subject = formatCommandInvocation(command, args);
+        const subject = commandId
+          ? `${commandId} -> ${formatCommandInvocation(resolvedCommand, resolvedArgs)}`
+          : formatCommandInvocation(resolvedCommand, resolvedArgs);
         const artifacts = [formatToolExecutionArtifact({
           correlationId,
           tool: 'command.run',

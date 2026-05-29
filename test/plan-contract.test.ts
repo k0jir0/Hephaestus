@@ -101,6 +101,21 @@ describe('parseTaskPlan', () => {
     assert.deepEqual(plan.verification, ['Review the generated task plan']);
   });
 
+  it('accepts commandId-only commands and resolves them from the command catalog', () => {
+    const plan = parseTaskPlan(`{
+      "summary": "Use command catalog IDs for verification.",
+      "intendedFiles": [],
+      "commands": [
+        { "commandId": "npm.run.build", "purpose": "validate compile output" }
+      ],
+      "verification": ["Run the compile verification command"],
+      "risks": []
+    }`);
+
+    assert.equal(plan.commands[0]?.commandId, 'npm.run.build');
+    assert.equal(plan.commands[0]?.command, 'npm run build');
+  });
+
   it('normalizes common change type aliases', () => {
     const plan = parseTaskPlan(`{
       "summary": "Normalize model change types.",
@@ -260,5 +275,7 @@ describe('buildStructuredPlanPrompt', () => {
     assert.doesNotMatch(prompt, /Valid toolCalls\.name values are exactly: .*github\.pr/);
     assert.match(prompt, /Do not emit delivery or source-control actions/);
     assert.match(prompt, /Use command.run only for safe verification commands/);
+    assert.match(prompt, /Prefer command IDs from the command catalog/);
+    assert.match(prompt, /npm\.run\.build => npm run build/);
   });
 });

@@ -4,8 +4,13 @@ Citation: Verraes, G., and Vernon, V. (2019). Event Sourcing. Queue, 17(1).
 
 Public URL or DOI: pending verification
 Local Copy: not present
-Status: note
+Status: quarantine
 Blueprint Phases: D2
+
+Audit note: this citation could not be validated on 2026-05-29. ACM Queue
+volume 17 issue 1 exists, but the relevant event-log article found there is
+`Online Event Processing` by Martin Kleppmann, Alastair R. Beresford, and
+Boerge Svingen, not a Verraes/Vernon paper titled `Event Sourcing`.
 
 ## Summary
 
@@ -26,4 +31,4 @@ Hephaestus would keep re-arguing basic event and projection concepts instead of 
 
 ## Acquisition Note
 
-This entry needs a verified public landing page before it is considered fully grounded.
+This entry must not ground design work until a verified public landing page is found. If no such page is found, replace it with a verified source such as Martin Fowler's `Event Sourcing`, Kleppmann et al.'s `Online Event Processing`, or another real event-sourcing source.

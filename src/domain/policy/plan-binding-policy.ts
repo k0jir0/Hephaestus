@@ -1,6 +1,7 @@
 import type { EngineeringToolResult, TaskPlan, ToolPolicySnapshot } from '../../types.js';
 import { formatCommandInvocation } from '../plans/command-plan.js';
 import { normalizePlanPath } from '../tickets/completion-invariants.js';
+import { resolveCommandCatalogEntry } from './command-catalog-policy.js';
 
 export { formatCommandInvocation } from '../plans/command-plan.js';
 
@@ -9,6 +10,7 @@ export type PlanBindingDecisionCode =
   | 'mutable-intended-file-required'
   | 'patch-path-not-declared'
   | 'command-not-declared'
+  | 'command-id-unknown'
   | 'read-path-not-declared';
 
 export type PlanBindingPolicyDecision =
@@ -77,27 +79,41 @@ export function validatePatchCallAgainstPlan(
 export function decideCommandPlanBinding(
   plan: TaskPlan | undefined,
   command: string,
-  args: string[]
+  args: string[],
+  commandId?: string
 ): PlanBindingPolicyDecision {
   if (!plan) {
     return denied('validated-plan-required', 'Command tool calls require a validated plan.');
   }
 
+  if (commandId && !resolveCommandCatalogEntry(commandId)) {
+    return denied('command-id-unknown', `Command ID ${commandId} is not defined in the command catalog.`);
+  }
+
   const fullCommand = formatCommandInvocation(command, args);
-  return plan.commands.some((candidate) => candidate.command === fullCommand)
+  return plan.commands.some((candidate) => {
+    if (candidate.command === fullCommand) {
+      return true;
+    }
+
+    return Boolean(commandId && candidate.commandId === commandId);
+  })
     ? allowedPlanBindingDecision
     : denied(
         'command-not-declared',
-        `Command ${fullCommand} is not declared in the validated plan commands.`
+        commandId
+          ? `Command ${fullCommand} (id ${commandId}) is not declared in the validated plan commands.`
+          : `Command ${fullCommand} is not declared in the validated plan commands.`
       );
 }
 
 export function validateCommandCallAgainstPlan(
   plan: TaskPlan | undefined,
   command: string,
-  args: string[]
+  args: string[],
+  commandId?: string
 ): string | null {
-  const decision = decideCommandPlanBinding(plan, command, args);
+  const decision = decideCommandPlanBinding(plan, command, args, commandId);
   return decision.allowed ? null : decision.reason;
 }
 
@@ -141,7 +157,9 @@ export function buildCommandRepairArtifacts(input: CommandRepairArtifactInput): 
 
   if (input.result.reasonCode === 'command-not-allowlisted') {
     const allowlisted = input.policySnapshot?.commandAllowlist.slice(0, 8).join(', ') ?? 'none';
-    const plannedCommands = input.plan?.commands.map((entry) => entry.command).join(', ') ?? 'none';
+    const plannedCommands = input.plan?.commands
+      .map((entry) => (entry.commandId ? `${entry.commandId} => ${entry.command}` : entry.command))
+      .join(', ') ?? 'none';
     artifacts.push(
       `[${input.correlationId}] command.repair ${input.command}: denied by allowlist. Allowed commands include: ${allowlisted}. Planned commands: ${plannedCommands}. Rewrite with an allowlisted verification command or escalate.`
     );
