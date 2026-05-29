@@ -5,7 +5,18 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 ## Queue
 
 <!-- Tasks are processed top-to-bottom. Add new tasks at the bottom. -->
-- (empty)
+- [ ] EP4-T1: Add bounded ticket-template validator to create/retry flows. <!-- hephaestus-ticket:ticket_1e599d6496d4 -->
+- [ ] EP4-T2: Add pre-admission envelope quality linter with actionable repair hints. <!-- hephaestus-ticket:ticket_26d2314bf181 -->
+- [ ] EP4-T3: Build weekly denial taxonomy to allowlist recommendation generator. <!-- hephaestus-ticket:ticket_91cb61e4c51f -->
+- [ ] EP4-T4: Implement adaptive dispatch pacing based on queue pressure and recent cycle time. <!-- hephaestus-ticket:ticket_7140934c6f38 -->
+- [ ] EP4-T5: Add Ollama profile-aware retry or warmup windows with fallback policy. <!-- hephaestus-ticket:ticket_8186ce875ade -->
+- [ ] EP4-T6: Add transient-failure handling tier before hard block transition. <!-- hephaestus-ticket:ticket_cbf19ed3e17c -->
+- [ ] EP4-T7: Wire variance alerts into automated planning and policy suggestions. <!-- hephaestus-ticket:ticket_39342a99065c -->
+- [ ] EP4-T8: Add ticket cohort score-delta attribution in efficiency metrics. <!-- hephaestus-ticket:ticket_b00c37f9f2e6 -->
+- [ ] EP4-T9: Remove duplicate or obsolete script aliases and dead compatibility paths. <!-- hephaestus-ticket:ticket_d42220521d3a -->
+- [ ] EP4-T10: Consolidate shared benchmark freshness and CLI parse utilities. <!-- hephaestus-ticket:ticket_ca6f2b7f2724 -->
+- [ ] EP4-T11: Run focused code review on runtime, tickets, and metrics modules. <!-- hephaestus-ticket:ticket_b71af8c48f03 -->
+- [ ] EP4-T12: Publish EP4 baseline-vs-after report with measured target progress. <!-- hephaestus-ticket:ticket_c0247a332ed0 -->
 
 ## In Progress
 

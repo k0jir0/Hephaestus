@@ -1,0 +1,133 @@
+Hephaestus Efficiency Paper 4
+Path to 65-75 Efficiency Index with Structural Throughput Gains
+
+Date: 2026-05-29
+
+Objective
+Raise the measured efficiency index from 49.97 toward 65-75 by targeting the highest-impact constraints in queue latency, task envelope quality, and backend reliability.
+
+Current Baseline (Measured)
+- Efficiency score: 49.97
+- Throughput/day: 11
+- Completion rate: 0.443
+- Retry rate: 0.159
+- Allowlist denial rate: 0.034
+- Backend reliability (ollama): 13/34 = 0.38
+- Average admission-to-start latency: 4,251,883 ms
+- p95 admission-to-complete latency: 7,293,959 ms
+
+Code Review Findings (High-Impact)
+1. Queue dwell dominates cycle time
+- Symptom: admission-to-start and admission-to-complete latency remain very high.
+- Surface: task dispatch pacing and stale-recovery behavior.
+- Impact: throughput and completion score are capped even when patch/test quality improves.
+
+2. Planner/task-envelope mismatch still causes avoidable blocked attempts
+- Symptom: unsupported task envelope and structured plan validation failures are still frequent.
+- Surface: plan prompt, envelope classifier, and retry policy coupling.
+- Impact: wasted attempts, lower completion rate, and noisy ticket churn.
+
+3. Command-policy friction reduced but still present
+- Symptom: command is not allowlisted remains a leading taxonomy bucket.
+- Surface: command allowlist drift versus new workflows.
+- Impact: blocked retries and avoidable operator overhead.
+
+4. Backend reliability and large-model warmup are unstable under load
+- Symptom: low backend success ratio and high variance.
+- Surface: Ollama request resiliency, adaptive timeouts, warmup and retry scheduling.
+- Impact: throughput variance and false regressions in efficiency trend.
+
+5. Metrics are strong, but optimization loops are not yet closed
+- Symptom: data exists, but not all metric signals auto-gate planning/execution behavior.
+- Surface: admission policy and autopilot controls.
+- Impact: slower convergence toward target score.
+
+Methodology Replacements for Higher Efficiency
+1. Replace broad free-form ticket phrasing with bounded, file-scoped ticket templates
+- Why: directly reduces unsupported envelope failures.
+- Replace: generic ticket descriptions.
+- With: objective + file scope + acceptance command + expected signal template.
+
+2. Replace static command policy maintenance with telemetry-driven allowlist evolution
+- Why: reduces command-not-allowlisted recurrence.
+- Replace: manual reactive allowlist edits.
+- With: weekly top-denial extractor proposing explicit safe command additions.
+
+3. Replace single-shot planning for borderline tasks with two-stage planning
+- Why: improves plan validity and lowers blocked retries.
+- Replace: immediate edit/verify plans.
+- With: stage A inspect+constraints, stage B edit+verify only after admissibility checks.
+
+4. Replace one-size timeout assumptions with profile-aware execution windows
+- Why: improves large-model completion and reduces false transport failures.
+- Replace: fixed low default timeouts.
+- With: model profile tiers, warmup gates, and staggered retries.
+
+5. Replace metrics-as-reporting with metrics-as-control
+- Why: accelerate feedback loop.
+- Replace: passive weekly report consumption.
+- With: automatic policy and planning nudges when variance alerts breach thresholds.
+
+Largest Potential Efficiency Gains (Ranked)
+1. Queue latency compression (largest)
+- Target: reduce admission-to-start average by 35-50%.
+- Expected score lift: +7 to +10.
+
+2. Envelope/plan validity hardening
+- Target: cut unsupported envelope + structured plan validation failures by 50%.
+- Expected score lift: +4 to +7.
+
+3. Backend reliability uplift for Ollama path
+- Target: raise reliability from 0.38 to >=0.60.
+- Expected score lift: +3 to +6.
+
+4. Denial-rate minimization via policy automation
+- Target: lower allowlist denial rate by 40%.
+- Expected score lift: +2 to +4.
+
+5. Retry-quality optimization
+- Target: improve blocked-retry success ratio from 0.17 to >=0.30.
+- Expected score lift: +2 to +4.
+
+Proposed Execution Plan
+Phase A (Immediate, 1-2 days): Throughput and validity stabilization
+- Implement bounded ticket template enforcement in create/retry flows.
+- Add envelope quality linter before queue admission.
+- Add weekly denial-to-allowlist recommendation generator.
+
+Phase B (Short, 3-5 days): Backend and scheduling resilience
+- Add adaptive dispatch pacing based on active queue pressure.
+- Add Ollama retry windows with profile-aware warmup and fallback paths.
+- Add transient failure buckets to avoid premature hard blocking.
+
+Phase C (Mid, 1 week): Metrics-driven control loop
+- Promote variance alerts into automated policy suggestions.
+- Add admission guardrails that de-prioritize low-confidence tickets.
+- Add score-delta attribution per ticket cohort (planning, policy, backend).
+
+Refinement and Removal of Unnecessary Code
+1. Remove duplicated command aliases where one canonical script is enough.
+2. Consolidate benchmark freshness logic into one shared utility path.
+3. Reduce repeated parsing/normalization blocks in ticket CLI option handling.
+4. Eliminate stale compatibility shims that no longer map to active workflows.
+
+Expected Outcome
+If Phases A-C are completed and measured over two weekly windows:
+- Efficiency index should move from ~50 to 65-75.
+- Throughput should rise from 11/day to 14-18/day.
+- Completion rate should move toward >=0.55.
+- Retry rate should move toward <=0.12.
+
+Ticketized Work Package (Hephaestus)
+- EP4-T1: Add bounded ticket-template validator to create/retry flows.
+- EP4-T2: Add pre-admission envelope quality linter with actionable repair hints.
+- EP4-T3: Build weekly denial taxonomy to allowlist recommendation generator.
+- EP4-T4: Implement adaptive dispatch pacing based on queue pressure and recent cycle time.
+- EP4-T5: Add Ollama profile-aware retry/warmup windows with fallback policy.
+- EP4-T6: Add transient-failure handling tier before hard block transition.
+- EP4-T7: Wire variance alerts into automated planning/policy suggestions.
+- EP4-T8: Add ticket cohort score-delta attribution in efficiency metrics.
+- EP4-T9: Remove duplicate/obsolete script aliases and dead compatibility paths.
+- EP4-T10: Consolidate shared benchmark freshness and CLI parse utilities.
+- EP4-T11: Run focused code review on runtime, tickets, and metrics modules.
+- EP4-T12: Publish EP4 baseline-vs-after report with measured target progress.
