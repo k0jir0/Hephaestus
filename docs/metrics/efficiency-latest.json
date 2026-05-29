@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-29T12:40:32.987Z",
+  "timestamp": "2026-05-29T13:09:50.983Z",
   "totals": {
     "tickets": 316,
     "attempts": 208,
@@ -104,14 +104,14 @@
     }
   },
   "variance": {
-    "sampleCount": 11,
+    "sampleCount": 12,
     "alerts": [],
     "deltas": {
       "completedPerDayDelta": 0,
       "p95AdmissionToCompleteDeltaMs": 0,
       "completionRateDelta": 0,
-      "retryRateDelta": 0.003,
-      "efficiencyScoreDelta": -0.031
+      "retryRateDelta": 0,
+      "efficiencyScoreDelta": 0
     }
   }
 }

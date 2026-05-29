@@ -109,7 +109,9 @@ const defaultCommandAllowlist: CommandAllowlistEntry[] = [
   { command: 'npm', args: ['run', 'models:promote'] },
   { command: 'npm', args: ['run', 'models:warmup'] },
   { command: 'npm', args: ['run', 'publish:reliability'] },
+  { command: 'npm', args: ['run', 'metrics:efficiency'] },
   { command: 'npm', args: ['run', 'metrics:efficiency:weekly'] },
+  { command: 'npm', args: ['run', 'tickets', '--', 'review-wave'] },
   { command: 'node', args: ['scripts/run-tests.mjs'] },
   { command: 'node_modules/.bin/tsc', args: ['--noEmit'] },
   { command: 'node_modules\\.bin\\tsc.cmd', args: ['--noEmit'] },
@@ -143,6 +145,10 @@ function resolveCommandForPlatform(command: string): string {
   }
 
   return command;
+}
+
+function formatCommandShape(command: string, args: string[]): string {
+  return [command, ...args].join(' ').trim();
 }
 
 class ToolPolicyError extends Error {
@@ -430,9 +436,10 @@ export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
   private async runCommand(request: CommandRunRequest): Promise<Partial<EngineeringToolResult>> {
     const args = request.args ?? [];
     if (!this.isAllowedCommand(request.command, args)) {
+      const commandShapeHint = this.getCommandShapeHint(request.command, args);
       return {
         status: 'denied',
-        summary: `Command is not allowlisted: ${[request.command, ...args].join(' ')}`,
+        summary: `Command is not allowlisted: ${formatCommandShape(request.command, args)}.${commandShapeHint ? ` ${commandShapeHint}` : ''}`,
         reasonCode: 'command-not-allowlisted',
         mutatedPaths: [],
       };
@@ -563,6 +570,24 @@ export class EngineeringToolRuntime implements ToolRuntimeReadinessProbe {
       normalizeCommandForPolicy(entry.command) === normalizedCommand &&
       this.argumentsMatchAllowlist(entry.args, args)
     );
+  }
+
+  private getCommandShapeHint(command: string, args: string[]): string {
+    const normalizedCommand = normalizeCommandForPolicy(command);
+    const matchingShapes = this.commandAllowlist
+      .filter((entry) => normalizeCommandForPolicy(entry.command) === normalizedCommand)
+      .map((entry) => formatCommandShape(entry.command, entry.args));
+
+    if (matchingShapes.length > 0) {
+      const preview = matchingShapes.slice(0, 5).join(' | ');
+      return `Normalized command shape: ${formatCommandShape(normalizedCommand, args)}. Allowed shapes for ${normalizedCommand}: ${preview}${matchingShapes.length > 5 ? ' | ...' : ''}`;
+    }
+
+    const genericPreview = this.commandAllowlist
+      .slice(0, 5)
+      .map((entry) => formatCommandShape(entry.command, entry.args))
+      .join(' | ');
+    return `No allowlisted variants found for ${normalizedCommand}. Example allowed shapes: ${genericPreview}${this.commandAllowlist.length > 5 ? ' | ...' : ''}`;
   }
 
   private argumentsMatchAllowlist(expectedArgs: string[], actualArgs: string[]): boolean {

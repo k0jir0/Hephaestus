@@ -184,6 +184,8 @@ describe('EngineeringToolRuntime', () => {
     });
     assert.equal(deniedResult.status, 'denied');
     assert.equal(deniedResult.reasonCode, 'command-not-allowlisted');
+    assert.match(deniedResult.summary, /Normalized command shape:/);
+    assert.match(deniedResult.summary, /Allowed shapes for/);
 
     const allowedResult = await runtime.execute({
       tool: 'command.run',

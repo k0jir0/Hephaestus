@@ -1,0 +1,49 @@
+Hephaestus Roadmap Based on audit-paper4.txt
+Date: 2026-05-29
+
+Objective
+Translate audit-paper4 findings into executable solutions that reduce blocked inventory, shorten latency tail, improve command-policy clarity, and enforce wave go/no-go discipline.
+
+Phase 1: Governance and Operator Clarity (implemented)
+1) Improve allowlist denial diagnostics so operators get normalized command-shape hints.
+- Implemented in src/tool-runtime.ts.
+- Outcome: denial messages now include normalized command shape and nearby allowlisted command variants.
+
+2) Add explicit wave review command with gate thresholds and go/no-go decision.
+- Implemented in src/tickets.ts as: npm run tickets -- review-wave
+- Outcome: command evaluates efficiency score, blocked tickets, p95 admission-to-complete latency, allowlist denial rate, and backend success ratio.
+
+Phase 2: Reliability Gates and Routine Review (implemented)
+1) Add wave-review thresholds with CLI overrides.
+- Implemented flags:
+  --min-efficiency-score
+  --max-blocked
+  --max-p95-ms
+  --max-allowlist-denial-rate
+  --min-backend-success-ratio
+
+2) Keep weekly review discipline coupled to gate output.
+- Operator cadence:
+  a) npm run metrics:efficiency
+  b) npm run metrics:efficiency:weekly
+  c) npm run tickets -- review-wave
+  d) only run autopilot reseeding when review-wave returns GO.
+
+Phase 3: Delivery Flow Burn-Down (leveraging Hephaestus tasking)
+1) Prioritize blocked backlog by failure family.
+- Start with:
+  - command-not-allowlisted
+  - retry admission edge cases
+  - stale recovery and queue pacing tickets
+
+2) Execute bounded remediation waves (max 5 tickets) and re-check review-wave between waves.
+
+Verification Commands
+1) npm test -- test/tool-runtime.test.ts
+2) npm run build
+3) npm run tickets -- review-wave
+
+Expected Signals
+1) Denied command output includes normalized shape guidance.
+2) review-wave prints deterministic GO/NO-GO plus gate-failure list.
+3) Build and relevant tests remain green.
