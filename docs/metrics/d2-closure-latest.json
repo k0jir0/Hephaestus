@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-29T21:54:56.553Z",
+  "timestamp": "2026-05-29T22:08:55.120Z",
   "thresholds": {
     "maxCountMismatches": 0,
     "maxLegacyOnly": 0,
@@ -9,10 +9,10 @@
     "minReplayCorrelationCoverage": 0.2
   },
   "eventSpine": {
-    "legacyEventCount": 4242,
-    "domainEventCount": 4242,
+    "legacyEventCount": 4245,
+    "domainEventCount": 4245,
     "domainEventDeficit": 0,
-    "domainEventsWithLegacyLink": 4242,
+    "domainEventsWithLegacyLink": 4245,
     "missingLegacyLinkRows": 0,
     "eventEvidenceCount": 0,
     "ticketsWithCountMismatch": 0,
@@ -21,14 +21,14 @@
   },
   "replay": {
     "ticketCount": 317,
-    "totalEvents": 4242,
-    "correlationCoverage": 0.232909,
-    "replayHash": "a4e3ce617ae1f009eed1db69b24749729bd55a0a9ef893fcb0fc264db6e3f624",
+    "totalEvents": 4245,
+    "correlationCoverage": 0.232744,
+    "replayHash": "b04fe706e8f44e2800911eada5c330d5cf46be58bf18e6d2dd22f6def494c554",
     "replayHashStable": true
   },
   "sourceGrounding": {
     "timestamp": "2026-05-29T20:34:39.331Z",
-    "ageHours": 1.338,
+    "ageHours": 1.571,
     "groundingCoverage": 1,
     "requiredTickets": 0,
     "groundedTickets": 0,

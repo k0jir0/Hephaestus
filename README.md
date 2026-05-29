@@ -38,7 +38,7 @@ Since the last README update, D2 (Event and Evidence Spine) advanced with the fo
 - opt-in strict D2 gate integration into `autopilot` and `review-wave` via `--enforce-d2`
 - D2 closure snapshot generator via `npm run metrics:d2:closure` with report output under `docs/metrics/`
 
-Current D2 status: approximately 92% complete toward D3 handoff. Remaining work is final D2 closure evidence notes and threshold burn-in before making strict runtime D2 gates default.
+Current D2 status: complete. D2 closure evidence artifacts are published, and strict runtime D2 gates remain opt-in by policy via `--enforce-d2`.
 
 ## Validated Today (2026-05-29)
 

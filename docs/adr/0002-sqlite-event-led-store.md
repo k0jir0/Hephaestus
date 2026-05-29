@@ -1,6 +1,6 @@
 # ADR 0002: SQLite Event-Led Store
 
-Status: Proposed
+Status: Accepted (Implemented for D2)
 Date: 2026-05-29
 
 ## Context
@@ -41,5 +41,5 @@ The domain model must not depend on SQLite-specific behavior.
     - dual-write and canonical-read fallback paths are active.
     - idempotent legacy backfill into canonical event/evidence tables is active.
     - D2 verifier (`verify-d2`) enforces parity, replay hash stability, and replay correlation coverage.
-- Remaining:
-    - keep strict D2 gates in burn-in mode for workflow entrypoints before making them mandatory defaults.
+- Runtime policy decision:
+    - strict D2 gates remain opt-in for workflow entrypoints (`autopilot`/`review-wave`) via `--enforce-d2`.

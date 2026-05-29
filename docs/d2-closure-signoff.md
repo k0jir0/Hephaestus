@@ -1,7 +1,7 @@
 # D2 Closure Sign-Off
 
 Date: 2026-05-29
-Status: In Progress (Burn-In)
+Status: Complete
 Owner: Hephaestus operator
 
 ## Purpose
@@ -58,7 +58,13 @@ Generated artifacts:
 - [x] D2 strict verifier passes (`npm run metrics:d2:verify`)
 - [x] D2 closure report decision is PASS (`npm run metrics:d2:closure`)
 - [x] No unexpected D2 failures during burn-in runs of autopilot/review-wave
-- [ ] D2 default policy decision recorded (stay opt-in or make default)
+- [x] D2 default policy decision recorded (stay opt-in or make default)
+
+## D2 Policy Decision
+
+- Decision: keep strict D2 gate enforcement opt-in for runtime workflows.
+- Runtime posture: continue using `--enforce-d2` for `autopilot` and `review-wave`.
+- Rationale: burn-in demonstrated stable D2 health checks while non-D2 operational gates remain active; keeping opt-in avoids unintentional operational blocking while preserving strict verification paths.
 
 ## Burn-In Log
 
@@ -72,8 +78,4 @@ Record each burn-in run with timestamp and result.
 
 ## Final Sign-Off
 
-When all checkboxes are complete, update:
-
-- Status to `Complete`
-- Date to final sign-off date
-- Blueprint D2 section and ADR status to reflect closure
+All D2 closeout criteria are complete as of 2026-05-29. D3 work can proceed.
