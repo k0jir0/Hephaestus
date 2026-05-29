@@ -300,6 +300,13 @@ function buildStyles(): string {
       gap: 16px;
     }
 
+    .operations-secondary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
     .table-wrap {
       overflow: auto;
       border-radius: var(--radius-md);
@@ -637,7 +644,8 @@ function buildStyles(): string {
       .hero,
       .layout,
       .split,
-      .split-tight {
+      .split-tight,
+      .operations-secondary {
         grid-template-columns: 1fr;
       }
 
@@ -1696,31 +1704,31 @@ export function renderUIHtml(title = 'Hephaestus Control Plane'): string {
           <div data-locked-content class="hidden">
             <section class="view" id="operations-view">
               <div class="card-grid" id="operations-cards"></div>
-              <div class="split">
-                <article class="panel">
-                  <div class="panel-header">
-                    <div>
-                      <h2>Recent Tickets</h2>
-                      <div class="helper">The board centers operational state and short-horizon triage, not chat transcripts.</div>
-                    </div>
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2>Recent Tickets</h2>
+                    <div class="helper">The board centers operational state and short-horizon triage, not chat transcripts.</div>
                   </div>
-                  <div class="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>ID</th>
-                          <th>Status</th>
-                          <th>Description</th>
-                          <th>Summary</th>
-                          <th>Attempts</th>
-                          <th>Updated</th>
-                        </tr>
-                      </thead>
-                      <tbody id="operations-table-body"></tbody>
-                    </table>
-                  </div>
-                </article>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Status</th>
+                        <th>Description</th>
+                        <th>Summary</th>
+                        <th>Attempts</th>
+                        <th>Updated</th>
+                      </tr>
+                    </thead>
+                    <tbody id="operations-table-body"></tbody>
+                  </table>
+                </div>
+              </article>
 
+              <div class="operations-secondary">
                 <article class="panel">
                   <div class="panel-header">
                     <div>
