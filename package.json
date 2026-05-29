@@ -26,6 +26,7 @@
     "autopilot": "tsx src/tickets.ts autopilot",
     "metrics:efficiency": "tsx src/efficiency-metrics.ts",
     "metrics:efficiency:weekly": "tsx src/efficiency-weekly-report.ts",
+    "metrics:upgrade-telemetry": "tsx src/upgrade-telemetry.ts",
     "fault-harness": "tsx src/reliability-harness.ts --mode fault",
     "soak": "tsx src/reliability-harness.ts --mode soak",
     "publish:reliability": "tsx src/reliability-harness.ts --mode publish",

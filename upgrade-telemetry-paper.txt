@@ -1,0 +1,70 @@
+Hephaestus Upgrade Telemetry Paper
+Date: 2026-05-29
+
+Objective
+Before executing the seeded 120-ticket roadmap, establish a telemetry baseline and control-loop metrics so queue behavior is measurable and optimization decisions are evidence-driven.
+
+Primary Telemetry Questions
+1. Is queue pressure rising faster than execution throughput?
+2. Are pending tickets aging beyond acceptable execution windows?
+3. Is superseded churn indicating over-fragmented intake?
+4. Are allowlist/policy denials a dominant failure mechanism?
+5. Is the system producing completions in the most recent 24h window?
+
+Telemetry Metrics to Observe
+Queue State
+- total tickets
+- pending tickets
+- in-progress tickets
+- awaiting-approval tickets
+- blocked/failed/stale tickets
+- queue pressure index
+
+Aging
+- pending age p50 (hours)
+- pending age p95 (hours)
+- pending age max (hours)
+
+Execution
+- total attempts
+- attempts per ticket
+- retry rate
+- started in last 24h
+- completed in last 24h
+- admission-to-start latency p95 (ms)
+
+Churn
+- superseded rate among terminal outcomes
+- cancelled rate among terminal outcomes
+- superseded-to-completed ratio
+
+Policy and Failure Taxonomy
+- allowlist denial count
+- allowlist denial rate
+- top failure buckets by frequency
+
+Observation Targets
+- superseded rate <= 0.18
+- allowlist denial rate <= 0.08
+- pending age p95 <= 36h
+- queue pressure index <= 0.65
+- completed last 24h >= 1
+
+Alert Conditions
+- superseded-rate-high
+- allowlist-denial-rate-high
+- pending-age-p95-high
+- queue-pressure-high
+- no-completions-last-24h
+
+Planned Telemetry Workflow
+1. Capture baseline telemetry snapshot before queue execution.
+2. Execute queue wave activity.
+3. Capture post-execution telemetry snapshot.
+4. Compare alert set, queue pressure, and churn metrics.
+5. Feed results into next ticket-wave shaping and policy updates.
+
+Expected Value
+- More reliable differentiation between productive throughput and churn.
+- Better signal for whether tandem mode or autonomous mode is the limiting factor.
+- Faster policy iteration by ranking denial/failure buckets with measured impact.

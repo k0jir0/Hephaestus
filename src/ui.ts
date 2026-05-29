@@ -1,20 +1,20 @@
 function buildStyles(): string {
   return String.raw`
     :root {
-      color-scheme: light;
-      --bg: #f4efe5;
-      --bg-accent: #e1d6c4;
-      --panel: rgba(255, 252, 246, 0.88);
-      --panel-strong: rgba(252, 248, 240, 0.96);
-      --ink: #1f2933;
-      --muted: #51606d;
-      --line: rgba(30, 41, 59, 0.12);
-      --accent: #0f766e;
-      --accent-strong: #115e59;
-      --warning: #b45309;
-      --danger: #9f1239;
-      --success: #166534;
-      --shadow: 0 24px 60px rgba(73, 45, 17, 0.14);
+      color-scheme: dark;
+      --bg: #0b1118;
+      --bg-accent: #122131;
+      --panel: rgba(17, 25, 37, 0.86);
+      --panel-strong: rgba(22, 31, 46, 0.94);
+      --ink: #e6edf5;
+      --muted: #a2b3c6;
+      --line: rgba(156, 181, 208, 0.2);
+      --accent: #2dd4bf;
+      --accent-strong: #5eead4;
+      --warning: #f59e0b;
+      --danger: #fb7185;
+      --success: #4ade80;
+      --shadow: 0 24px 60px rgba(3, 9, 15, 0.5);
       --radius-xl: 24px;
       --radius-lg: 18px;
       --radius-md: 14px;
@@ -32,9 +32,9 @@ function buildStyles(): string {
       font-family: "Trebuchet MS", "Aptos", sans-serif;
       color: var(--ink);
       background:
-        radial-gradient(circle at top left, rgba(15, 118, 110, 0.22), transparent 32%),
-        radial-gradient(circle at top right, rgba(180, 83, 9, 0.18), transparent 26%),
-        linear-gradient(180deg, #f6f1e8 0%, #ece4d6 100%);
+        radial-gradient(circle at top left, rgba(45, 212, 191, 0.24), transparent 35%),
+        radial-gradient(circle at top right, rgba(14, 116, 144, 0.22), transparent 30%),
+        linear-gradient(180deg, #0c121a 0%, #0a0f17 100%);
     }
 
     button,
@@ -186,7 +186,7 @@ function buildStyles(): string {
       width: 100%;
       text-align: left;
       border: 1px solid transparent;
-      background: rgba(255, 255, 255, 0.55);
+      background: rgba(16, 24, 36, 0.78);
       color: var(--muted);
       border-radius: var(--radius-md);
       padding: 14px 15px;
@@ -245,8 +245,8 @@ function buildStyles(): string {
     .metric-card {
       padding: 18px;
       border-radius: var(--radius-lg);
-      background: rgba(255, 255, 255, 0.55);
-      border: 1px solid rgba(15, 23, 42, 0.08);
+      background: rgba(14, 22, 34, 0.84);
+      border: 1px solid rgba(127, 153, 181, 0.2);
       display: grid;
       gap: 6px;
     }
@@ -302,8 +302,9 @@ function buildStyles(): string {
     .table-wrap {
       overflow: auto;
       border-radius: var(--radius-md);
-      border: 1px solid rgba(15, 23, 42, 0.08);
-      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid rgba(120, 150, 184, 0.28);
+      background: rgba(11, 17, 26, 0.88);
+      box-shadow: inset 0 0 0 1px rgba(42, 59, 78, 0.45);
     }
 
     table {
@@ -316,11 +317,15 @@ function buildStyles(): string {
     td {
       padding: 13px 14px;
       text-align: left;
-      border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+      border-bottom: 1px solid rgba(100, 130, 162, 0.22);
       vertical-align: top;
     }
 
     th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: rgba(16, 24, 35, 0.98);
       font-size: 12px;
       text-transform: uppercase;
       letter-spacing: 0.09em;
@@ -334,11 +339,11 @@ function buildStyles(): string {
     }
 
     tbody tr:hover {
-      background: rgba(15, 118, 110, 0.06);
+      background: rgba(45, 212, 191, 0.12);
     }
 
     tbody tr.selected {
-      background: rgba(15, 118, 110, 0.1);
+      background: rgba(45, 212, 191, 0.18);
     }
 
     .status-pill,
@@ -349,8 +354,8 @@ function buildStyles(): string {
       gap: 8px;
       padding: 6px 10px;
       border-radius: 999px;
-      border: 1px solid rgba(15, 23, 42, 0.08);
-      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(117, 146, 176, 0.28);
+      background: rgba(13, 21, 32, 0.86);
       font-size: 12px;
       font-weight: 800;
       letter-spacing: 0.04em;
@@ -388,8 +393,8 @@ function buildStyles(): string {
     }
 
     .detail-block {
-      border: 1px solid rgba(15, 23, 42, 0.08);
-      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid rgba(117, 146, 176, 0.26);
+      background: rgba(12, 19, 30, 0.84);
       border-radius: var(--radius-md);
       padding: 14px;
       display: grid;
@@ -431,8 +436,8 @@ function buildStyles(): string {
     .meta-item {
       padding: 12px 14px;
       border-radius: var(--radius-md);
-      border: 1px solid rgba(15, 23, 42, 0.08);
-      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(112, 141, 171, 0.24);
+      background: rgba(12, 19, 30, 0.8);
       display: grid;
       gap: 6px;
     }
@@ -477,8 +482,8 @@ function buildStyles(): string {
       width: 100%;
       padding: 12px 14px;
       border-radius: 12px;
-      border: 1px solid rgba(15, 23, 42, 0.12);
-      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(124, 154, 186, 0.28);
+      background: rgba(14, 22, 34, 0.92);
       color: var(--ink);
       transition: border-color var(--transition), box-shadow var(--transition);
     }
@@ -528,9 +533,9 @@ function buildStyles(): string {
     }
 
     .ghost-button {
-      background: rgba(255, 255, 255, 0.65);
+      background: rgba(15, 23, 35, 0.86);
       color: var(--ink);
-      border: 1px solid rgba(15, 23, 42, 0.1);
+      border: 1px solid rgba(124, 154, 186, 0.24);
     }
 
     .action-button:disabled,
@@ -575,10 +580,10 @@ function buildStyles(): string {
     .empty-state {
       padding: 18px;
       border-radius: var(--radius-lg);
-      border: 1px dashed rgba(15, 23, 42, 0.18);
+      border: 1px dashed rgba(124, 154, 186, 0.28);
       color: var(--muted);
       text-align: center;
-      background: rgba(255, 255, 255, 0.4);
+      background: rgba(12, 19, 30, 0.76);
     }
 
     .locked {
@@ -588,8 +593,8 @@ function buildStyles(): string {
       text-align: center;
       padding: 28px;
       border-radius: var(--radius-xl);
-      border: 1px dashed rgba(15, 23, 42, 0.16);
-      background: rgba(255, 255, 255, 0.45);
+      border: 1px dashed rgba(124, 154, 186, 0.28);
+      background: rgba(12, 19, 30, 0.8);
     }
 
     .hidden {
