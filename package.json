@@ -29,6 +29,7 @@
     "metrics:source-grounding": "tsx src/source-grounding-report.ts",
     "metrics:source-grounding:audit": "tsx src/tickets.ts audit-source-evidence --max-drifted 0 --max-missing-evidence 0",
     "metrics:d2:verify": "tsx src/tickets.ts verify-d2 --max-count-mismatches 0 --max-legacy-only 0 --max-domain-only 0 --max-missing-legacy-link 0 --min-replay-correlation-coverage 0.2",
+    "metrics:d2:closure": "tsx src/d2-closure-report.ts",
     "metrics:upgrade-telemetry": "tsx src/upgrade-telemetry.ts",
     "context:clean": "powershell -ExecutionPolicy Bypass -File scripts/context-clean.ps1",
     "fault-harness": "tsx src/reliability-harness.ts --mode fault",

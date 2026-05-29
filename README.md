@@ -36,6 +36,7 @@ Since the last README update, D2 (Event and Evidence Spine) advanced with the fo
 - deterministic D2 parity and replay verifier command via `npm run tickets -- verify-d2`
 - strict D2 gate alias via `npm run metrics:d2:verify` (parity, link completeness, replay stability, replay correlation coverage)
 - opt-in strict D2 gate integration into `autopilot` and `review-wave` via `--enforce-d2`
+- D2 closure snapshot generator via `npm run metrics:d2:closure` with report output under `docs/metrics/`
 
 Current D2 status: approximately 92% complete toward D3 handoff. Remaining work is final D2 closure evidence notes and threshold burn-in before making strict runtime D2 gates default.
 

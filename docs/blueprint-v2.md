@@ -619,6 +619,9 @@ Current implementation status (2026-05-29):
 Remaining D2 closure:
 
 - publish final D2 closure note linking evidence artifacts and strict gate thresholds.
+  - closure note location: `docs/d2-closure-signoff.md`
+  - generated evidence: `docs/metrics/d2-closure-latest.json`, `docs/metrics/d2-closure-report.md`
+  - generator command: `npm run metrics:d2:closure`
 - keep D2 strict enforcement opt-in until operators finish burn-in.
 
 Library anchors:
