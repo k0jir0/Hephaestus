@@ -47,6 +47,7 @@ Usage:
   npm run tickets -- self-audit [--limit <count>] [--dry-run]
   npm run tickets -- metrics [--source-grounding]
   npm run tickets -- audit-source-evidence [--max-drifted <count>] [--max-missing-evidence <count>]
+  npm run tickets -- verify-d2 [--max-count-mismatches <count>] [--max-legacy-only <count>] [--max-domain-only <count>] [--max-domain-deficit <count>] [--max-missing-legacy-link <count>] [--min-replay-correlation-coverage <ratio>]
   npm run tickets -- review-wave [--min-efficiency-score <score>] [--max-blocked <count>] [--max-p95-ms <milliseconds>] [--max-allowlist-denial-rate <ratio>] [--min-backend-success-ratio <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>]
   npm run tickets -- render-board
   npm run tickets -- sync-board
@@ -622,6 +623,108 @@ async function main(): Promise<void> {
 
         if (failures.length > 0) {
           throw new Error(`source evidence audit failed: ${failures.join(', ')}`);
+        }
+        break;
+      }
+
+      case 'verify-d2': {
+        const maxCountMismatches = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-count-mismatches'),
+          '--max-count-mismatches'
+        ) ?? 0;
+        const maxLegacyOnly = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-legacy-only'),
+          '--max-legacy-only'
+        ) ?? 0;
+        const maxDomainOnly = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-domain-only'),
+          '--max-domain-only'
+        ) ?? 0;
+        const maxDomainDeficit = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-domain-deficit'),
+          '--max-domain-deficit'
+        ) ?? 0;
+        const maxMissingLegacyLink = parseNonNegativeIntegerOption(
+          parseOption(args, '--max-missing-legacy-link'),
+          '--max-missing-legacy-link'
+        ) ?? 0;
+        const minReplayCorrelationCoverage = parseRatioOption(
+          parseOption(args, '--min-replay-correlation-coverage'),
+          '--min-replay-correlation-coverage'
+        ) ?? 0;
+
+        const snapshot = await repository.getD2EventSpineSnapshot();
+        const replaySummaryA = await repository.getD2ReplaySummary();
+        const replaySummaryB = await repository.getD2ReplaySummary();
+        const failures: string[] = [];
+
+        const domainDeficit = Math.max(0, snapshot.legacyEventCount - snapshot.domainEventCount);
+        if (domainDeficit > maxDomainDeficit) {
+          failures.push(`d2-domain-deficit-high:${domainDeficit}>${maxDomainDeficit}`);
+        }
+        if (snapshot.ticketsWithCountMismatch.length > maxCountMismatches) {
+          failures.push(
+            `d2-count-mismatch-high:${snapshot.ticketsWithCountMismatch.length}>${maxCountMismatches}`
+          );
+        }
+        if (snapshot.ticketsWithLegacyOnly.length > maxLegacyOnly) {
+          failures.push(`d2-legacy-only-high:${snapshot.ticketsWithLegacyOnly.length}>${maxLegacyOnly}`);
+        }
+        if (snapshot.ticketsWithDomainOnly.length > maxDomainOnly) {
+          failures.push(`d2-domain-only-high:${snapshot.ticketsWithDomainOnly.length}>${maxDomainOnly}`);
+        }
+        const missingLegacyLink = Math.max(0, snapshot.domainEventCount - snapshot.domainEventsWithLegacyLink);
+        if (missingLegacyLink > maxMissingLegacyLink) {
+          failures.push(`d2-missing-legacy-link-high:${missingLegacyLink}>${maxMissingLegacyLink}`);
+        }
+        if (replaySummaryA.replayHash !== replaySummaryB.replayHash) {
+          failures.push('d2-replay-hash-unstable');
+        }
+        if (replaySummaryA.totalEvents === 0) {
+          failures.push('d2-replay-empty');
+        }
+        if (replaySummaryA.correlationCoverage < minReplayCorrelationCoverage) {
+          failures.push(
+            `d2-replay-correlation-low:${replaySummaryA.correlationCoverage.toFixed(3)}<${minReplayCorrelationCoverage}`
+          );
+        }
+
+        console.log('Hephaestus D2 verifier');
+        console.log(`Decision: ${failures.length === 0 ? 'PASS' : 'FAIL'}`);
+        console.log(`Legacy events: ${snapshot.legacyEventCount}`);
+        console.log(`Domain events: ${snapshot.domainEventCount}`);
+        console.log(`Domain event deficit: ${domainDeficit} (threshold ${maxDomainDeficit})`);
+        console.log(`Domain events with legacy link: ${snapshot.domainEventsWithLegacyLink}`);
+        console.log(`Missing legacy link rows: ${missingLegacyLink} (threshold ${maxMissingLegacyLink})`);
+        console.log(`Event evidence rows: ${snapshot.eventEvidenceCount}`);
+        console.log(`Replay tickets: ${replaySummaryA.ticketCount}`);
+        console.log(`Replay total events: ${replaySummaryA.totalEvents}`);
+        console.log(
+          `Replay correlation coverage: ${replaySummaryA.correlationCoverage.toFixed(3)} (threshold ${minReplayCorrelationCoverage})`
+        );
+        console.log(`Replay hash: ${replaySummaryA.replayHash}`);
+        console.log(
+          `Tickets with event count mismatch: ${snapshot.ticketsWithCountMismatch.length} (threshold ${maxCountMismatches})`
+        );
+        console.log(
+          `Tickets with legacy only events: ${snapshot.ticketsWithLegacyOnly.length} (threshold ${maxLegacyOnly})`
+        );
+        console.log(
+          `Tickets with domain only events: ${snapshot.ticketsWithDomainOnly.length} (threshold ${maxDomainOnly})`
+        );
+
+        if (snapshot.ticketsWithCountMismatch.length > 0) {
+          console.log(`Count mismatch ticket IDs: ${snapshot.ticketsWithCountMismatch.slice(0, 20).join(', ')}`);
+        }
+        if (snapshot.ticketsWithLegacyOnly.length > 0) {
+          console.log(`Legacy-only ticket IDs: ${snapshot.ticketsWithLegacyOnly.slice(0, 20).join(', ')}`);
+        }
+        if (snapshot.ticketsWithDomainOnly.length > 0) {
+          console.log(`Domain-only ticket IDs: ${snapshot.ticketsWithDomainOnly.slice(0, 20).join(', ')}`);
+        }
+
+        if (failures.length > 0) {
+          throw new Error(`d2-verifier-failed: ${failures.join(', ')}`);
         }
         break;
       }

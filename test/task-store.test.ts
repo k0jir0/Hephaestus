@@ -269,6 +269,141 @@ describe('TicketStoreRepository', () => {
     await repository.stop();
   });
 
+  it('reads events from canonical domain_events when legacy rows are unavailable', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const ticketStoreFile = path.join(rootDir, '.hephaestus-tickets.db');
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(rootDir, 'TASKS.md'),
+      storeFile: ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await repository.createTicket('Canonical event read fallback check');
+    await repository.cancelTicket(ticket.id, 'No longer needed');
+
+    const { DatabaseSync } = await import('node:sqlite');
+    const db = new DatabaseSync(ticketStoreFile);
+    db.prepare('delete from ticket_events where ticket_id = ?').run(ticket.id);
+    db.close();
+
+    const events = await repository.listEvents(ticket.id);
+    assert.ok(events.length > 0);
+    assert.ok(events.some((event) => event.type === 'created'));
+    assert.ok(events.some((event) => event.type === 'cancelled'));
+
+    await repository.stop();
+  });
+
+  it('reports D2 event spine parity snapshot for legacy and canonical streams', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(rootDir, 'TASKS.md'),
+      storeFile: path.join(rootDir, '.hephaestus-tickets.db'),
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await repository.createTicket('D2 parity snapshot check');
+    await repository.cancelTicket(ticket.id, 'Done');
+
+    const snapshot = await repository.getD2EventSpineSnapshot();
+    assert.ok(snapshot.legacyEventCount > 0);
+    assert.ok(snapshot.domainEventCount >= snapshot.legacyEventCount);
+    assert.ok(snapshot.domainEventsWithLegacyLink > 0);
+    assert.equal(snapshot.ticketsWithLegacyOnly.length, 0);
+    assert.equal(snapshot.ticketsWithDomainOnly.length, 0);
+    assert.equal(snapshot.ticketsWithCountMismatch.length, 0);
+
+    await repository.stop();
+  });
+
+  it('backfills legacy ticket_events into canonical spine idempotently across restarts', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const tasksFile = path.join(rootDir, 'TASKS.md');
+    const ticketStoreFile = path.join(rootDir, '.hephaestus-tickets.db');
+    const firstRepository = new TicketStoreRepository({
+      tasksFile,
+      storeFile: ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await firstRepository.createTicket('Backfill canonical spine coverage');
+    await firstRepository.cancelTicket(ticket.id, 'Backfill test');
+    await firstRepository.stop();
+
+    const { DatabaseSync } = await import('node:sqlite');
+    const db = new DatabaseSync(ticketStoreFile);
+    db.prepare('delete from event_evidence').run();
+    db.prepare('delete from domain_events').run();
+    const legacyBefore = (db.prepare('select count(*) as count from ticket_events').get() as { count: number }).count;
+    db.close();
+
+    const secondRepository = new TicketStoreRepository({
+      tasksFile,
+      storeFile: ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const firstSnapshot = await secondRepository.getD2EventSpineSnapshot();
+    assert.equal(firstSnapshot.legacyEventCount, legacyBefore);
+    assert.equal(firstSnapshot.domainEventCount, legacyBefore);
+    assert.equal(firstSnapshot.ticketsWithLegacyOnly.length, 0);
+    assert.equal(firstSnapshot.ticketsWithCountMismatch.length, 0);
+    assert.ok(firstSnapshot.eventEvidenceCount > 0);
+    await secondRepository.stop();
+
+    const thirdRepository = new TicketStoreRepository({
+      tasksFile,
+      storeFile: ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const secondSnapshot = await thirdRepository.getD2EventSpineSnapshot();
+    assert.equal(secondSnapshot.legacyEventCount, firstSnapshot.legacyEventCount);
+    assert.equal(secondSnapshot.domainEventCount, firstSnapshot.domainEventCount);
+    assert.equal(secondSnapshot.eventEvidenceCount, firstSnapshot.eventEvidenceCount);
+    assert.equal(secondSnapshot.ticketsWithLegacyOnly.length, 0);
+    assert.equal(secondSnapshot.ticketsWithCountMismatch.length, 0);
+    await thirdRepository.stop();
+  });
+
+  it('produces deterministic D2 replay summaries from canonical domain events', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(rootDir, 'TASKS.md'),
+      storeFile: path.join(rootDir, '.hephaestus-tickets.db'),
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await repository.createTicket('Replay summary determinism check');
+    await repository.cancelTicket(ticket.id, 'Done');
+
+    const summaryA = await repository.getD2ReplaySummary();
+    const summaryB = await repository.getD2ReplaySummary();
+
+    assert.ok(summaryA.totalEvents > 0);
+    assert.ok(summaryA.ticketCount > 0);
+    assert.equal(summaryA.replayHash, summaryB.replayHash);
+    assert.equal(summaryA.totalEvents, summaryB.totalEvents);
+    assert.ok(summaryA.correlationCoverage >= 0);
+    assert.ok(summaryA.correlationCoverage <= 1);
+
+    await repository.stop();
+  });
+
   it('loads attempts in bulk and exposes an aggregate revision stamp', async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
     tempDirs.push(rootDir);

@@ -31,8 +31,12 @@ Since the last README update, D2 (Event and Evidence Spine) advanced with the fo
 - strict audit alias via `npm run metrics:source-grounding:audit`
 - additive canonical D2 schema start in SQLite with `domain_events` and `event_evidence`
 - dual-write from lifecycle event recording into both legacy `ticket_events` and canonical D2 event tables
+- canonical read preference for `domain_events` with compatibility fallback to legacy rows
+- idempotent legacy backfill into canonical event/evidence tables with restart-safe uniqueness constraints
+- deterministic D2 parity and replay verifier command via `npm run tickets -- verify-d2`
+- strict D2 gate alias via `npm run metrics:d2:verify` (parity, link completeness, replay stability, replay correlation coverage)
 
-Current D2 status: approximately 60% complete toward D3 handoff, with replay reconstruction and canonical-read cutover work remaining.
+Current D2 status: approximately 85% complete toward D3 handoff. Remaining work is optional strict-gate integration into review/autopilot flows and final D2 closure docs/ADR updates.
 
 ## Validated Today (2026-05-29)
 

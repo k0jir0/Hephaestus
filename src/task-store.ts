@@ -1,5 +1,5 @@
 import fs from 'fs/promises';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { config } from './config.js';
 import { createComponentLogger } from './logger.js';
 import type {
@@ -86,6 +86,23 @@ export interface TicketStoreRevisionStamp {
 export interface RecentEventQuery {
   ticketId?: string;
   limit?: number;
+}
+
+export interface D2EventSpineSnapshot {
+  legacyEventCount: number;
+  domainEventCount: number;
+  domainEventsWithLegacyLink: number;
+  eventEvidenceCount: number;
+  ticketsWithLegacyOnly: string[];
+  ticketsWithDomainOnly: string[];
+  ticketsWithCountMismatch: string[];
+}
+
+export interface D2ReplaySummary {
+  ticketCount: number;
+  totalEvents: number;
+  correlationCoverage: number;
+  replayHash: string;
 }
 
 interface TicketRow {
@@ -717,7 +734,30 @@ export class TicketStoreRepository
       return [];
     }
 
-    const rows = (
+    const canonicalRows = (
+      ticketId
+        ? this.getDatabase()
+            .prepare(
+              `select id, ticket_id, event_type, details, evidence_json, correlation_id, legacy_event_id, created_at
+               from domain_events
+               where ticket_id = ?
+               order by created_at asc, id asc`
+            )
+            .all(ticketId)
+        : this.getDatabase()
+            .prepare(
+              `select id, ticket_id, event_type, details, evidence_json, correlation_id, legacy_event_id, created_at
+               from domain_events
+               order by created_at asc, id asc`
+            )
+            .all()
+    ) as unknown as DomainEventRow[];
+
+    if (canonicalRows.length > 0) {
+      return canonicalRows.map((row) => this.mapDomainEventRow(row));
+    }
+
+    const legacyRows = (
       ticketId
         ? this.getDatabase()
             .prepare(
@@ -736,7 +776,7 @@ export class TicketStoreRepository
             .all()
     ) as unknown as TicketEventRow[];
 
-    return rows.map((row) => this.mapEventRow(row));
+              return legacyRows.map((row) => this.mapEventRow(row));
   }
 
   async listRecentEvents(options: RecentEventQuery = {}): Promise<TaskEvent[]> {
@@ -747,7 +787,32 @@ export class TicketStoreRepository
     }
 
     const limit = clampPositiveInteger(options.limit ?? 50, 1, 1000);
-    const rows = (
+    const canonicalRows = (
+      options.ticketId
+        ? this.getDatabase()
+            .prepare(
+              `select id, ticket_id, event_type, details, evidence_json, correlation_id, legacy_event_id, created_at
+               from domain_events
+               where ticket_id = ?
+               order by created_at desc, id desc
+               limit ?`
+            )
+            .all(options.ticketId, limit)
+        : this.getDatabase()
+            .prepare(
+              `select id, ticket_id, event_type, details, evidence_json, correlation_id, legacy_event_id, created_at
+               from domain_events
+               order by created_at desc, id desc
+               limit ?`
+            )
+            .all(limit)
+    ) as unknown as DomainEventRow[];
+
+    if (canonicalRows.length > 0) {
+      return canonicalRows.map((row) => this.mapDomainEventRow(row));
+    }
+
+    const legacyRows = (
       options.ticketId
         ? this.getDatabase()
             .prepare(
@@ -768,7 +833,7 @@ export class TicketStoreRepository
             .all(limit)
     ) as unknown as TicketEventRow[];
 
-    return rows.map((row) => this.mapEventRow(row));
+              return legacyRows.map((row) => this.mapEventRow(row));
   }
 
   async getLatestEventTimestamp(eventType?: TaskEvent['type']): Promise<Date | undefined> {
@@ -778,7 +843,21 @@ export class TicketStoreRepository
       return undefined;
     }
 
-    const row = (
+    const canonicalRow = (
+      eventType
+        ? this.getDatabase()
+            .prepare('select max(created_at) as latest_created_at from domain_events where event_type = ?')
+            .get(eventType)
+        : this.getDatabase()
+            .prepare('select max(created_at) as latest_created_at from domain_events')
+            .get()
+    ) as { latest_created_at: string | null } | undefined;
+
+    if (canonicalRow?.latest_created_at) {
+      return new Date(canonicalRow.latest_created_at);
+    }
+
+    const legacyRow = (
       eventType
         ? this.getDatabase()
             .prepare('select max(created_at) as latest_created_at from ticket_events where event_type = ?')
@@ -788,7 +867,174 @@ export class TicketStoreRepository
             .get()
     ) as { latest_created_at: string | null } | undefined;
 
-    return row?.latest_created_at ? new Date(row.latest_created_at) : undefined;
+    return legacyRow?.latest_created_at ? new Date(legacyRow.latest_created_at) : undefined;
+  }
+
+  async getD2EventSpineSnapshot(): Promise<D2EventSpineSnapshot> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      return {
+        legacyEventCount: 0,
+        domainEventCount: 0,
+        domainEventsWithLegacyLink: 0,
+        eventEvidenceCount: 0,
+        ticketsWithLegacyOnly: [],
+        ticketsWithDomainOnly: [],
+        ticketsWithCountMismatch: [],
+      };
+    }
+
+    const db = this.getDatabase();
+    const legacyEventCount = Number(
+      (db.prepare('select count(*) as count from ticket_events').get() as { count: number }).count
+    );
+    const domainEventCount = Number(
+      (db.prepare('select count(*) as count from domain_events').get() as { count: number }).count
+    );
+    const domainEventsWithLegacyLink = Number(
+      (
+        db
+          .prepare('select count(*) as count from domain_events where legacy_event_id is not null')
+          .get() as { count: number }
+      ).count
+    );
+    const eventEvidenceCount = Number(
+      (db.prepare('select count(*) as count from event_evidence').get() as { count: number }).count
+    );
+
+    const legacyCounts = db
+      .prepare('select ticket_id, count(*) as count from ticket_events group by ticket_id')
+      .all() as Array<{ ticket_id: string; count: number }>;
+    const domainCounts = db
+      .prepare('select ticket_id, count(*) as count from domain_events group by ticket_id')
+      .all() as Array<{ ticket_id: string; count: number }>;
+
+    const legacyByTicket = new Map(legacyCounts.map((row) => [row.ticket_id, Number(row.count)]));
+    const domainByTicket = new Map(domainCounts.map((row) => [row.ticket_id, Number(row.count)]));
+
+    const ticketsWithLegacyOnly = [...legacyByTicket.keys()]
+      .filter((ticketId) => !domainByTicket.has(ticketId))
+      .sort();
+    const ticketsWithDomainOnly = [...domainByTicket.keys()]
+      .filter((ticketId) => !legacyByTicket.has(ticketId))
+      .sort();
+
+    const ticketsWithCountMismatch = [...legacyByTicket.keys()]
+      .filter((ticketId) => domainByTicket.has(ticketId))
+      .filter((ticketId) => legacyByTicket.get(ticketId) !== domainByTicket.get(ticketId))
+      .sort();
+
+    return {
+      legacyEventCount,
+      domainEventCount,
+      domainEventsWithLegacyLink,
+      eventEvidenceCount,
+      ticketsWithLegacyOnly,
+      ticketsWithDomainOnly,
+      ticketsWithCountMismatch,
+    };
+  }
+
+  async getD2ReplaySummary(): Promise<D2ReplaySummary> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      return {
+        ticketCount: 0,
+        totalEvents: 0,
+        correlationCoverage: 1,
+        replayHash: createHash('sha256').update('[]').digest('hex'),
+      };
+    }
+
+    const rows = this.getDatabase()
+      .prepare(
+        `select ticket_id, event_type, details, evidence_json, correlation_id, created_at
+         from domain_events
+         order by ticket_id asc, created_at asc, id asc`
+      )
+      .all() as unknown as Array<{
+      ticket_id: string;
+      event_type: TaskEvent['type'];
+      details: string | null;
+      evidence_json: string | null;
+      correlation_id: string | null;
+      created_at: string;
+    }>;
+
+    if (rows.length === 0) {
+      return {
+        ticketCount: 0,
+        totalEvents: 0,
+        correlationCoverage: 1,
+        replayHash: createHash('sha256').update('[]').digest('hex'),
+      };
+    }
+
+    const perTicket = new Map<
+      string,
+      {
+        eventCount: number;
+        firstCreatedAt: string;
+        lastCreatedAt: string;
+        correlationEventCount: number;
+        eventTypes: Record<string, number>;
+      }
+    >();
+
+    let correlationEventCount = 0;
+    for (const row of rows) {
+      let entry = perTicket.get(row.ticket_id);
+      if (!entry) {
+        entry = {
+          eventCount: 0,
+          firstCreatedAt: row.created_at,
+          lastCreatedAt: row.created_at,
+          correlationEventCount: 0,
+          eventTypes: {},
+        };
+        perTicket.set(row.ticket_id, entry);
+      }
+
+      entry.eventCount += 1;
+      if (row.created_at < entry.firstCreatedAt) {
+        entry.firstCreatedAt = row.created_at;
+      }
+      if (row.created_at > entry.lastCreatedAt) {
+        entry.lastCreatedAt = row.created_at;
+      }
+
+      const eventTypeKey = row.event_type;
+      entry.eventTypes[eventTypeKey] = (entry.eventTypes[eventTypeKey] ?? 0) + 1;
+
+      if (row.correlation_id && row.correlation_id.trim().length > 0) {
+        entry.correlationEventCount += 1;
+        correlationEventCount += 1;
+      }
+    }
+
+    const replayView = [...perTicket.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([ticketId, entry]) => ({
+        ticketId,
+        eventCount: entry.eventCount,
+        firstCreatedAt: entry.firstCreatedAt,
+        lastCreatedAt: entry.lastCreatedAt,
+        correlationEventCount: entry.correlationEventCount,
+        eventTypes: Object.entries(entry.eventTypes)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([type, count]) => ({ type, count })),
+      }));
+
+    const replayHash = createHash('sha256').update(JSON.stringify(replayView)).digest('hex');
+
+    return {
+      ticketCount: replayView.length,
+      totalEvents: rows.length,
+      correlationCoverage: Number((correlationEventCount / rows.length).toFixed(6)),
+      replayHash,
+    };
   }
 
   async retryTicket(
@@ -1732,6 +1978,10 @@ export class TicketStoreRepository
         create index if not exists idx_domain_events_type_created
           on domain_events(event_type, created_at);
 
+        create unique index if not exists idx_domain_events_legacy_event_id
+          on domain_events(legacy_event_id)
+          where legacy_event_id is not null;
+
         create table if not exists event_evidence (
           id integer primary key autoincrement,
           domain_event_id text not null,
@@ -1746,6 +1996,9 @@ export class TicketStoreRepository
 
         create index if not exists idx_event_evidence_ticket_created
           on event_evidence(ticket_id, created_at);
+
+        create unique index if not exists idx_event_evidence_event_key
+          on event_evidence(domain_event_id, evidence_key);
 
         create table if not exists ticket_attempts (
           id text primary key,
@@ -1889,6 +2142,10 @@ export class TicketStoreRepository
       create index if not exists idx_domain_events_type_created
         on domain_events(event_type, created_at);
 
+      create unique index if not exists idx_domain_events_legacy_event_id
+        on domain_events(legacy_event_id)
+        where legacy_event_id is not null;
+
       create table if not exists event_evidence (
         id integer primary key autoincrement,
         domain_event_id text not null,
@@ -1903,6 +2160,9 @@ export class TicketStoreRepository
 
       create index if not exists idx_event_evidence_ticket_created
         on event_evidence(ticket_id, created_at);
+
+      create unique index if not exists idx_event_evidence_event_key
+        on event_evidence(domain_event_id, evidence_key);
     `);
 
     const attemptColumns = db.prepare('pragma table_info(ticket_attempts)').all() as Array<{ name: string }>;
@@ -1959,6 +2219,78 @@ export class TicketStoreRepository
       'add canonical domain_events stream and event_evidence rows',
       new Date().toISOString()
     );
+
+    this.backfillDomainEventsFromLegacy();
+    this.backfillEventEvidenceFromDomainEvents();
+  }
+
+  private backfillDomainEventsFromLegacy(): void {
+    const db = this.getDatabase();
+    db.prepare(
+      `insert into domain_events (
+         id,
+         ticket_id,
+         event_type,
+         details,
+         evidence_json,
+         correlation_id,
+         legacy_event_id,
+         created_at
+       )
+       select
+         'legacy_event_' || printf('%012d', te.id),
+         te.ticket_id,
+         te.event_type,
+         te.details,
+         te.evidence_json,
+         te.correlation_id,
+         te.id,
+         te.created_at
+       from ticket_events te
+       left join domain_events de on de.legacy_event_id = te.id
+       where de.id is null
+       order by te.id asc`
+    ).run();
+  }
+
+  private backfillEventEvidenceFromDomainEvents(): void {
+    const db = this.getDatabase();
+    const rows = db
+      .prepare(
+        `select id, ticket_id, event_type, details, evidence_json, correlation_id, legacy_event_id, created_at
+         from domain_events
+         where evidence_json is not null
+         order by created_at asc, id asc`
+      )
+      .all() as unknown as DomainEventRow[];
+
+    if (rows.length === 0) {
+      return;
+    }
+
+    const insertEvidence = db.prepare(
+      `insert or ignore into event_evidence (
+         domain_event_id,
+         ticket_id,
+         evidence_key,
+         evidence_value_json,
+         created_at
+       )
+       values (?, ?, ?, ?, ?)`
+    );
+
+    for (const event of rows) {
+      const evidenceRows = toEventEvidenceRows(event);
+      for (const row of evidenceRows) {
+        insertEvidence.run(
+          row.domain_event_id,
+          row.ticket_id,
+          row.evidence_key,
+          row.evidence_value_json,
+          row.created_at
+        );
+      }
+    }
   }
 
   private recoverStaleActiveTickets(): number {
@@ -2458,6 +2790,17 @@ export class TicketStoreRepository
   }
 
   private mapEventRow(row: TicketEventRow): TaskEvent {
+    return {
+      ticketId: row.ticket_id,
+      type: row.event_type,
+      details: row.details ?? undefined,
+      evidence: parseEventEvidence(row.evidence_json),
+      correlationId: row.correlation_id ?? undefined,
+      createdAt: new Date(row.created_at),
+    };
+  }
+
+  private mapDomainEventRow(row: DomainEventRow): TaskEvent {
     return {
       ticketId: row.ticket_id,
       type: row.event_type,
