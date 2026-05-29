@@ -1,0 +1,195 @@
+Research Libraries Beside the Code: Why AI Engineering Projects Should Keep a Curated Local Literature Base
+
+1. Introduction
+
+An AI engineering project is not just a body of code. It is also a body of
+decisions: what the system is allowed to do, what it must explain, when it must
+stop, how it must recover, and what kinds of evidence are strong enough to
+justify autonomous action. In a project like Hephaestus, these questions are not
+secondary. They are the substance of the system.
+
+Because of that, keeping a curated research library in the same working space as
+the program under development is not academic decoration. It is a practical form
+of engineering infrastructure. The library functions as a memory system for
+design judgment. It preserves important concepts, keeps architectural arguments
+stable across implementation phases, and makes it harder for the project to
+drift into ad hoc reasoning when pressure rises.
+
+This paper argues that a colocated research library is a net benefit for AI
+engineering projects, provided the library is curated, lawful, and actively tied
+to system design rather than accumulated as inert reading material.
+
+2. The Problem: AI Engineering Repeats High-Consequences Design Questions
+
+Traditional software projects often revisit design questions, but AI engineering
+projects revisit them under more unstable conditions. The system may contain:
+
+- probabilistic planning
+- autonomous or semi-autonomous mutation behavior
+- approval and escalation boundaries
+- runtime safety checks
+- operator-facing control planes
+- post-hoc evidence and audit requirements
+
+These concerns create recurring questions:
+
+- When should the system act on its own?
+- When should it require approval?
+- What evidence is enough to regard an action as verified?
+- How should operator trust be calibrated?
+- How should recovery behave after a partial failure?
+- What architecture best separates policy from mechanism?
+
+Without a research library, these questions are repeatedly answered from memory,
+taste, or momentum. That produces architectural drift. The project begins with a
+careful model of autonomy and oversight, but over time decisions become local,
+situational, and inconsistent. A curated research library counters that drift by
+placing stable intellectual anchors next to the working code.
+
+3. Why the Library Should Live Near the Program
+
+The important phrase is not merely "have a bibliography." It is "have the
+library in the same space as the program in development."
+
+That proximity matters for several reasons.
+
+First, it lowers retrieval cost. The design literature is present when an
+engineer is already looking at the architecture, runtime, notes, tests, and
+roadmap. The friction to consult it becomes low enough that people actually use
+it.
+
+Second, it keeps the library project-specific. A generic Zotero database or web
+bookmark folder may contain good papers, but it does not tell the team which
+sources matter for this exact system. A colocated library can say: this paper is
+relevant to D2 event replay, this one is relevant to approval workflow design,
+this one informs repository-scale agent planning.
+
+Third, it allows the research artifacts to evolve with the code. The notes can
+be updated when a design question becomes sharper. They can cross-reference
+blueprint phases, ADRs, tests, and implementation modules. The literature then
+becomes part of the design substrate rather than a detached archive.
+
+4. Benefits of a Local Research Library
+
+4.1 Architectural consistency
+
+The library reduces the chance that major design questions are answered in a new
+and incompatible way every month. If the team has already grounded event replay,
+operator oversight, or automation trust in a known set of papers, future changes
+can inherit that reasoning instead of reopening it from scratch.
+
+4.2 Better design speed
+
+The point is not to slow implementation. The point is to avoid paying the same
+design cost repeatedly. A well-kept library shortens future arguments. It gives
+the team reusable frames, vocabulary, and tradeoff references.
+
+4.3 Better operator and safety thinking
+
+AI systems often fail not only because of algorithmic errors, but because the
+human control model is badly designed. Papers on situation awareness, trust in
+automation, and joint human-agent activity are not abstract luxuries here; they
+help decide how the control plane should behave, when approvals should be
+required, and how a system should communicate uncertainty or blocked action.
+
+4.4 Stronger audit and evidence models
+
+For systems like Hephaestus, evidence is an engineering concern. Event streams,
+replay, immutable records, projections, and transaction semantics are easier to
+design well when the underlying research is easily available and interpreted in
+project terms.
+
+4.5 Better onboarding for future contributors
+
+A new contributor can read code, but code does not always explain why the system
+was built this way. A research library with notes can show not only what the
+system does, but what conceptual pressures shaped it. That improves coherence
+across time.
+
+5. Costs and Risks
+
+The costs are real, but modest.
+
+The first cost is storage, but this is usually the least important one. Notes
+are tiny. A focused PDF library is also manageable on modern disks unless the
+project becomes indiscriminate.
+
+The larger risks are different.
+
+The first real risk is clutter. If the library becomes an uncurated pile of
+papers, it stops helping. Engineers will stop trusting it because it no longer
+signals priority.
+
+The second risk is staleness. A paper may remain on disk long after it stops
+shaping decisions. Without curation, the library becomes a graveyard of once-good
+ideas.
+
+The third risk is legal sloppiness. A project should not store unauthorized
+copies of copyrighted papers simply because local access is convenient. Lawful
+copies, open-access PDFs, citations, and local notes are the correct model.
+
+The fourth risk is performative scholarship. If the library exists only to look
+serious, but no design note, ADR, or implementation decision ever refers to it,
+then it is overhead, not infrastructure.
+
+6. Conditions Under Which the Library Is a Benefit
+
+The library is a net benefit when the following conditions hold.
+
+First, it is curated around active design questions. The library should answer:
+what is this project trying to decide now?
+
+Second, every important source should have a short project-specific note. The
+team should not rely on the PDF alone. The note should translate the paper into
+Hephaestus language.
+
+Third, the library should track active versus deferred sources. This prevents the
+active design base from becoming too large to use.
+
+Fourth, the library should be wired into architecture work. ADRs, blueprints,
+notes, and implementation reviews should cite the library when it informs a
+decision.
+
+Fifth, the project should distinguish clearly between link-only, note-backed, and
+fully stocked sources. Not every paper deserves a local copy.
+
+7. Recommended Policy for Hephaestus
+
+For Hephaestus, the right policy is a three-level model.
+
+Level 1: Citation and link.
+This is the minimum for any relevant source.
+
+Level 2: Citation, link, and local note.
+This should be the minimum standard for any source that informs active design
+work, even if a PDF cannot be stored locally.
+
+Level 3: Citation, link, lawful local copy, and local note.
+This should be reserved for the sources the project expects to revisit repeatedly
+across multiple phases.
+
+This model keeps the library useful without turning it into a dumping ground.
+
+8. Implications for AI Engineering More Broadly
+
+The argument extends beyond Hephaestus. AI engineering projects often mix
+software architecture, safety engineering, human factors, evaluation design, and
+tool-mediated autonomy. These are multidisciplinary systems. A colocated
+research library acknowledges that the design burden cannot be carried by source
+code alone.
+
+If a project is building autonomous or semi-autonomous behavior, the nearby
+presence of research is not a distraction from engineering rigor. It is one way
+to preserve rigor.
+
+9. Conclusion
+
+Keeping research papers and research notes in the same space as the program under
+development is beneficial for AI engineering when the library is curated and tied
+to actual design work. The value comes less from possession than from disciplined
+reuse. The right library is not a large archive. It is a compact, project-shaped
+body of references that shortens future design arguments, stabilizes reasoning,
+and keeps architectural decisions anchored in prior thought.
+
+In that form, the research library is not a hindrance. It is part of the system's
+engineering memory.
