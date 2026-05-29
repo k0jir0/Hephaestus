@@ -43,7 +43,17 @@ const commandCatalog: readonly CommandCatalogEntry[] = [
   npmCatalogEntry('npm.run.preflight', ['run', 'preflight'], 'Run preflight admission and health checks.'),
   npmCatalogEntry('npm.run.start-once', ['run', 'start:once'], 'Run one bounded agent pass.'),
   npmCatalogEntry('npm.run.tickets', ['run', 'tickets'], 'Run ticket CLI workflows.'),
+  npmCatalogEntry('npm.run.tickets.review-wave', ['run', 'tickets', '--', 'review-wave'], 'Review the next ticket wave without admitting unsafe work.'),
   npmCatalogEntry('npm.run.lint', ['run', 'lint'], 'Run static lint checks.'),
+  npmCatalogEntry('npm.run.models-report', ['run', 'models:report'], 'Report local model inventory and recommendations.'),
+  npmCatalogEntry('npm.run.models-smoke', ['run', 'models:smoke'], 'Run a model backend smoke check.'),
+  npmCatalogEntry('npm.run.models-benchmark', ['run', 'models:benchmark'], 'Run the model benchmark harness.'),
+  npmCatalogEntry('npm.run.models-recommend', ['run', 'models:recommend'], 'Recommend a local model for Hephaestus work.'),
+  npmCatalogEntry('npm.run.models-promote', ['run', 'models:promote'], 'Promote the selected local model profile.'),
+  npmCatalogEntry('npm.run.models-warmup', ['run', 'models:warmup'], 'Warm up configured local models.'),
+  npmCatalogEntry('npm.run.publish-reliability', ['run', 'publish:reliability'], 'Publish reliability harness evidence.'),
+  npmCatalogEntry('npm.run.metrics-efficiency', ['run', 'metrics:efficiency'], 'Generate efficiency metrics.'),
+  npmCatalogEntry('npm.run.metrics-efficiency-weekly', ['run', 'metrics:efficiency:weekly'], 'Generate weekly efficiency metrics.'),
 ];
 
 const catalogById = new Map(commandCatalog.map((entry) => [entry.id, entry]));
@@ -89,5 +99,12 @@ export function buildCommandCatalogPolicySnapshot(): ToolPolicyCommandCatalogEnt
         args: [...entry.platforms.win32.args],
       },
     },
+  }));
+}
+
+export function buildCommandCatalogAllowlistEntries(): CommandCatalogMapping[] {
+  return commandCatalog.map((entry) => ({
+    command: entry.command,
+    args: [...entry.args],
   }));
 }

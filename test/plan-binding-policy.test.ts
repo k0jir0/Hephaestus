@@ -134,7 +134,7 @@ describe('plan binding policy', () => {
         policySnapshot: makePolicySnapshot(),
       }),
       [
-        '[admission_demo] command.repair npm run strange-test: denied by allowlist. Allowed commands include: npm run lint, npm test. Planned commands: npm.test => npm test -- test/runtime.test.ts. Rewrite with an allowlisted verification command or escalate.',
+        '[admission_demo] command.repair npm run strange-test: denied by allowlist. Allowed commands include: npm run lint, npm test. Command catalog IDs include: npm.test => npm test, npm.run.test => npm run test, npm.run.build => npm run build, npm.run.validate-config => npm run validate:config, npm.run.preflight => npm run preflight, npm.run.start-once => npm run start:once, npm.run.tickets => npm run tickets, npm.run.tickets.review-wave => npm run tickets -- review-wave. Planned commands: npm.test => npm test -- test/runtime.test.ts. Rewrite with an allowlisted commandId or escalate.',
       ]
     );
     assert.deepEqual(

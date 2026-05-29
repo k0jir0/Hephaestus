@@ -157,11 +157,15 @@ export function buildCommandRepairArtifacts(input: CommandRepairArtifactInput): 
 
   if (input.result.reasonCode === 'command-not-allowlisted') {
     const allowlisted = input.policySnapshot?.commandAllowlist.slice(0, 8).join(', ') ?? 'none';
+    const catalogIds = input.policySnapshot?.commandCatalog
+      .slice(0, 8)
+      .map((entry) => `${entry.id} => ${formatCommandInvocation(entry.command, entry.args)}`)
+      .join(', ') ?? 'none';
     const plannedCommands = input.plan?.commands
       .map((entry) => (entry.commandId ? `${entry.commandId} => ${entry.command}` : entry.command))
       .join(', ') ?? 'none';
     artifacts.push(
-      `[${input.correlationId}] command.repair ${input.command}: denied by allowlist. Allowed commands include: ${allowlisted}. Planned commands: ${plannedCommands}. Rewrite with an allowlisted verification command or escalate.`
+      `[${input.correlationId}] command.repair ${input.command}: denied by allowlist. Allowed commands include: ${allowlisted}. Command catalog IDs include: ${catalogIds}. Planned commands: ${plannedCommands}. Rewrite with an allowlisted commandId or escalate.`
     );
     return artifacts;
   }

@@ -4,7 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ToolRuntimeReadinessProbe } from './repositories.js';
 import type { EngineeringToolName, EngineeringToolResult, ToolPolicySnapshot } from './types.js';
-import { buildCommandCatalogPolicySnapshot } from './domain/policy/command-catalog-policy.js';
+import {
+  buildCommandCatalogAllowlistEntries,
+  buildCommandCatalogPolicySnapshot,
+} from './domain/policy/command-catalog-policy.js';
 
 type ToolRequest =
   | RepoSearchRequest
@@ -92,27 +95,10 @@ const defaultProtectedPathPrefixes = [
 ];
 
 const defaultCommandAllowlist: CommandAllowlistEntry[] = [
-  { command: 'npm', args: ['test'] },
-  { command: 'npm', args: ['run', 'test'] },
+  ...buildCommandCatalogAllowlistEntries(),
   { command: 'npm', args: ['test', '--', '--testPathPattern=*'] },
   { command: 'npm', args: ['test', '--', '--select=*'] },
   { command: 'npm', args: ['test', '--', 'test/*'] },
-  { command: 'npm', args: ['run', 'lint'] },
-  { command: 'npm', args: ['run', 'build'] },
-  { command: 'npm', args: ['run', 'validate:config'] },
-  { command: 'npm', args: ['run', 'preflight'] },
-  { command: 'npm', args: ['run', 'start:once'] },
-  { command: 'npm', args: ['run', 'tickets'] },
-  { command: 'npm', args: ['run', 'models:report'] },
-  { command: 'npm', args: ['run', 'models:smoke'] },
-  { command: 'npm', args: ['run', 'models:benchmark'] },
-  { command: 'npm', args: ['run', 'models:recommend'] },
-  { command: 'npm', args: ['run', 'models:promote'] },
-  { command: 'npm', args: ['run', 'models:warmup'] },
-  { command: 'npm', args: ['run', 'publish:reliability'] },
-  { command: 'npm', args: ['run', 'metrics:efficiency'] },
-  { command: 'npm', args: ['run', 'metrics:efficiency:weekly'] },
-  { command: 'npm', args: ['run', 'tickets', '--', 'review-wave'] },
   { command: 'node', args: ['scripts/run-tests.mjs'] },
   { command: 'node_modules/.bin/tsc', args: ['--noEmit'] },
   { command: 'node_modules\\.bin\\tsc.cmd', args: ['--noEmit'] },

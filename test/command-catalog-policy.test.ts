@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  buildCommandCatalogAllowlistEntries,
   buildCommandCatalogPolicySnapshot,
   resolveCommandCatalogEntryForPlatform,
 } from '../src/domain/policy/command-catalog-policy.js';
@@ -24,5 +25,12 @@ describe('command catalog policy', () => {
     assert.equal(lintEntry?.purpose, 'Run static lint checks.');
     assert.equal(lintEntry?.platforms.posix.command, 'npm');
     assert.equal(lintEntry?.platforms.win32.command, 'npm.cmd');
+  });
+
+  it('generates default npm allowlist entries from the catalog', () => {
+    const allowlist = buildCommandCatalogAllowlistEntries();
+
+    assert.ok(allowlist.some((entry) => entry.command === 'npm' && entry.args.join(' ') === 'run models:report'));
+    assert.ok(allowlist.some((entry) => entry.command === 'npm' && entry.args.join(' ') === 'run tickets -- review-wave'));
   });
 });
