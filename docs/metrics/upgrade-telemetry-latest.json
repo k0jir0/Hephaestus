@@ -1,17 +1,17 @@
 {
-  "timestamp": "2026-05-29T04:07:12.015Z",
+  "timestamp": "2026-05-30T00:28:43.166Z",
   "queue": {
-    "total": 228,
+    "total": 316,
     "pending": 0,
     "inProgress": 0,
     "awaitingApproval": 0,
-    "blocked": 0,
+    "blocked": 38,
     "failed": 0,
-    "stale": 0,
-    "completed": 41,
+    "stale": 1,
+    "completed": 83,
     "superseded": 177,
-    "cancelled": 10,
-    "queuePressureIndex": 0
+    "cancelled": 17,
+    "queuePressureIndex": 0.099
   },
   "pendingAgeHours": {
     "p50": 0,
@@ -21,31 +21,42 @@
     "sampleCount": 0
   },
   "execution": {
-    "attempts": 113,
-    "attemptsPerTicket": 0.496,
-    "retryRate": 0.083,
-    "startedLast24h": 45,
-    "completedLast24h": 13,
+    "attempts": 208,
+    "attemptsPerTicket": 0.658,
+    "retryRate": 0.082,
+    "startedLast24h": 117,
+    "completedLast24h": 49,
     "admissionToStartMs": {
-      "p50": 71379,
-      "p95": 9992303,
+      "p50": 483140,
+      "p95": 3715731,
       "max": 101983060,
-      "average": 4251883.403,
-      "sampleCount": 62
+      "average": 2260559.22,
+      "sampleCount": 150
     }
   },
   "churn": {
-    "terminalCount": 228,
-    "supersededRate": 0.776,
-    "cancelledRate": 0.044,
-    "supersededToCompletedRatio": 4.317
+    "terminalCount": 277,
+    "supersededRate": 0.639,
+    "cancelledRate": 0.061,
+    "supersededToCompletedRatio": 2.133
   },
   "policy": {
-    "allowlistDenialCount": 36,
-    "allowlistDenialRate": 0.319,
+    "allowlistDenialCount": 45,
+    "allowlistDenialRate": 0.216,
+    "commandCallCount": 156,
+    "commandIdCallCount": 0,
+    "rawCommandCallCount": 156,
+    "commandIdUsageRate": 0,
+    "allowlistCommandDenialCount": 42,
+    "allowlistCommandDenialRate": 0.269,
+    "topCommandIds": [],
     "topFailureBuckets": [
       {
         "bucket": "command is not allowlisted",
+        "count": 37
+      },
+      {
+        "bucket": "unsupported task envelope",
         "count": 33
       },
       {
@@ -53,24 +64,64 @@
         "count": 16
       },
       {
-        "bucket": "unsupported task envelope",
-        "count": 10
+        "bucket": "recovered stale active ticket after a previous daemon exited before fini",
+        "count": 11
+      },
+      {
+        "bucket": "file",
+        "count": 11
       },
       {
         "bucket": "command failed",
         "count": 9
       },
       {
-        "bucket": "recovered stale active ticket after a previous daemon exited before fini",
-        "count": 9
+        "bucket": "recovered orphaned active attempt before starting a new attempt",
+        "count": 5
+      }
+    ]
+  },
+  "rootCauses": {
+    "topDenyReasons": [
+      {
+        "bucket": "command is not allowlisted",
+        "count": 37
       },
       {
-        "bucket": "file",
-        "count": 4
+        "bucket": "command failed",
+        "count": 3
+      },
+      {
+        "bucket": "file read target docs/metrics/qwen-wave/w1-ticket-03-allowlist-command-s",
+        "count": 1
+      }
+    ],
+    "topSupersedeReasons": [
+      {
+        "bucket": "implemented in consolidated telemetry-first execution wave (upgrade-tele",
+        "count": 128
+      },
+      {
+        "bucket": "processed in replay",
+        "count": 10
+      },
+      {
+        "bucket": "implemented in code during roadmap execution",
+        "count": 5
+      }
+    ],
+    "topRetryReasons": [
+      {
+        "bucket": "deferred in remediation-first wave",
+        "count": 3
       },
       {
         "bucket": "implemented by stop_all",
         "count": 2
+      },
+      {
+        "bucket": "testing ticket from cli planned files",
+        "count": 1
       }
     ]
   },
@@ -81,7 +132,7 @@
     "queuePressureIndexMax": 0.65
   },
   "alerts": [
-    "superseded-rate-high:0.776",
-    "allowlist-denial-rate-high:0.319"
+    "superseded-rate-high:0.639",
+    "allowlist-denial-rate-high:0.216"
   ]
 }

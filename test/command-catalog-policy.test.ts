@@ -32,5 +32,6 @@ describe('command catalog policy', () => {
 
     assert.ok(allowlist.some((entry) => entry.command === 'npm' && entry.args.join(' ') === 'run models:report'));
     assert.ok(allowlist.some((entry) => entry.command === 'npm' && entry.args.join(' ') === 'run tickets -- review-wave'));
+    assert.ok(allowlist.some((entry) => entry.command === 'npm' && entry.args.join(' ') === 'run metrics:upgrade-telemetry'));
   });
 });

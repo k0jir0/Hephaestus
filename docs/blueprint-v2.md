@@ -641,12 +641,34 @@ Deliverables:
 - policy-generated prompt instructions
 - policy snapshot per attempt
 - pre-execution rejection of unknown command IDs
+- command ID usage and allowlist-denial telemetry per attempt
 
 Exit criteria:
 
 - models select command IDs for verification
+- command ID usage rate is reported in upgrade telemetry
 - allowlist denials become a policy or ticket-quality problem, not a shell
   string problem
+
+Current implementation status (2026-05-29):
+
+- command catalog policy module is live with stable command IDs and
+  platform-specific mappings.
+- structured planning contract accepts `commandId` and resolves
+  commandId-only commands through the catalog.
+- runtime rejects unknown command IDs before execution in both plan prelude and
+  governed `command.run` tool calls.
+- plan binding accepts catalog IDs and emits explicit unknown-ID denials.
+- command telemetry captures command ID usage and allowlist denial evidence per
+  attempt and flows into upgrade telemetry snapshots.
+
+D3 closure complete:
+
+- D3 command catalog and command-ID runtime enforcement are implemented.
+- command-ID usage and allowlist-denial metrics are published via
+  `npm run metrics:upgrade-telemetry`.
+- D2 regression gate remains passing after D3 changes
+  (`npm run metrics:d2:verify`).
 
 Library anchors:
 

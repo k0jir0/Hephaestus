@@ -732,6 +732,7 @@ describe('HephaestusRuntime', () => {
     assert.ok(calls.artifacts.some((artifact) => /file\.read README\.md -> success/.test(artifact)));
     assert.ok(calls.artifacts.some((artifact) => /deferred-mutation update src\/runtime\.ts/.test(artifact)));
     assert.ok(calls.artifacts.some((artifact) => /command\.run npm test -> success/.test(artifact)));
+    assert.ok(calls.artifacts.some((artifact) => /command\.telemetry .*"rawCommandCallCount":1/.test(artifact)));
     assert.ok(calls.artifacts.some((artifact) => /backend\.ollama model=/.test(artifact)));
   });
 
@@ -959,6 +960,7 @@ describe('HephaestusRuntime', () => {
     assert.equal(calls.completed, 0);
     assert.equal(calls.blocked, 1);
     assert.ok(calls.artifacts.some((artifact) => /Command ID unknown\.command\.id is not defined/.test(artifact)));
+    assert.ok(calls.artifacts.some((artifact) => /command\.telemetry .*"commandIdCallCount":1/.test(artifact)));
   });
 
   it('executes low-risk patch tool calls through dry-run and apply with persisted policy artifacts', async () => {

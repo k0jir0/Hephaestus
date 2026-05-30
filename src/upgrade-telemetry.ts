@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { summarizeCommandTelemetryFromAttempts } from './domain/policy/command-telemetry.js';
 import { TicketStoreRepository } from './task-store.js';
 import type { TaskAttempt, TaskStatus, TaskTicket } from './types.js';
 
@@ -45,6 +46,13 @@ interface UpgradeTelemetrySnapshot {
   policy: {
     allowlistDenialCount: number;
     allowlistDenialRate: number;
+    commandCallCount: number;
+    commandIdCallCount: number;
+    rawCommandCallCount: number;
+    commandIdUsageRate: number;
+    allowlistCommandDenialCount: number;
+    allowlistCommandDenialRate: number;
+    topCommandIds: Array<{ commandId: string; count: number }>;
     topFailureBuckets: Array<{ bucket: string; count: number }>;
   };
   rootCauses: {
@@ -166,7 +174,6 @@ export function buildUpgradeTelemetrySnapshot(input: {
   const terminalCount = tickets.filter((ticket) => terminalStatuses.has(ticket.status)).length;
 
   const failureBuckets = new Map<string, number>();
-  let allowlistDenialCount = 0;
   for (const attempt of attempts) {
     if (!attempt.error) {
       continue;
@@ -174,10 +181,6 @@ export function buildUpgradeTelemetrySnapshot(input: {
 
     const bucket = normalizeFailureBucket(attempt.error);
     failureBuckets.set(bucket, (failureBuckets.get(bucket) ?? 0) + 1);
-
-    if (/allowlist|allowlisted/i.test(attempt.error)) {
-      allowlistDenialCount += 1;
-    }
   }
 
   const topFailureBuckets = [...failureBuckets.entries()]
@@ -207,6 +210,7 @@ export function buildUpgradeTelemetrySnapshot(input: {
     (pending + inProgress * 1.4 + awaitingApproval * 1.15 + blocked * 0.8 + failed * 0.8 + stale * 0.8) /
       Math.max(1, tickets.length)
   );
+  const commandTelemetry = summarizeCommandTelemetryFromAttempts(attempts);
 
   const snapshot: UpgradeTelemetrySnapshot = {
     timestamp: new Date(now).toISOString(),
@@ -239,8 +243,15 @@ export function buildUpgradeTelemetrySnapshot(input: {
       supersededToCompletedRatio: round(superseded / Math.max(1, completed)),
     },
     policy: {
-      allowlistDenialCount,
-      allowlistDenialRate: round(allowlistDenialCount / Math.max(1, attempts.length)),
+      allowlistDenialCount: commandTelemetry.allowlistDeniedAttemptCount,
+      allowlistDenialRate: commandTelemetry.allowlistDeniedAttemptRate,
+      commandCallCount: commandTelemetry.commandCallCount,
+      commandIdCallCount: commandTelemetry.commandIdCallCount,
+      rawCommandCallCount: commandTelemetry.rawCommandCallCount,
+      commandIdUsageRate: commandTelemetry.commandIdUsageRate,
+      allowlistCommandDenialCount: commandTelemetry.allowlistDenialCount,
+      allowlistCommandDenialRate: commandTelemetry.allowlistDenialRate,
+      topCommandIds: commandTelemetry.topCommandIds,
       topFailureBuckets,
     },
     rootCauses: {
@@ -311,6 +322,15 @@ function renderReport(snapshot: UpgradeTelemetrySnapshot): string {
     '## Policy',
     `- Allowlist denial count: ${snapshot.policy.allowlistDenialCount}`,
     `- Allowlist denial rate: ${snapshot.policy.allowlistDenialRate}`,
+    `- Command calls: ${snapshot.policy.commandCallCount}`,
+    `- Command ID calls: ${snapshot.policy.commandIdCallCount}`,
+    `- Raw command calls: ${snapshot.policy.rawCommandCallCount}`,
+    `- Command ID usage rate: ${snapshot.policy.commandIdUsageRate}`,
+    `- Allowlist command denial count: ${snapshot.policy.allowlistCommandDenialCount}`,
+    `- Allowlist command denial rate: ${snapshot.policy.allowlistCommandDenialRate}`,
+    ...(snapshot.policy.topCommandIds.length > 0
+      ? snapshot.policy.topCommandIds.map((entry) => `- Command ID ${entry.commandId}: ${entry.count}`)
+      : ['- Command IDs: none observed']),
     ...(snapshot.policy.topFailureBuckets.length > 0
       ? snapshot.policy.topFailureBuckets.map((entry) => `- Failure bucket ${entry.bucket}: ${entry.count}`)
       : ['- Failure buckets: none observed']),

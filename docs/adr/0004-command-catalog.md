@@ -1,6 +1,6 @@
 # ADR 0004: Command Catalog
 
-Status: Proposed
+Status: Accepted (Implemented)
 Date: 2026-05-29
 
 ## Context
@@ -45,10 +45,12 @@ enforcement, UI explanations, CLI repair hints, and tests.
 - Free-form commands become a higher-risk or approval-required path.
 - Verification command evidence can store stable command IDs.
 - The command catalog becomes part of the policy snapshot for every attempt.
+- Attempts record command ID usage and allowlist-denial telemetry so catalog
+  adoption is measurable.
 
 ## Follow-Up
 
-- Define initial command IDs for build, lint, test_all, targeted runtime tests,
-  model report, and metrics.
-- Update plan prompt generation to expose command IDs.
-- Reject unknown command IDs before execution.
+- Initial command IDs are defined for build, lint, tests, model diagnostics,
+  and metrics commands.
+- Plan prompt generation exposes command IDs from the catalog.
+- Runtime rejects unknown command IDs before execution.

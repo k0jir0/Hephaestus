@@ -58,7 +58,9 @@ describe('upgrade telemetry snapshot', () => {
         startedAt: new Date('2026-05-29T09:10:00.000Z'),
         endedAt: new Date('2026-05-29T09:20:00.000Z'),
         error: 'Command is not allowlisted: npm run weird',
-        artifacts: [],
+        artifacts: [
+          '[admission_1] command.telemetry {"commandCallCount":1,"commandIdCallCount":0,"rawCommandCallCount":1,"allowlistDenialCount":1,"commandIds":{},"commandIdUsageRate":0,"allowlistDenialRate":1}',
+        ],
       },
       {
         id: 'attempt_2',
@@ -68,7 +70,9 @@ describe('upgrade telemetry snapshot', () => {
         startedAt: new Date('2026-05-29T09:21:00.000Z'),
         endedAt: new Date('2026-05-29T09:40:00.000Z'),
         result: 'done',
-        artifacts: [],
+        artifacts: [
+          '[admission_2] command.telemetry {"commandCallCount":1,"commandIdCallCount":1,"rawCommandCallCount":0,"allowlistDenialCount":0,"commandIds":{"npm.test":1},"commandIdUsageRate":1,"allowlistDenialRate":0}',
+        ],
       },
     ];
 
@@ -79,6 +83,12 @@ describe('upgrade telemetry snapshot', () => {
     assert.equal(snapshot.churn.terminalCount, 2);
     assert.equal(snapshot.churn.supersededRate, 0.5);
     assert.equal(snapshot.policy.allowlistDenialCount, 1);
+    assert.equal(snapshot.policy.commandCallCount, 2);
+    assert.equal(snapshot.policy.commandIdCallCount, 1);
+    assert.equal(snapshot.policy.rawCommandCallCount, 1);
+    assert.equal(snapshot.policy.commandIdUsageRate, 0.5);
+    assert.equal(snapshot.policy.allowlistCommandDenialRate, 0.5);
+    assert.deepEqual(snapshot.policy.topCommandIds, [{ commandId: 'npm.test', count: 1 }]);
     assert.ok(snapshot.alerts.some((entry) => entry.startsWith('superseded-rate-high:')));
     assert.ok(snapshot.alerts.some((entry) => entry.startsWith('allowlist-denial-rate-high:')));
     assert.ok(snapshot.alerts.some((entry) => entry.startsWith('pending-age-p95-high:')));

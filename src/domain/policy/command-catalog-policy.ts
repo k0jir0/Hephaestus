@@ -54,6 +54,7 @@ const commandCatalog: readonly CommandCatalogEntry[] = [
   npmCatalogEntry('npm.run.publish-reliability', ['run', 'publish:reliability'], 'Publish reliability harness evidence.'),
   npmCatalogEntry('npm.run.metrics-efficiency', ['run', 'metrics:efficiency'], 'Generate efficiency metrics.'),
   npmCatalogEntry('npm.run.metrics-efficiency-weekly', ['run', 'metrics:efficiency:weekly'], 'Generate weekly efficiency metrics.'),
+  npmCatalogEntry('npm.run.metrics-upgrade-telemetry', ['run', 'metrics:upgrade-telemetry'], 'Generate D3 upgrade telemetry metrics.'),
 ];
 
 const catalogById = new Map(commandCatalog.map((entry) => [entry.id, entry]));

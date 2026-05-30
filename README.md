@@ -40,6 +40,26 @@ Since the last README update, D2 (Event and Evidence Spine) advanced with the fo
 
 Current D2 status: complete. D2 closure evidence artifacts are published, and strict runtime D2 gates remain opt-in by policy via `--enforce-d2`.
 
+## D3 Progress Snapshot (2026-05-29)
+
+Since the D2 closure pass, D3 (Policy and Command Catalog) advanced with the
+following implemented increments:
+
+- declarative command catalog policy with stable command IDs and platform
+    mappings
+- structured plan parsing support for `commandId` (including commandId-only
+    command entries)
+- policy-generated plan prompts that prefer command IDs and include catalog
+    guidance
+- pre-execution runtime rejection for unknown command IDs in both plan prelude
+    commands and governed `command.run` tool calls
+- command-id-aware plan binding and denial diagnostics
+- per-attempt command telemetry for command ID usage and allowlist denials,
+    integrated into upgrade telemetry reports
+
+Current D3 status: complete for command catalog and command-ID enforcement.
+Evidence is generated via `npm run metrics:upgrade-telemetry`.
+
 ## Validated Today (2026-05-29)
 
 Hephaestus was run on itself (`TARGET_PROJECT=.`) and validated end-to-end through both CLI and UI paths:

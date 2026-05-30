@@ -49,6 +49,12 @@ import {
 import {
   resolveCommandCatalogEntryForPlatform,
 } from './domain/policy/command-catalog-policy.js';
+import {
+  createCommandAttemptTelemetry,
+  formatCommandTelemetryArtifact,
+  recordCommandTelemetry,
+  type CommandAttemptTelemetry,
+} from './domain/policy/command-telemetry.js';
 import { formatCommandInvocation, parseCommandPlan } from './domain/plans/command-plan.js';
 import { buildApprovedResumeToolCalls } from './domain/tickets/approval-resume-policy.js';
 import { decideTaskCompletion } from './domain/tickets/completion-policy.js';
@@ -770,6 +776,13 @@ export class HephaestusRuntime {
 
     const artifacts: string[] = [];
     const observedMutatedPaths = new Set<string>();
+    const commandTelemetry = createCommandAttemptTelemetry();
+    const appendCommandTelemetryArtifact = (): void => {
+      const artifact = formatCommandTelemetryArtifact(correlationId, commandTelemetry);
+      if (artifact) {
+        artifacts.push(artifact);
+      }
+    };
 
     const policySnapshot = this.toolRuntime.getPolicySnapshot?.();
     if (policySnapshot) {
@@ -810,7 +823,9 @@ export class HephaestusRuntime {
           const catalogEntry = resolveCommandCatalogEntryForPlatform(commandPlan.commandId);
           if (!catalogEntry) {
             const reason = `Command ID ${commandPlan.commandId} is not defined in the command catalog.`;
+            recordCommandTelemetry(commandTelemetry, { commandId: commandPlan.commandId });
             artifacts.push(formatDeniedToolArtifact(correlationId, `command.id ${commandPlan.commandId}`, reason));
+            appendCommandTelemetryArtifact();
             return {
               artifacts,
               failureReason: reason,
@@ -823,6 +838,7 @@ export class HephaestusRuntime {
         }
 
         if (!parsedCommand) {
+          recordCommandTelemetry(commandTelemetry, { commandId: commandPlan.commandId });
           artifacts.push(
             formatDeniedToolArtifact(
               correlationId,
@@ -838,16 +854,25 @@ export class HephaestusRuntime {
           command: parsedCommand.command,
           args: parsedCommand.args,
         });
+        recordCommandTelemetry(commandTelemetry, {
+          commandId: commandPlan.commandId,
+          status: result.status,
+          reasonCode: result.reasonCode,
+        });
+        const subject = commandPlan.commandId
+          ? `${commandPlan.commandId} -> ${formatCommandInvocation(parsedCommand.command, parsedCommand.args)}`
+          : commandPlan.command;
         artifacts.push(
           formatToolExecutionArtifact({
             correlationId,
             tool: 'command.run',
-            subject: commandPlan.command,
+            subject,
             result,
           })
         );
 
         if (result.status === 'failure' || result.status === 'denied') {
+          appendCommandTelemetryArtifact();
           return {
             artifacts,
             failureReason: formatToolFailureReason(result),
@@ -857,13 +882,14 @@ export class HephaestusRuntime {
     }
 
     for (const [index, toolCall] of toolCalls.entries()) {
-      const execution = await this.executeGovernedToolCall(plan, toolCall, correlationId);
+      const execution = await this.executeGovernedToolCall(plan, toolCall, correlationId, commandTelemetry);
       artifacts.push(...execution.artifacts);
       for (const mutatedPath of execution.observedMutatedPaths ?? []) {
         observedMutatedPaths.add(mutatedPath);
       }
 
       if (execution.awaitingApprovalReason || execution.failureReason) {
+        appendCommandTelemetryArtifact();
         return {
           artifacts,
           observedMutatedPaths: Array.from(observedMutatedPaths),
@@ -874,6 +900,8 @@ export class HephaestusRuntime {
         };
       }
     }
+
+    appendCommandTelemetryArtifact();
 
     logger.info('Executed bounded plan tools', {
       ticketId: task.id,
@@ -890,7 +918,8 @@ export class HephaestusRuntime {
   private async executeGovernedToolCall(
     plan: TaskPlan | undefined,
     toolCall: ToolCall,
-    correlationId: string
+    correlationId: string,
+    commandTelemetry?: CommandAttemptTelemetry
   ): Promise<PlannedToolExecutionOutcome> {
     if (!this.toolRuntime.execute) {
       return { artifacts: [] };
@@ -1030,6 +1059,9 @@ export class HephaestusRuntime {
         if (commandId) {
           const catalogEntry = resolveCommandCatalogEntryForPlatform(commandId);
           if (!catalogEntry) {
+            if (commandTelemetry) {
+              recordCommandTelemetry(commandTelemetry, { commandId });
+            }
             return {
               artifacts: [
                 formatDeniedToolArtifact(
@@ -1065,6 +1097,9 @@ export class HephaestusRuntime {
           commandId || undefined
         );
         if (bindingError) {
+          if (commandTelemetry) {
+            recordCommandTelemetry(commandTelemetry, { commandId: commandId || undefined });
+          }
           return {
             artifacts: [formatDeniedToolArtifact(correlationId, `command.binding ${resolvedCommand}`, bindingError)],
             failureReason: bindingError,
@@ -1076,6 +1111,13 @@ export class HephaestusRuntime {
           command: resolvedCommand,
           args: resolvedArgs,
         });
+        if (commandTelemetry) {
+          recordCommandTelemetry(commandTelemetry, {
+            commandId: commandId || undefined,
+            status: result.status,
+            reasonCode: result.reasonCode,
+          });
+        }
         const subject = commandId
           ? `${commandId} -> ${formatCommandInvocation(resolvedCommand, resolvedArgs)}`
           : formatCommandInvocation(resolvedCommand, resolvedArgs);
