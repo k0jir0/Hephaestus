@@ -53,7 +53,7 @@ export async function exportPatchBundle(
     `${JSON.stringify(buildManifest(ticket, attempts, events, patches, generatedAt), null, 2)}\n`,
     'utf-8'
   );
-  await fs.writeFile(readmeFile, buildReadme(ticket, patches.length), 'utf-8');
+  await fs.writeFile(readmeFile, buildReadme(ticket, patches.length, attempts), 'utf-8');
 
   return {
     outputDir,
@@ -107,6 +107,8 @@ function buildManifest(
   patches: Array<{ source: string; patch: string }>,
   generatedAt: Date
 ): Record<string, unknown> {
+  const workspaceProvenance = summarizeWorkspaceProvenance(attempts);
+
   return {
     version: 'hephaestus-patch-bundle/v1',
     generatedAt: generatedAt.toISOString(),
@@ -125,10 +127,14 @@ function buildManifest(
       id: attempt.id,
       attemptNumber: attempt.attemptNumber,
       status: attempt.status,
+      workspaceId: attempt.workspaceId,
+      workspaceRoot: attempt.workspaceRoot,
+      isolationMode: attempt.isolationMode,
       startedAt: attempt.startedAt.toISOString(),
       endedAt: attempt.endedAt?.toISOString(),
       artifactCount: attempt.artifacts.length,
     })),
+    workspaceProvenance,
     eventCount: events.length,
     files: {
       patch: 'bundle.patch',
@@ -138,13 +144,17 @@ function buildManifest(
   };
 }
 
-function buildReadme(ticket: TaskTicket, patchCount: number): string {
+function buildReadme(ticket: TaskTicket, patchCount: number, attempts: TaskAttempt[]): string {
+  const workspaceProvenance = summarizeWorkspaceProvenance(attempts);
+
   return [
     `# Hephaestus Patch Bundle: ${ticket.id}`,
     '',
     `Ticket: ${ticket.description}`,
     `Status: ${ticket.status}`,
     `Patch count: ${patchCount}`,
+    `Workspace mode(s): ${workspaceProvenance.modes.join(', ') || 'none'}`,
+    `Workspace id(s): ${workspaceProvenance.workspaceIds.join(', ') || 'none'}`,
     '',
     'This bundle is a local delivery artifact. Review `manifest.json`, inspect `bundle.patch`, and apply it manually with your normal review process.',
     '',
@@ -155,6 +165,34 @@ function buildReadme(ticket: TaskTicket, patchCount: number): string {
     '```',
     '',
   ].join('\n');
+}
+
+function summarizeWorkspaceProvenance(attempts: TaskAttempt[]): {
+  modes: string[];
+  workspaceIds: string[];
+  workspaceRoots: string[];
+} {
+  const modes = new Set<string>();
+  const workspaceIds = new Set<string>();
+  const workspaceRoots = new Set<string>();
+
+  for (const attempt of attempts) {
+    if (attempt.isolationMode) {
+      modes.add(attempt.isolationMode);
+    }
+    if (attempt.workspaceId) {
+      workspaceIds.add(attempt.workspaceId);
+    }
+    if (attempt.workspaceRoot) {
+      workspaceRoots.add(attempt.workspaceRoot);
+    }
+  }
+
+  return {
+    modes: [...modes],
+    workspaceIds: [...workspaceIds],
+    workspaceRoots: [...workspaceRoots],
+  };
 }
 
 function sanitizePathSegment(value: string): string {

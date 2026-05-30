@@ -33,9 +33,13 @@ async function createFixture(): Promise<{
   return { rootDir, tasksFile, ticketStoreFile, baselineFile };
 }
 
-async function seedRepository(repository: TicketStoreRepository): Promise<{
+async function seedRepository(
+  repository: TicketStoreRepository,
+  rootDir: string,
+): Promise<{
   blockedId: string;
   awaitingApprovalId: string;
+  promotedId: string;
 }> {
   const pending = await repository.createTicket('Inspect the runtime board');
 
@@ -85,10 +89,39 @@ async function seedRepository(repository: TicketStoreRepository): Promise<{
     },
   });
 
+  const promoted = await repository.createTicket('Inspect promotion DTOs');
+  await repository.markTaskInProgress(promoted);
+  await repository.markTaskCompleted({
+    ...promoted,
+    status: 'completed',
+    result: 'Promotion is ready',
+  });
+  const [promotedAttempt] = await repository.listAttempts(promoted.id);
+  assert.ok(promotedAttempt);
+  const promotedWorkerVersion = await repository.createWorkerVersion({
+    attemptId: promotedAttempt.id,
+    workspaceId: 'workspace_promoted',
+    workspaceRoot: rootDir,
+    patchBundlePath: path.join(rootDir, 'promotion.patch'),
+    verificationSummary: 'build and tests passed',
+  });
+  await repository.updateWorkerVersionStatus(promotedWorkerVersion.id, 'promotable');
+  await repository.updateWorkerVersionStatus(promotedWorkerVersion.id, 'active');
+  const promotedRecord = await repository.createPromotionRecord({
+    workerVersionId: promotedWorkerVersion.id,
+    approvedBy: 'approver@example.com',
+    approvalId: 'approval-promoted',
+  });
+  await repository.updatePromotionStatus(promotedRecord.id, 'verified');
+  await repository.updatePromotionStatus(promotedRecord.id, 'started');
+  await repository.updatePromotionStatus(promotedRecord.id, 'health_check_passed');
+  await repository.updatePromotionStatus(promotedRecord.id, 'completed');
+
   assert.equal(pending.status, 'pending');
   return {
     blockedId: blocked.id,
     awaitingApprovalId: approval.id,
+    promotedId: promoted.id,
   };
 }
 
@@ -129,7 +162,7 @@ afterEach(async () => {
       importLegacyTaskBoardIfStoreEmpty: false,
       projectionEnabled: false,
     });
-    const seeded = await seedRepository(repository);
+    const seeded = await seedRepository(repository, fixture.rootDir);
       const server = new UIServer({
       host: '127.0.0.1',
       port: 0,
@@ -165,16 +198,45 @@ afterEach(async () => {
       assert.ok(session.permissions.includes('query'));
 
       const overview = await fetchJson(`${url}/api/overview`, 'viewer-token') as {
+        metadata: {
+          schemaVersion: string;
+          revision: string;
+          windows: { recentTickets: number; recentEvents: number };
+          sources: { baselineAvailable: boolean; efficiencySnapshotAvailable: boolean };
+        };
         ticketCounts: Record<string, number>;
         model: { activeModel: string; summary: string };
         recentTickets: Array<{ id: string }>;
       };
+      assert.equal(overview.metadata.schemaVersion, 'overview.v1');
+      assert.ok(overview.metadata.revision.length > 0);
+      assert.equal(overview.metadata.windows.recentTickets, 12);
+      assert.equal(overview.metadata.windows.recentEvents, 18);
+      assert.equal(overview.metadata.sources.baselineAvailable, true);
       assert.equal(overview.ticketCounts.awaiting_approval, 1);
       assert.ok(overview.model.summary.length > 0);
       assert.ok(overview.recentTickets.length >= 3);
 
+      const reliability = await fetchJson(`${url}/api/reliability`, 'viewer-token') as {
+        metadata: {
+          schemaVersion: string;
+          revision: string;
+          windows: { recentTickets: number; recentEvents: number };
+          sources: { baselineAvailable: boolean; efficiencySnapshotAvailable: boolean };
+        };
+        recentEvents: unknown[];
+      };
+      assert.equal(reliability.metadata.schemaVersion, 'reliability.v1');
+      assert.ok(reliability.metadata.revision.length > 0);
+      assert.equal(reliability.metadata.windows.recentTickets, 0);
+      assert.equal(reliability.metadata.windows.recentEvents, 24);
+      assert.equal(reliability.metadata.sources.baselineAvailable, true);
+      assert.ok(Array.isArray(reliability.recentEvents));
+
       const detail = await fetchJson(`${url}/api/tickets/${seeded.awaitingApprovalId}`, 'viewer-token') as {
         ticket: { id: string; status: string };
+        workerVersions: Array<{ id: string; status: string }>;
+        promotions: Array<{ id: string; status: string }>;
         derived: {
           currentPatch?: string;
           policySnapshots: unknown[];
@@ -184,11 +246,111 @@ afterEach(async () => {
       };
       assert.equal(detail.ticket.id, seeded.awaitingApprovalId);
       assert.equal(detail.ticket.status, 'awaiting_approval');
+      assert.equal(detail.workerVersions.length, 0);
+      assert.equal(detail.promotions.length, 0);
       assert.match(detail.derived.currentPatch ?? '', /diff --git/);
       assert.equal(detail.derived.policySnapshots.length, 1);
       assert.equal(detail.derived.patchDeltas.length, 1);
       assert.equal(detail.derived.recoveryRecommendation.family, 'approval');
       assert.match(detail.derived.recoveryRecommendation.recommendation, /human review/);
+
+      const promotedDetail = await fetchJson(`${url}/api/tickets/${seeded.promotedId}`, 'viewer-token') as {
+        workerVersions: Array<{
+          id: string;
+          status: string;
+          ticketId: string;
+          attemptNumber: number;
+          workspaceId?: string;
+          workspaceRoot?: string;
+          patchBundlePath?: string;
+          verificationSummary?: string;
+        }>;
+        promotions: Array<{
+          id: string;
+          status: string;
+          ticketId: string;
+          attemptId: string;
+          attemptNumber: number;
+          workspaceId?: string;
+          workspaceRoot?: string;
+          patchBundlePath?: string;
+          verificationSummary?: string;
+          workerVersionStatus?: string;
+        }>;
+      };
+      assert.equal(promotedDetail.workerVersions.length, 1);
+      assert.equal(promotedDetail.promotions.length, 1);
+      assert.equal(promotedDetail.workerVersions[0]?.ticketId, seeded.promotedId);
+      assert.equal(promotedDetail.workerVersions[0]?.attemptNumber, 1);
+      assert.equal(promotedDetail.workerVersions[0]?.workspaceId, 'workspace_promoted');
+      assert.equal(promotedDetail.promotions[0]?.ticketId, seeded.promotedId);
+      assert.equal(promotedDetail.promotions[0]?.attemptNumber, 1);
+      assert.equal(promotedDetail.promotions[0]?.workerVersionStatus, 'active');
+      assert.equal(promotedDetail.promotions[0]?.verificationSummary, 'build and tests passed');
+
+      const timeline = await fetchJson(`${url}/api/tickets/${seeded.promotedId}/timeline`, 'viewer-token') as {
+        metadata: {
+          schemaVersion: string;
+          revision: string;
+          windows: { recentTickets: number; recentEvents: number };
+        };
+        ticket: { id: string; status: string };
+        entries: Array<{ at: string; source: string; detail: string }>;
+      };
+      assert.equal(timeline.metadata.schemaVersion, 'ticket-timeline.v1');
+      assert.ok(timeline.metadata.revision.length > 0);
+      assert.equal(timeline.metadata.windows.recentTickets, 1);
+      assert.equal(timeline.ticket.id, seeded.promotedId);
+      assert.ok(timeline.entries.length > 0);
+      assert.ok(timeline.entries.some((entry) => entry.source === 'event.promotion.completed'));
+      assert.ok(timeline.entries.some((entry) => entry.source === 'promotion.updated'));
+
+      const evidence = await fetchJson(`${url}/api/tickets/${seeded.awaitingApprovalId}/evidence`, 'viewer-token') as {
+        metadata: {
+          schemaVersion: string;
+          revision: string;
+          windows: { recentTickets: number; recentEvents: number };
+        };
+        ticket: { id: string; status: string };
+        evidence: {
+          currentPatch?: string;
+          artifacts: Array<{ raw: string }>;
+          policySnapshots: unknown[];
+          patchDeltas: unknown[];
+          sideEffects: unknown[];
+        };
+      };
+      assert.equal(evidence.metadata.schemaVersion, 'ticket-evidence.v1');
+      assert.ok(evidence.metadata.revision.length > 0);
+      assert.equal(evidence.metadata.windows.recentTickets, 1);
+      assert.equal(evidence.ticket.id, seeded.awaitingApprovalId);
+      assert.match(evidence.evidence.currentPatch ?? '', /diff --git/);
+      assert.equal(evidence.evidence.policySnapshots.length, 1);
+      assert.equal(evidence.evidence.patchDeltas.length, 1);
+      assert.ok(evidence.evidence.artifacts.length > 0);
+
+      const gates = await fetchJson(`${url}/api/tickets/${seeded.awaitingApprovalId}/gates`, 'viewer-token') as {
+        metadata: {
+          schemaVersion: string;
+          revision: string;
+          windows: { recentTickets: number; recentEvents: number };
+        };
+        ticket: { id: string; status: string };
+        completionEvidence: {
+          gateStatus: string;
+          mutableTargets: string[];
+          observedMutations: string[];
+          gateReason: string;
+        };
+        recoveryRecommendation: { family: string; source: string };
+      };
+      assert.equal(gates.metadata.schemaVersion, 'ticket-gates.v1');
+      assert.ok(gates.metadata.revision.length > 0);
+      assert.equal(gates.metadata.windows.recentTickets, 1);
+      assert.equal(gates.ticket.id, seeded.awaitingApprovalId);
+      assert.equal(gates.completionEvidence.gateStatus, 'pending evidence');
+      assert.ok(gates.completionEvidence.mutableTargets.length > 0);
+      assert.equal(gates.recoveryRecommendation.family, 'approval');
 
       const forbiddenApproval = await fetch(`${url}/api/tickets/${seeded.awaitingApprovalId}/approve`, {
         method: 'POST',
@@ -213,7 +375,7 @@ afterEach(async () => {
       importLegacyTaskBoardIfStoreEmpty: false,
       projectionEnabled: false,
     });
-    const seeded = await seedRepository(repository);
+    const seeded = await seedRepository(repository, fixture.rootDir);
     const server = new UIServer({
       host: '127.0.0.1',
       port: 0,

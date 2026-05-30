@@ -6,7 +6,7 @@ In the current self-hosted operator workflow, running Hephaestus in parallel wit
 
 This repository is configured to run Hephaestus on itself by default. That makes it useful as a GitHub-ready demonstration of governed AI engineering workflow instead of an opaque "magic agent" claim.
 
-## Current State (2026-05-29)
+## Current State (2026-05-30)
 
 Hephaestus has progressed from a queue-driven planning demo into a local operator control plane with durable workflow state, governed execution, reliability tooling, and an operator-facing UI.
 
@@ -20,6 +20,7 @@ Current implemented state includes:
 - a browser-based local control plane for tickets, approvals, operations, and reliability views
 - startup and shutdown orchestration for the managed local stack on Windows
 - reliability harnesses, SLO metrics, and published baseline/reporting flows
+- D6-complete control-plane DTO surfaces across API, CLI, and browser UI
 
 ## D2 Progress Snapshot (2026-05-29)
 
@@ -60,23 +61,75 @@ following implemented increments:
 Current D3 status: complete for command catalog and command-ID enforcement.
 Evidence is generated via `npm run metrics:upgrade-telemetry`.
 
-## Validated Today (2026-05-29)
+## D4 Progress Snapshot (2026-05-29)
 
-Hephaestus was run on itself (`TARGET_PROJECT=.`) and validated end-to-end through both CLI and UI paths:
+Since the D3 closure pass, D4 (Isolated Execution Workspaces) advanced with the
+following implemented increments:
 
-- rendered the projected board from canonical SQLite ticket state (`npm run tickets -- render-board`)
-- produced live operational metrics from the same store (`npm run tickets -- metrics`)
-- launched and authenticated into the UI control plane using token auth
-- created a ticket from the browser UI and verified it from the ticket CLI
+- attempt-scoped workspace manager with shared-root and isolated-worktree modes
+- runtime workspace binding persisted into attempt records and delivery
+    provenance
+- isolated workspace cleanup and shared-root fallback behavior
+- git worktree creation and cleanup validation in `test/workspace-manager.test.ts`
 
-Observed operator signals from the current run included:
+Current D4 status: implemented and validated for the isolated git worktree path.
+Evidence is generated via `npm run build` and `node scripts/run-tests.mjs test/workspace-manager.test.ts`.
 
-- `Total tickets: 43`
-- `Completed tickets: 28`
-- `Blocked tickets: 2`
-- `Awaiting approval tickets: 0`
+## D5 Progress Snapshot (2026-05-30)
 
-This is the core usefulness claim in practice: Hephaestus can manage its own improvement queue with durable state, inspectable transitions, role-gated operations, and operator-visible reliability telemetry.
+Since the D4 closure pass, D5 (Promotion and Rollback) has started with
+foundation domain primitives:
+
+- typed `WorkerVersion` and `PromotionRecord` objects with explicit status enums
+- promotion lifecycle transition guards from `requested` through `rolled_back`
+- worker version lifecycle transition guards from `candidate` through
+    `rolled_back`
+- stable mapping from promotion status to promotion event names for downstream
+    event emission wiring
+- unit coverage for valid paths and invalid-transition rejection in
+    `test/promotion-lifecycle.test.ts`
+- SQLite-backed persistence for worker versions and promotion records in the
+    ticket store, including lifecycle guard enforcement
+- runtime supervisor validation and health-check scaffold with failed promotion
+    rollback persistence
+- canonical promotion lifecycle event emission for promotion status transitions
+- operator visibility for D5 records via ticket detail API/UI and ticket CLI
+    worker-version and promotion inspection commands
+
+## D6 Closure Snapshot (2026-05-30)
+
+Control-plane refinement has completed for the D6 scope with richer promotion
+DTO and operator inspection surfaces:
+
+- ticket detail API joins worker versions and promotions with attempt/workspace metadata
+- browser timelines surface attempt, workspace, bundle, and version-state context
+- ticket CLI inspection commands (`timeline`, `evidence`, `gates`, `worker-versions`, `promotions`) print the same enriched promotion context for terminal review
+- overview/reliability API payloads include metadata for schema version, revision, generation time, and response window/source context
+- ticket timeline API DTO (`/api/tickets/:id/timeline`) exposes chronological event/attempt/promotion flow with explicit payload metadata
+- ticket evidence API DTO (`/api/tickets/:id/evidence`) exposes policy/patch/artifact/side-effect evidence with explicit payload metadata
+- ticket gates API DTO (`/api/tickets/:id/gates`) exposes completion-evidence gate status and recovery recommendation payloads with explicit metadata
+- browser ticket detail consumes `/api/tickets/:id/timeline` and renders timeline metadata plus chronological entries for operator review
+- browser ticket detail consumes `/api/tickets/:id/evidence` and prefers structured evidence payloads for patch/policy/artifact/side-effect rendering
+- browser ticket detail consumes `/api/tickets/:id/gates` and prefers gate DTO values for completion evidence and recovery recommendation rendering
+
+Current D6 status: complete for control-plane refinement scope.
+Follow-up implementation hygiene remains for physical UI file extraction and
+additional metric payload cleanup.
+
+Current D5 status: domain and persistence foundations are implemented with an
+initial runtime supervisor rollback scaffold; full successor startup and
+process-level promotion orchestration remain upcoming work.
+
+## Validated Today (2026-05-30)
+
+Today focused on D6 closure verification and operator-surface consistency:
+
+- `npm run build` passed after terminal `gates` command and documentation updates
+- `node scripts/run-tests.mjs test/ui-server.test.ts test/tickets-cli.test.ts` passed with 179/179 tests green
+- no compile or lint diagnostics were introduced in changed D6 files
+- README, blueprint, and terminal/API/UI inspection surfaces now agree on D6 closure state
+
+This confirms the D6 control-plane refinement objective is complete for current scope, with follow-up hygiene separated from phase closure.
 
 ## What It Demonstrates
 

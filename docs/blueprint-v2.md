@@ -694,6 +694,15 @@ Exit criteria:
 - low-risk self-edit can be attempted without dirtying active root
 - patch bundle and verification evidence reference the same workspace
 
+D4 closure complete:
+
+- attempt-scoped workspace binding is implemented in the runtime and persisted
+  in the ticket store
+- isolated workspace creation falls back safely to shared-root mode when the
+  target project is not a git repository
+- git worktree creation and cleanup are validated by the workspace manager
+  test suite
+
 Library anchors:
 
 - `Shinn2023Reflexion` and `Madaan2023SelfRefine`: bounded retry and
@@ -722,6 +731,58 @@ Exit criteria:
 - version N+1 starts and processes the next ticket
 - failed version N+1 does not corrupt the loop
 
+D5 foundation in progress:
+
+- domain lifecycle primitives now define allowed transitions for promotion
+  records and worker versions
+- promotion status now maps directly to stable promotion event names for
+  downstream event emission wiring
+- transition guards are enforced by dedicated domain tests for valid and
+  invalid promotion and rollback flows
+- SQLite persistence now stores worker versions and promotion records with
+  migration-backed schema updates and guarded status-transition writes
+- runtime promotion orchestration now includes a supervisor validation and
+  health-check seam with failed-to-rollback persistence path
+- promotion status writes now emit canonical promotion lifecycle events in the
+  event spine for auditable requested-to-rolled-back traces
+- operator surfaces now expose worker version and promotion record visibility in
+  ticket detail API/CLI paths
+
+## D6 Closure Snapshot (2026-05-30)
+
+Since the D5 foundation pass, D6 (Control Plane Refinement) delivered the
+control-plane DTO and operator-surface closure increment:
+
+- ticket detail API now joins worker versions and promotions with attempt and
+  workspace metadata
+- browser timelines surface attempt, workspace, bundle, and version-state
+  context for worker versions and promotions
+- ticket CLI inspection commands (`timeline`, `evidence`, `gates`, `worker-versions`, `promotions`)
+  now print the same enriched promotion context for terminal-first review
+- overview and reliability API payloads now include explicit metadata for
+  schema version, revision, generation time, and response window/source context
+- ticket timeline API DTO (`/api/tickets/:id/timeline`) now exposes a
+  chronological event/attempt/promotion stream with explicit payload metadata
+- ticket evidence API DTO (`/api/tickets/:id/evidence`) now exposes policy,
+  patch, artifact, and side-effect evidence with explicit payload metadata
+- ticket gates API DTO (`/api/tickets/:id/gates`) now exposes completion-evidence
+  gate status and recovery recommendation payloads with explicit metadata
+- browser ticket detail now consumes `/api/tickets/:id/timeline` and renders
+  timeline metadata plus chronological entries in an operator-visible panel
+- browser ticket detail now consumes `/api/tickets/:id/evidence` and prefers
+  structured evidence payloads for patch/policy/artifact/side-effect rendering
+- browser ticket detail now consumes `/api/tickets/:id/gates` and prefers gate
+  DTO values for completion evidence and recovery recommendation panels
+
+D6 closure complete:
+
+- timeline, evidence, gates, worker-version, and promotion DTO/operator
+  inspection surfaces are now live across API, CLI, and UI paths
+- response metadata (schema/revision/generatedAt/windows/sources) is present on
+  overview/reliability and ticket detail DTO endpoints
+- UI panel decomposition is complete for ticket detail DTO consumption; full
+  physical file extraction remains tracked as post-D6 implementation hygiene
+
 Library anchors:
 
 - `Amodei2016`: misoptimization and unsafe autonomy failure modes.
@@ -744,6 +805,9 @@ Exit criteria:
 
 - operator can inspect any change quickly
 - metrics are comparable across reports
+
+Current implementation status (2026-05-30): exit criteria met for D6 control
+plane refinement scope.
 
 Library anchors:
 

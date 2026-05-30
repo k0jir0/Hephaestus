@@ -1,0 +1,5 @@
+participant_id,task_id,condition,sequence_order,block_complexity,start_timestamp,end_timestamp,duration_minutes,completion_status,verification_passed,reviewer_pass,defects_found,rework_required,environment_hash
+P01,T001,with_hephaestus,1,3,2026-06-01T09:00:00Z,2026-06-01T09:32:00Z,32,completed,true,true,0,false,env-v1
+P01,T001,without_hephaestus,2,3,2026-06-01T13:00:00Z,2026-06-01T13:46:00Z,46,completed,true,true,0,false,env-v1
+P01,T002,with_hephaestus,1,2,2026-06-01T10:00:00Z,2026-06-01T10:27:00Z,27,completed,true,true,0,false,env-v1
+P01,T002,without_hephaestus,2,2,2026-06-01T14:00:00Z,2026-06-01T14:31:00Z,31,completed,true,true,0,false,env-v1

@@ -149,6 +149,163 @@ describe('TicketStoreRepository', () => {
     await repository.stop();
   });
 
+  it('persists workspace binding metadata on the active attempt', async () => {
+    const fixture = await createFixtureRepo(`# Hephaestus Task Queue
+
+## Queue
+
+- [ ] Build demo
+
+## In Progress
+
+- (empty)
+
+## Completed
+
+- (empty)
+
+## Blocked
+
+- (empty)
+
+## Cancelled
+
+- (empty)
+`);
+
+    const repository = new TicketStoreRepository({
+      tasksFile: fixture.tasksFile,
+      storeFile: fixture.ticketStoreFile,
+    });
+
+    const [task] = await repository.getPendingTasks();
+    assert.ok(task);
+    await repository.markTaskInProgress(task);
+    await repository.bindCurrentAttemptWorkspace(task.id, {
+      workspaceId: 'workspace_demo',
+      workspaceRoot: path.resolve(fixture.rootDir),
+      isolationMode: 'shared-root',
+    });
+
+    const attempts = await repository.listAttempts(task.id);
+    assert.equal(attempts.length, 1);
+    assert.equal(attempts[0]?.workspaceId, 'workspace_demo');
+    assert.equal(attempts[0]?.workspaceRoot, path.resolve(fixture.rootDir));
+    assert.equal(attempts[0]?.isolationMode, 'shared-root');
+
+    await repository.stop();
+  });
+
+  it('persists worker versions and promotion records with guarded lifecycle transitions', async () => {
+    const fixture = await createFixtureRepo(`# Hephaestus Task Queue
+
+## Queue
+
+- [ ] Build demo
+
+## In Progress
+
+- (empty)
+
+## Completed
+
+- (empty)
+
+## Blocked
+
+- (empty)
+
+## Cancelled
+
+- (empty)
+`);
+
+    const repository = new TicketStoreRepository({
+      tasksFile: fixture.tasksFile,
+      storeFile: fixture.ticketStoreFile,
+    });
+
+    const [task] = await repository.getPendingTasks();
+    assert.ok(task);
+    await repository.markTaskInProgress(task);
+    await repository.bindCurrentAttemptWorkspace(task.id, {
+      workspaceId: 'workspace_d5',
+      workspaceRoot: path.resolve(fixture.rootDir),
+      isolationMode: 'isolated-workspace',
+    });
+
+    const [attempt] = await repository.listAttempts(task.id);
+    assert.ok(attempt);
+
+    const workerVersion = await repository.createWorkerVersion({
+      attemptId: attempt.id,
+      patchBundlePath: path.join(fixture.rootDir, 'bundle.patch'),
+      verificationSummary: 'build and tests passed',
+    });
+    assert.equal(workerVersion.status, 'candidate');
+    assert.equal(workerVersion.workspaceId, 'workspace_d5');
+    assert.equal(workerVersion.patchBundlePath, path.join(fixture.rootDir, 'bundle.patch'));
+
+    const promotableVersion = await repository.updateWorkerVersionStatus(workerVersion.id, 'promotable');
+    const activeVersion = await repository.updateWorkerVersionStatus(promotableVersion.id, 'active');
+    assert.equal(promotableVersion.status, 'promotable');
+    assert.equal(activeVersion.status, 'active');
+    assert.ok(activeVersion.activatedAt instanceof Date);
+
+    const promotion = await repository.createPromotionRecord({
+      workerVersionId: workerVersion.id,
+      approvedBy: 'approver@example.com',
+      approvalId: 'approval_d5',
+    });
+    assert.equal(promotion.status, 'requested');
+
+    await repository.updatePromotionStatus(promotion.id, 'verified');
+    await repository.updatePromotionStatus(promotion.id, 'started');
+    await repository.updatePromotionStatus(promotion.id, 'health_check_passed');
+    const completedPromotion = await repository.updatePromotionStatus(promotion.id, 'completed');
+    assert.equal(completedPromotion.status, 'completed');
+
+    const repeatedCompletedPromotion = await repository.updatePromotionStatus(promotion.id, 'completed');
+    assert.equal(repeatedCompletedPromotion.status, 'completed');
+
+    await assert.rejects(
+      () => repository.updatePromotionStatus(promotion.id, 'verified'),
+      /Invalid promotion transition/
+    );
+
+    const promotionEvents = (await repository.listEvents(task.id))
+      .filter((event) => event.type.startsWith('promotion.'));
+    assert.deepEqual(
+      promotionEvents.map((event) => event.type),
+      [
+        'promotion.requested',
+        'promotion.verified',
+        'promotion.started',
+        'promotion.health_check_passed',
+        'promotion.completed',
+      ]
+    );
+    assert.equal(promotionEvents.filter((event) => event.type === 'promotion.completed').length, 1);
+
+    const promotions = await repository.listPromotionRecords(workerVersion.id);
+    assert.equal(promotions.length, 1);
+    assert.equal(promotions[0]?.approvalId, 'approval_d5');
+
+    const workerVersions = await repository.listWorkerVersions(attempt.id);
+    assert.equal(workerVersions.length, 1);
+    assert.equal(workerVersions[0]?.status, 'active');
+
+    const { DatabaseSync } = await import('node:sqlite');
+    const db = new DatabaseSync(fixture.ticketStoreFile);
+    const migrationRow = db
+      .prepare('select count(*) as count from schema_migrations where version = 7')
+      .get() as { count: number };
+    db.close();
+    assert.equal(migrationRow.count, 1);
+
+    await repository.stop();
+  });
+
   it('creates and retries tickets directly through the object store without requiring TASKS.md input', async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
     tempDirs.push(rootDir);

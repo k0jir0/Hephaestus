@@ -1,0 +1,94 @@
+Hephaestus Blueprint Results: Completion of D6 (Control Plane Refinement)
+Date: 2026-05-30
+Project: McGillSoftware/Hephaestus
+
+Abstract
+This paper records the implementation results for D6 in the Hephaestus blueprint.
+D6 focused on control-plane refinement: making workflow state, execution evidence,
+and promotion outcomes operator-visible across API, terminal, and browser surfaces.
+The completed result is a consistent, inspectable control plane where timeline,
+evidence, gate status, and promotion records are available through first-class DTOs
+and terminal inspection commands, with contract-level tests validating behavior.
+
+1. Objective
+The D6 objective was to make operation obvious, reducing ambiguity between what
+the system claims and what an operator can directly inspect.
+
+Primary goals:
+- expose timeline, evidence, gates, and promotion data as explicit DTOs
+- support terminal-first inspection for non-UI workflows
+- align browser rendering with structured DTO payloads
+- attach payload metadata for schema/revision/time-window comparability
+
+2. Scope of Implemented Work
+2.1 API and DTO Surfaces
+The UI server now provides dedicated ticket detail surfaces for:
+- /api/tickets/:id/timeline
+- /api/tickets/:id/evidence
+- /api/tickets/:id/gates
+
+Overview and reliability payloads include explicit metadata fields used for
+cross-report interpretation and compatibility checks.
+
+2.2 Terminal Operator Surfaces
+Ticket CLI inspection supports:
+- timeline <ticket-id>
+- evidence <ticket-id>
+- gates <ticket-id>
+- worker-versions <ticket-id>
+- promotions <ticket-id>
+
+The newly added gates command reports completion-evidence gate status,
+observed mutation evidence, and recovery recommendation details.
+
+2.3 Browser Operator Surfaces
+Ticket detail UI now consumes dedicated timeline/evidence/gates DTO endpoints and
+prefers structured payload values over legacy ad-hoc composition paths.
+
+2.4 Documentation and Closure Signaling
+D6 phase status has been moved from in-progress language to explicit closure in:
+- README.md
+- docs/blueprint-v2.md
+
+Remaining UI file extraction and metric payload cleanup are explicitly tracked as
+follow-up implementation hygiene rather than blocking phase closure.
+
+3. Validation Method
+Validation used compile plus focused contract/integration coverage:
+- npm run build
+- node scripts/run-tests.mjs test/ui-server.test.ts test/tickets-cli.test.ts
+
+4. Validation Results
+- Build: passed
+- Focused tests: 179 passed, 0 failed
+- Changed files: no introduced diagnostics
+- Operator consistency check: README, blueprint, API, CLI, and UI now report D6
+  state consistently
+
+5. Observed Outcomes
+5.1 Operator Visibility
+Operators can now inspect a ticket from multiple entrypoints (CLI/API/UI) with
+comparable detail and explicit metadata context.
+
+5.2 Trust Calibration
+Evidence and gate status are no longer implicit or hidden in mixed payloads.
+This reduces interpretation drift and improves confidence in completion claims.
+
+5.3 Incident and Recovery Readiness
+Gate and recovery recommendation outputs are directly inspectable from terminal and
+API contexts, improving intervention speed when promotion or evidence concerns arise.
+
+6. Residual Risks and Limits
+- UI code remains functionally integrated but not fully physically decomposed into
+  smaller files.
+- Additional metric payload cleanup may still improve long-horizon reporting
+  comparability.
+
+These limits are acknowledged and separated from D6 closure because they do not
+block the implemented D6 exit criteria for control-plane refinement.
+
+7. Conclusion
+D6 is complete for the defined control-plane refinement scope.
+The system now provides convergent, auditable operator visibility of timeline,
+evidence, gates, worker versions, and promotions across terminal, API, and browser
+surfaces, with green validation and explicit closure signaling in project docs.

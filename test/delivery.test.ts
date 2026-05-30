@@ -31,6 +31,11 @@ describe('exportPatchBundle', () => {
 
     const ticket = await repository.createTicket('Export a patch bundle');
     await repository.markTaskInProgress(ticket);
+    await repository.bindCurrentAttemptWorkspace(ticket.id, {
+      workspaceId: 'workspace_delivery_demo',
+      workspaceRoot: path.resolve(rootDir, '.hephaestus', 'workspaces', 'workspace_delivery_demo'),
+      isolationMode: 'shared-root',
+    });
     await repository.markTaskAwaitingApproval({
       ...ticket,
       status: 'awaiting_approval',
@@ -62,7 +67,7 @@ describe('exportPatchBundle', () => {
     const manifest = JSON.parse(await fs.readFile(bundle.manifestFile, 'utf-8')) as {
       version: string;
       ticket: { id: string; status: string };
-      patchCount?: number;
+      workspaceProvenance?: { modes: string[]; workspaceIds: string[] };
       patches: unknown[];
     };
     const readme = await fs.readFile(bundle.readmeFile, 'utf-8');
@@ -73,7 +78,10 @@ describe('exportPatchBundle', () => {
     assert.equal(manifest.ticket.id, ticket.id);
     assert.equal(manifest.ticket.status, 'awaiting_approval');
     assert.equal(manifest.patches.length, 1);
+    assert.deepEqual(manifest.workspaceProvenance?.modes, ['shared-root']);
+    assert.deepEqual(manifest.workspaceProvenance?.workspaceIds, ['workspace_delivery_demo']);
     assert.match(readme, /git apply --check bundle\.patch/);
+    assert.match(readme, /Workspace mode\(s\): shared-root/);
 
     await repository.stop();
   });

@@ -1,4 +1,12 @@
-import type { Task, TaskSideEffect, TaskSideEffectType } from './types.js';
+import type {
+  PromotionRecord,
+  PromotionStatus,
+  Task,
+  TaskSideEffect,
+  TaskSideEffectType,
+  WorkerVersion,
+  WorkerVersionStatus,
+} from './types.js';
 
 export interface RepositoryReadinessIssue {
   code: string;
@@ -31,6 +39,47 @@ export interface TaskSideEffectRepository {
 
 export interface TaskArtifactRepository {
   appendTaskAttemptArtifacts(ticketId: string, artifacts: string[]): Promise<void>;
+}
+
+export interface TaskWorkspaceBindingRepository {
+  bindCurrentAttemptWorkspace(
+    ticketId: string,
+    binding: {
+      workspaceId: string;
+      workspaceRoot: string;
+      isolationMode: 'shared-root' | 'isolated-workspace';
+    }
+  ): Promise<void>;
+}
+
+export interface WorkerVersionRepository {
+  createWorkerVersion(input: {
+    attemptId: string;
+    workspaceId?: string;
+    workspaceRoot?: string;
+    patchBundlePath?: string;
+    verificationSummary?: string;
+    status?: WorkerVersionStatus;
+  }): Promise<WorkerVersion>;
+  updateWorkerVersionStatus(workerVersionId: string, status: WorkerVersionStatus): Promise<WorkerVersion>;
+  listWorkerVersions(attemptId?: string): Promise<WorkerVersion[]>;
+}
+
+export interface PromotionRepository {
+  createPromotionRecord(input: {
+    workerVersionId: string;
+    approvedBy?: string;
+    approvalId?: string;
+  }): Promise<PromotionRecord>;
+  updatePromotionStatus(
+    promotionId: string,
+    status: PromotionStatus,
+    metadata?: {
+      failureReason?: string;
+      rollbackReason?: string;
+    }
+  ): Promise<PromotionRecord>;
+  listPromotionRecords(workerVersionId?: string): Promise<PromotionRecord[]>;
 }
 
 export interface TaskRepository {

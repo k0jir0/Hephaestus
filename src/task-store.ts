@@ -4,12 +4,20 @@ import { config } from './config.js';
 import { createComponentLogger } from './logger.js';
 import type {
   PendingTaskSideEffect,
+  PromotionRepository,
   TaskArtifactRepository,
   RepositoryReadinessProbe,
   TaskRepository,
   TaskSideEffectRepository,
+  TaskWorkspaceBindingRepository,
+  WorkerVersionRepository,
 } from './repositories.js';
 import { resolveTaskAttemptStatusTransition } from './domain/attempts/attempt-lifecycle.js';
+import {
+  assertValidPromotionTransition,
+  resolvePromotionEvent,
+  assertValidWorkerVersionTransition,
+} from './domain/promotion/promotion-lifecycle.js';
 import { resolveApprovedResumeEligibility } from './domain/tickets/approval-resume-policy.js';
 import { extractSourceGroundingKeys } from './domain/policy/source-grounding-policy.js';
 import { assertAmendedRetryDescription, assertRetryableTicketStatus } from './domain/tickets/retry-policy.js';
@@ -26,11 +34,15 @@ import type {
   TaskAttempt,
   TaskAttemptStatus,
   TaskEvent,
+  PromotionRecord,
+  PromotionStatus,
   TaskSideEffect,
   TaskSideEffectStatus,
   TaskStatus,
   TaskTicket,
   ToolCall,
+  WorkerVersion,
+  WorkerVersionStatus,
 } from './types.js';
 import { TaskWatcher } from './watcher.js';
 
@@ -131,6 +143,9 @@ interface TaskAttemptRow {
   ticket_id: string;
   attempt_number: number;
   status: TaskAttemptStatus;
+  workspace_id: string | null;
+  workspace_root: string | null;
+  isolation_mode: 'shared-root' | 'isolated-workspace' | null;
   started_at: string;
   ended_at: string | null;
   result: string | null;
@@ -183,8 +198,39 @@ interface TaskSideEffectRow {
   last_error: string | null;
 }
 
+interface WorkerVersionRow {
+  id: string;
+  attempt_id: string;
+  workspace_id: string | null;
+  workspace_root: string | null;
+  patch_bundle_path: string | null;
+  verification_summary: string | null;
+  created_at: string;
+  activated_at: string | null;
+  status: WorkerVersionStatus;
+}
+
+interface PromotionRecordRow {
+  id: string;
+  worker_version_id: string;
+  status: PromotionStatus;
+  requested_at: string;
+  updated_at: string;
+  approved_by: string | null;
+  approval_id: string | null;
+  failure_reason: string | null;
+  rollback_reason: string | null;
+}
+
 export class TicketStoreRepository
-  implements TaskRepository, RepositoryReadinessProbe, TaskSideEffectRepository, TaskArtifactRepository
+  implements
+    TaskRepository,
+    RepositoryReadinessProbe,
+    TaskSideEffectRepository,
+    TaskArtifactRepository,
+    TaskWorkspaceBindingRepository,
+    WorkerVersionRepository,
+    PromotionRepository
 {
   private readonly tasksFile: string;
   private readonly storeFile: string;
@@ -1543,6 +1589,259 @@ export class TicketStoreRepository
     return attemptsByTicket;
   }
 
+  async createWorkerVersion(input: {
+    attemptId: string;
+    workspaceId?: string;
+    workspaceRoot?: string;
+    patchBundlePath?: string;
+    verificationSummary?: string;
+    status?: WorkerVersionStatus;
+  }): Promise<WorkerVersion> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      throw new Error('Worker version persistence is unavailable in markdown fallback mode.');
+    }
+
+    const attemptRow = this.getDatabase()
+      .prepare('select id, workspace_id, workspace_root from ticket_attempts where id = ?')
+      .get(input.attemptId) as { id: string; workspace_id: string | null; workspace_root: string | null } | undefined;
+    if (!attemptRow) {
+      throw new Error(`Attempt not found for worker version creation: ${input.attemptId}`);
+    }
+
+    const id = this.generateWorkerVersionId();
+    const now = new Date().toISOString();
+    const status = input.status ?? 'candidate';
+    this.getDatabase()
+      .prepare(
+        `insert into worker_versions (
+          id,
+          attempt_id,
+          workspace_id,
+          workspace_root,
+          patch_bundle_path,
+          verification_summary,
+          created_at,
+          activated_at,
+          status
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        id,
+        input.attemptId,
+        input.workspaceId ?? attemptRow.workspace_id,
+        input.workspaceRoot ?? attemptRow.workspace_root,
+        input.patchBundlePath ?? null,
+        input.verificationSummary ?? null,
+        now,
+        null,
+        status
+      );
+
+    const row = this.getDatabase()
+      .prepare('select * from worker_versions where id = ?')
+      .get(id) as WorkerVersionRow | undefined;
+    if (!row) {
+      throw new Error(`Worker version could not be loaded after creation: ${id}`);
+    }
+
+    return this.mapWorkerVersionRow(row);
+  }
+
+  async updateWorkerVersionStatus(workerVersionId: string, status: WorkerVersionStatus): Promise<WorkerVersion> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      throw new Error('Worker version persistence is unavailable in markdown fallback mode.');
+    }
+
+    const row = this.getDatabase()
+      .prepare('select * from worker_versions where id = ?')
+      .get(workerVersionId) as WorkerVersionRow | undefined;
+    if (!row) {
+      throw new Error(`Worker version not found: ${workerVersionId}`);
+    }
+
+    assertValidWorkerVersionTransition(row.status, status, `worker version ${workerVersionId}`);
+    const activatedAt = status === 'active' ? row.activated_at ?? new Date().toISOString() : row.activated_at;
+
+    this.getDatabase()
+      .prepare(
+        `update worker_versions
+         set status = ?,
+             activated_at = ?
+         where id = ?`
+      )
+      .run(status, activatedAt, workerVersionId);
+
+    const updated = this.getDatabase()
+      .prepare('select * from worker_versions where id = ?')
+      .get(workerVersionId) as WorkerVersionRow | undefined;
+    if (!updated) {
+      throw new Error(`Worker version could not be loaded after update: ${workerVersionId}`);
+    }
+
+    return this.mapWorkerVersionRow(updated);
+  }
+
+  async listWorkerVersions(attemptId?: string): Promise<WorkerVersion[]> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      return [];
+    }
+
+    const rows = (
+      attemptId
+        ? this.getDatabase()
+            .prepare(
+              `select *
+               from worker_versions
+               where attempt_id = ?
+               order by created_at asc, id asc`
+            )
+            .all(attemptId)
+        : this.getDatabase()
+            .prepare(
+              `select *
+               from worker_versions
+               order by created_at asc, id asc`
+            )
+            .all()
+    ) as unknown as WorkerVersionRow[];
+
+    return rows.map((row) => this.mapWorkerVersionRow(row));
+  }
+
+  async createPromotionRecord(input: {
+    workerVersionId: string;
+    approvedBy?: string;
+    approvalId?: string;
+  }): Promise<PromotionRecord> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      throw new Error('Promotion persistence is unavailable in markdown fallback mode.');
+    }
+
+    const workerVersion = this.getDatabase()
+      .prepare('select id from worker_versions where id = ?')
+      .get(input.workerVersionId) as { id: string } | undefined;
+    if (!workerVersion) {
+      throw new Error(`Worker version not found for promotion creation: ${input.workerVersionId}`);
+    }
+
+    const id = this.generatePromotionRecordId();
+    const now = new Date().toISOString();
+
+    this.getDatabase()
+      .prepare(
+        `insert into promotion_records (
+          id,
+          worker_version_id,
+          status,
+          requested_at,
+          updated_at,
+          approved_by,
+          approval_id,
+          failure_reason,
+          rollback_reason
+        ) values (?, ?, 'requested', ?, ?, ?, ?, ?, ?)`
+      )
+      .run(id, input.workerVersionId, now, now, input.approvedBy ?? null, input.approvalId ?? null, null, null);
+
+    const row = this.getDatabase()
+      .prepare('select * from promotion_records where id = ?')
+      .get(id) as PromotionRecordRow | undefined;
+    if (!row) {
+      throw new Error(`Promotion record could not be loaded after creation: ${id}`);
+    }
+
+    this.recordPromotionLifecycleEvent(row);
+
+    return this.mapPromotionRecordRow(row);
+  }
+
+  async updatePromotionStatus(
+    promotionId: string,
+    status: PromotionStatus,
+    metadata?: {
+      failureReason?: string;
+      rollbackReason?: string;
+    }
+  ): Promise<PromotionRecord> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      throw new Error('Promotion persistence is unavailable in markdown fallback mode.');
+    }
+
+    const row = this.getDatabase()
+      .prepare('select * from promotion_records where id = ?')
+      .get(promotionId) as PromotionRecordRow | undefined;
+    if (!row) {
+      throw new Error(`Promotion record not found: ${promotionId}`);
+    }
+
+    if (row.status === status) {
+      return this.mapPromotionRecordRow(row);
+    }
+
+    assertValidPromotionTransition(row.status, status, `promotion ${promotionId}`);
+
+    this.getDatabase()
+      .prepare(
+        `update promotion_records
+         set status = ?,
+             updated_at = ?,
+             failure_reason = coalesce(?, failure_reason),
+             rollback_reason = coalesce(?, rollback_reason)
+         where id = ?`
+      )
+      .run(status, new Date().toISOString(), metadata?.failureReason ?? null, metadata?.rollbackReason ?? null, promotionId);
+
+    const updated = this.getDatabase()
+      .prepare('select * from promotion_records where id = ?')
+      .get(promotionId) as PromotionRecordRow | undefined;
+    if (!updated) {
+      throw new Error(`Promotion record could not be loaded after update: ${promotionId}`);
+    }
+
+    this.recordPromotionLifecycleEvent(updated);
+
+    return this.mapPromotionRecordRow(updated);
+  }
+
+  async listPromotionRecords(workerVersionId?: string): Promise<PromotionRecord[]> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      return [];
+    }
+
+    const rows = (
+      workerVersionId
+        ? this.getDatabase()
+            .prepare(
+              `select *
+               from promotion_records
+               where worker_version_id = ?
+               order by requested_at asc, id asc`
+            )
+            .all(workerVersionId)
+        : this.getDatabase()
+            .prepare(
+              `select *
+               from promotion_records
+               order by requested_at asc, id asc`
+            )
+            .all()
+    ) as unknown as PromotionRecordRow[];
+
+    return rows.map((row) => this.mapPromotionRecordRow(row));
+  }
+
   async getRevisionStamp(): Promise<TicketStoreRevisionStamp> {
     await this.ensureInitialized();
 
@@ -2005,6 +2304,9 @@ export class TicketStoreRepository
           ticket_id text not null,
           attempt_number integer not null,
           status text not null,
+          workspace_id text,
+          workspace_root text,
+          isolation_mode text,
           started_at text not null,
           ended_at text,
           result text,
@@ -2018,6 +2320,36 @@ export class TicketStoreRepository
 
         create index if not exists idx_ticket_attempts_ticket_number
           on ticket_attempts(ticket_id, attempt_number);
+
+        create table if not exists worker_versions (
+          id text primary key,
+          attempt_id text not null,
+          workspace_id text,
+          workspace_root text,
+          patch_bundle_path text,
+          verification_summary text,
+          created_at text not null,
+          activated_at text,
+          status text not null
+        );
+
+        create index if not exists idx_worker_versions_attempt_created
+          on worker_versions(attempt_id, created_at);
+
+        create table if not exists promotion_records (
+          id text primary key,
+          worker_version_id text not null,
+          status text not null,
+          requested_at text not null,
+          updated_at text not null,
+          approved_by text,
+          approval_id text,
+          failure_reason text,
+          rollback_reason text
+        );
+
+        create index if not exists idx_promotion_records_worker_requested
+          on promotion_records(worker_version_id, requested_at);
 
         create table if not exists task_side_effects (
           id text primary key,
@@ -2163,6 +2495,36 @@ export class TicketStoreRepository
 
       create unique index if not exists idx_event_evidence_event_key
         on event_evidence(domain_event_id, evidence_key);
+
+      create table if not exists worker_versions (
+        id text primary key,
+        attempt_id text not null,
+        workspace_id text,
+        workspace_root text,
+        patch_bundle_path text,
+        verification_summary text,
+        created_at text not null,
+        activated_at text,
+        status text not null
+      );
+
+      create index if not exists idx_worker_versions_attempt_created
+        on worker_versions(attempt_id, created_at);
+
+      create table if not exists promotion_records (
+        id text primary key,
+        worker_version_id text not null,
+        status text not null,
+        requested_at text not null,
+        updated_at text not null,
+        approved_by text,
+        approval_id text,
+        failure_reason text,
+        rollback_reason text
+      );
+
+      create index if not exists idx_promotion_records_worker_requested
+        on promotion_records(worker_version_id, requested_at);
     `);
 
     const attemptColumns = db.prepare('pragma table_info(ticket_attempts)').all() as Array<{ name: string }>;
@@ -2173,6 +2535,18 @@ export class TicketStoreRepository
 
     if (!attemptColumnNames.has('approval_json')) {
       db.exec('alter table ticket_attempts add column approval_json text;');
+    }
+
+    if (!attemptColumnNames.has('workspace_id')) {
+      db.exec('alter table ticket_attempts add column workspace_id text;');
+    }
+
+    if (!attemptColumnNames.has('workspace_root')) {
+      db.exec('alter table ticket_attempts add column workspace_root text;');
+    }
+
+    if (!attemptColumnNames.has('isolation_mode')) {
+      db.exec('alter table ticket_attempts add column isolation_mode text;');
     }
 
     db.prepare(
@@ -2217,6 +2591,24 @@ export class TicketStoreRepository
     ).run(
       5,
       'add canonical domain_events stream and event_evidence rows',
+      new Date().toISOString()
+    );
+
+    db.prepare(
+      `insert or ignore into schema_migrations (version, description, applied_at)
+       values (?, ?, ?)`
+    ).run(
+      6,
+      'persist ticket attempt workspace binding metadata',
+      new Date().toISOString()
+    );
+
+    db.prepare(
+      `insert or ignore into schema_migrations (version, description, applied_at)
+       values (?, ?, ?)`
+    ).run(
+      7,
+      'persist D5 worker versions and promotion records',
       new Date().toISOString()
     );
 
@@ -2554,6 +2946,9 @@ export class TicketStoreRepository
     ticketId: string;
     attemptNumber: number;
     status: TaskAttemptStatus;
+    workspaceId?: string;
+    workspaceRoot?: string;
+    isolationMode?: 'shared-root' | 'isolated-workspace';
     startedAt: string;
   }): void {
     this.getDatabase()
@@ -2563,17 +2958,61 @@ export class TicketStoreRepository
           ticket_id,
           attempt_number,
           status,
+          workspace_id,
+          workspace_root,
+          isolation_mode,
           started_at,
           artifacts_json
-        ) values (?, ?, ?, ?, ?, ?)`
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         input.id,
         input.ticketId,
         input.attemptNumber,
         input.status,
+        input.workspaceId ?? null,
+        input.workspaceRoot ?? null,
+        input.isolationMode ?? null,
         input.startedAt,
         JSON.stringify([])
+      );
+  }
+
+  async bindCurrentAttemptWorkspace(
+    ticketId: string,
+    binding: {
+      workspaceId: string;
+      workspaceRoot: string;
+      isolationMode: 'shared-root' | 'isolated-workspace';
+    }
+  ): Promise<void> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      return;
+    }
+
+    const ticket = this.getDatabase()
+      .prepare('select current_attempt_id from tickets where id = ?')
+      .get(ticketId) as { current_attempt_id: string | null } | undefined;
+    const attemptId = ticket?.current_attempt_id ?? this.getLatestOpenAttemptId(ticketId);
+    if (!attemptId) {
+      return;
+    }
+
+    this.getDatabase()
+      .prepare(
+        `update ticket_attempts
+         set workspace_id = ?,
+             workspace_root = ?,
+             isolation_mode = ?
+         where id = ?`
+      )
+      .run(
+        binding.workspaceId,
+        binding.workspaceRoot,
+        binding.isolationMode,
+        attemptId
       );
   }
 
@@ -2778,6 +3217,9 @@ export class TicketStoreRepository
       ticketId: row.ticket_id,
       attemptNumber: row.attempt_number,
       status: row.status,
+      workspaceId: row.workspace_id ?? undefined,
+      workspaceRoot: row.workspace_root ?? undefined,
+      isolationMode: row.isolation_mode ?? undefined,
       startedAt: new Date(row.started_at),
       endedAt: row.ended_at ? new Date(row.ended_at) : undefined,
       result: row.result ?? undefined,
@@ -2825,6 +3267,71 @@ export class TicketStoreRepository
       processedAt: row.processed_at ? new Date(row.processed_at) : undefined,
       lastError: row.last_error ?? undefined,
     };
+  }
+
+  private mapWorkerVersionRow(row: WorkerVersionRow): WorkerVersion {
+    return {
+      id: row.id,
+      attemptId: row.attempt_id,
+      workspaceId: row.workspace_id ?? undefined,
+      workspaceRoot: row.workspace_root ?? undefined,
+      patchBundlePath: row.patch_bundle_path ?? undefined,
+      verificationSummary: row.verification_summary ?? undefined,
+      createdAt: new Date(row.created_at),
+      activatedAt: row.activated_at ? new Date(row.activated_at) : undefined,
+      status: row.status,
+    };
+  }
+
+  private mapPromotionRecordRow(row: PromotionRecordRow): PromotionRecord {
+    return {
+      id: row.id,
+      workerVersionId: row.worker_version_id,
+      status: row.status,
+      requestedAt: new Date(row.requested_at),
+      updatedAt: new Date(row.updated_at),
+      approvedBy: row.approved_by ?? undefined,
+      approvalId: row.approval_id ?? undefined,
+      failureReason: row.failure_reason ?? undefined,
+      rollbackReason: row.rollback_reason ?? undefined,
+    };
+  }
+
+  private recordPromotionLifecycleEvent(row: PromotionRecordRow): void {
+    const ticketId = this.getTicketIdForWorkerVersion(row.worker_version_id);
+    if (!ticketId) {
+      return;
+    }
+
+    this.recordEvent({
+      ticketId,
+      type: resolvePromotionEvent(row.status),
+      createdAt: new Date(row.updated_at),
+      details: `${row.id}:${row.status}`,
+      correlationId: row.approval_id ?? undefined,
+      evidence: {
+        promotionId: row.id,
+        workerVersionId: row.worker_version_id,
+        promotionStatus: row.status,
+        approvedBy: row.approved_by ?? undefined,
+        approvalId: row.approval_id ?? undefined,
+        failureReason: row.failure_reason ?? undefined,
+        rollbackReason: row.rollback_reason ?? undefined,
+      },
+    });
+  }
+
+  private getTicketIdForWorkerVersion(workerVersionId: string): string | null {
+    const row = this.getDatabase()
+      .prepare(
+        `select ta.ticket_id as ticket_id
+         from worker_versions wv
+         join ticket_attempts ta on ta.id = wv.attempt_id
+         where wv.id = ?`
+      )
+      .get(workerVersionId) as { ticket_id: string } | undefined;
+
+    return row?.ticket_id ?? null;
   }
 
   private recordEvent(event: TaskEvent): void {
@@ -3068,6 +3575,14 @@ export class TicketStoreRepository
 
   private generateDomainEventId(): string {
     return `event_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+  }
+
+  private generateWorkerVersionId(): string {
+    return `worker_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  }
+
+  private generatePromotionRecordId(): string {
+    return `promotion_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
   }
 }
 

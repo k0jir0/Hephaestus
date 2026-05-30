@@ -1,6 +1,6 @@
 # ADR 0005: Promotion Boundary
 
-Status: Proposed
+Status: Accepted (Foundation Implemented)
 Date: 2026-05-29
 
 ## Context
@@ -50,6 +50,7 @@ Promotion emits events:
 
 ## Follow-Up
 
-- Define `WorkerVersion` and `Promotion` domain objects.
-- Add a supervisor health-check interface.
+- Define `WorkerVersion` and `Promotion` domain objects. (Implemented)
+- Persist `WorkerVersion` and `Promotion` records in the canonical store. (Implemented)
+- Add a supervisor health-check interface. (Initial runtime scaffold implemented)
 - Add D5 tests for failed successor startup and rollback records.

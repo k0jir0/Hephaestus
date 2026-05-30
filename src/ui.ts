@@ -1129,6 +1129,27 @@ function buildClientScript(): string {
     async function refreshTicketDetail(ticketId) {
       state.selectedTicketId = ticketId;
       const detail = await api('/api/tickets/' + encodeURIComponent(ticketId));
+      let timeline = null;
+      let evidence = null;
+      let gates = null;
+      try {
+        timeline = await api('/api/tickets/' + encodeURIComponent(ticketId) + '/timeline');
+      } catch {
+        timeline = null;
+      }
+      try {
+        evidence = await api('/api/tickets/' + encodeURIComponent(ticketId) + '/evidence');
+      } catch {
+        evidence = null;
+      }
+      try {
+        gates = await api('/api/tickets/' + encodeURIComponent(ticketId) + '/gates');
+      } catch {
+        gates = null;
+      }
+      detail.timeline = timeline;
+      detail.evidence = evidence;
+      detail.gates = gates;
       renderTicketDetail(detail);
       highlightSelectedRows('tickets-table-body', ticketId);
     }
@@ -1372,9 +1393,14 @@ function buildClientScript(): string {
             '<div class="detail-block"><h3>Attempts</h3>' + renderAttempts(detail.attempts || []) + '</div>' +
             '<div class="detail-block"><h3>Events</h3>' + renderEvents(detail.events || []) + '</div>' +
           '</div>' +
+          '<div class="detail-block"><h3>Timeline</h3>' + renderTicketTimeline(detail.timeline) + '</div>' +
           '<div class="split-tight">' +
-            '<div class="detail-block"><h3>Artifacts</h3>' + renderArtifacts(detail.derived.artifacts || []) + '</div>' +
-            '<div class="detail-block"><h3>Side Effects</h3>' + renderSideEffects(detail.sideEffects || []) + '</div>' +
+            '<div class="detail-block"><h3>Worker Versions</h3>' + renderWorkerVersions(detail.workerVersions || []) + '</div>' +
+            '<div class="detail-block"><h3>Promotions</h3>' + renderPromotions(detail.promotions || []) + '</div>' +
+          '</div>' +
+          '<div class="split-tight">' +
+            '<div class="detail-block"><h3>Artifacts</h3>' + renderArtifacts(resolveTicketArtifacts(detail)) + '</div>' +
+            '<div class="detail-block"><h3>Side Effects</h3>' + renderSideEffects(resolveTicketSideEffects(detail)) + '</div>' +
           '</div>' +
         '</div>';
 
@@ -1386,6 +1412,16 @@ function buildClientScript(): string {
     }
 
     function renderCompletionEvidence(detail) {
+      if (detail.gates && detail.gates.completionEvidence) {
+        const completion = detail.gates.completionEvidence;
+        return '<div class="detail-block"><h3>Completion Evidence</h3><div class="detail-list">' +
+          detailItem('Gate Status', completion.gateStatus || '-') +
+          detailItem('Mutable Targets', (completion.mutableTargets || []).join(', ') || '-') +
+          detailItem('Observed Mutations', (completion.observedMutations || []).join(', ') || '-') +
+          detailItem('Gate Reason', completion.gateReason || '-') +
+        '</div></div>';
+      }
+
       const ticket = detail.ticket || {};
       const plan = ticket.plan || {};
       const intendedFiles = Array.isArray(plan.intendedFiles) ? plan.intendedFiles : [];
@@ -1401,9 +1437,7 @@ function buildClientScript(): string {
         return '<div class="detail-block"><h3>Completion Evidence</h3><div class="empty-state">No mutable intended files were declared for this ticket plan.</div></div>';
       }
 
-      const patchDeltas = detail.derived && Array.isArray(detail.derived.patchDeltas)
-        ? detail.derived.patchDeltas
-        : [];
+      const patchDeltas = resolveTicketPatchDeltas(detail);
       const observedMutations = [];
       patchDeltas.forEach(function (delta) {
         const applyState = String(delta && delta.apply ? delta.apply : '').toLowerCase();
@@ -1452,21 +1486,61 @@ function buildClientScript(): string {
 
     function renderPatchBlock(detail) {
       const derived = detail.derived || {};
+      const evidence = detail.evidence && detail.evidence.evidence ? detail.evidence.evidence : null;
       const blocks = [];
-      if (derived.currentPatch) {
-        blocks.push('<div class="detail-block"><h3>Patch Review</h3><pre>' + escapeHtml(derived.currentPatch) + '</pre></div>');
+      const currentPatch = evidence && typeof evidence.currentPatch === 'string'
+        ? evidence.currentPatch
+        : derived.currentPatch;
+      const policySnapshots = evidence && Array.isArray(evidence.policySnapshots)
+        ? evidence.policySnapshots
+        : (Array.isArray(derived.policySnapshots) ? derived.policySnapshots : []);
+      const patchDeltas = resolveTicketPatchDeltas(detail);
+      if (currentPatch) {
+        blocks.push('<div class="detail-block"><h3>Patch Review</h3><pre>' + escapeHtml(currentPatch) + '</pre></div>');
       }
-      if (derived.policySnapshots && derived.policySnapshots.length > 0) {
-        blocks.push('<div class="detail-block"><h3>Policy Snapshot</h3><pre>' + escapeHtml(JSON.stringify(derived.policySnapshots[0].parsed || derived.policySnapshots[0].raw, null, 2)) + '</pre></div>');
+      if (policySnapshots.length > 0) {
+        blocks.push('<div class="detail-block"><h3>Policy Snapshot</h3><pre>' + escapeHtml(JSON.stringify(policySnapshots[0].parsed || policySnapshots[0].raw, null, 2)) + '</pre></div>');
       }
-      if (derived.patchDeltas && derived.patchDeltas.length > 0) {
-        blocks.push('<div class="detail-block"><h3>Patch Delta</h3><pre>' + escapeHtml(JSON.stringify(derived.patchDeltas, null, 2)) + '</pre></div>');
+      if (patchDeltas.length > 0) {
+        blocks.push('<div class="detail-block"><h3>Patch Delta</h3><pre>' + escapeHtml(JSON.stringify(patchDeltas, null, 2)) + '</pre></div>');
       }
       return blocks.join('');
     }
 
+    function resolveTicketPatchDeltas(detail) {
+      const evidence = detail.evidence && detail.evidence.evidence;
+      if (evidence && Array.isArray(evidence.patchDeltas)) {
+        return evidence.patchDeltas;
+      }
+
+      return detail.derived && Array.isArray(detail.derived.patchDeltas)
+        ? detail.derived.patchDeltas
+        : [];
+    }
+
+    function resolveTicketArtifacts(detail) {
+      const evidence = detail.evidence && detail.evidence.evidence;
+      if (evidence && Array.isArray(evidence.artifacts)) {
+        return evidence.artifacts;
+      }
+
+      return detail.derived && Array.isArray(detail.derived.artifacts)
+        ? detail.derived.artifacts
+        : [];
+    }
+
+    function resolveTicketSideEffects(detail) {
+      const evidence = detail.evidence && detail.evidence.evidence;
+      if (evidence && Array.isArray(evidence.sideEffects)) {
+        return evidence.sideEffects;
+      }
+
+      return Array.isArray(detail.sideEffects) ? detail.sideEffects : [];
+    }
+
     function renderRecoveryBlock(detail) {
-      const recommendation = detail.derived && detail.derived.recoveryRecommendation;
+      const recommendation = (detail.gates && detail.gates.recoveryRecommendation)
+        || (detail.derived && detail.derived.recoveryRecommendation);
       if (!recommendation || recommendation.source === 'none') {
         return '';
       }
@@ -1507,6 +1581,26 @@ function buildClientScript(): string {
       }).join('') + '</div>';
     }
 
+    function renderTicketTimeline(timeline) {
+      if (!timeline || !Array.isArray(timeline.entries) || !timeline.entries.length) {
+        return '<div class="empty-state">No timeline entries recorded.</div>';
+      }
+
+      const metadata = timeline.metadata || {};
+      const windows = metadata.windows || {};
+      const header = '<div class="helper">schema=' + escapeHtml(metadata.schemaVersion || '-') +
+        ' | revision=' + escapeHtml(metadata.revision || '-') +
+        ' | generated=' + escapeHtml(formatDate(metadata.generatedAt)) +
+        ' | window=' + escapeHtml(String(windows.recentEvents || timeline.entries.length)) + '</div>';
+
+      return header + '<div class="timeline">' + timeline.entries.slice().reverse().map(function (entry) {
+        return '<div class="timeline-item">' +
+          '<div class="action-row"><span class="role-pill">' + escapeHtml(entry.source || '-') + '</span><span class="helper">' + escapeHtml(formatDate(entry.at)) + '</span></div>' +
+          '<div>' + escapeHtml(entry.detail || '-') + '</div>' +
+        '</div>';
+      }).join('') + '</div>';
+    }
+
     function renderArtifacts(artifacts) {
       if (!artifacts.length) {
         return '<div class="empty-state">No artifacts recorded.</div>';
@@ -1527,6 +1621,60 @@ function buildClientScript(): string {
           '<div class="action-row"><span class="status-pill ' + escapeHtml(effect.status) + '">' + escapeHtml(effect.status) + '</span><span>' + escapeHtml(effect.type) + '</span></div>' +
           '<div class="helper mono">' + escapeHtml(effect.idempotencyKey) + '</div>' +
           (effect.lastError ? '<div>' + escapeHtml(effect.lastError) + '</div>' : '') +
+        '</div>';
+      }).join('') + '</div>';
+    }
+
+    function renderWorkerVersions(workerVersions) {
+      if (!workerVersions.length) {
+        return '<div class="empty-state">No worker versions recorded.</div>';
+      }
+
+      return '<div class="timeline">' + workerVersions.slice().reverse().map(function (workerVersion) {
+        const workspaceParts = [];
+        if (workerVersion.workspaceId) {
+          workspaceParts.push('workspace=' + workerVersion.workspaceId);
+        }
+        if (workerVersion.workspaceRoot) {
+          workspaceParts.push('root=' + workerVersion.workspaceRoot);
+        }
+        if (workerVersion.patchBundlePath) {
+          workspaceParts.push('bundle=' + workerVersion.patchBundlePath);
+        }
+        return '<div class="timeline-item">' +
+          '<div class="action-row"><span class="status-pill ' + escapeHtml(workerVersion.status) + '">' + escapeHtml(workerVersion.status) + '</span><span class="mono">' + escapeHtml(workerVersion.id) + '</span></div>' +
+          '<div class="helper mono">attempt=' + escapeHtml(workerVersion.attemptId) + ' #' + escapeHtml(String(workerVersion.attemptNumber || '-')) + '</div>' +
+          (workspaceParts.length ? '<div class="helper mono">' + escapeHtml(workspaceParts.join(' | ')) + '</div>' : '') +
+          '<div class="helper">created=' + escapeHtml(formatDate(workerVersion.createdAt)) + ' | activated=' + escapeHtml(formatDate(workerVersion.activatedAt)) + '</div>' +
+          '<div>' + escapeHtml(workerVersion.verificationSummary || '-') + '</div>' +
+        '</div>';
+      }).join('') + '</div>';
+    }
+
+    function renderPromotions(promotions) {
+      if (!promotions.length) {
+        return '<div class="empty-state">No promotion records recorded.</div>';
+      }
+
+      return '<div class="timeline">' + promotions.slice().reverse().map(function (promotion) {
+        const promotionParts = [];
+        if (promotion.attemptNumber !== undefined) {
+          promotionParts.push('attempt #' + promotion.attemptNumber);
+        }
+        if (promotion.workspaceId) {
+          promotionParts.push('workspace=' + promotion.workspaceId);
+        }
+        if (promotion.workspaceRoot) {
+          promotionParts.push('root=' + promotion.workspaceRoot);
+        }
+        if (promotion.workerVersionStatus) {
+          promotionParts.push('version=' + promotion.workerVersionStatus);
+        }
+        return '<div class="timeline-item">' +
+          '<div class="action-row"><span class="status-pill ' + escapeHtml(promotion.status) + '">' + escapeHtml(promotion.status.replace(/_/g, ' ')) + '</span><span class="mono">' + escapeHtml(promotion.id) + '</span></div>' +
+          '<div class="helper mono">worker=' + escapeHtml(promotion.workerVersionId) + (promotionParts.length ? ' | ' + escapeHtml(promotionParts.join(' | ')) : '') + '</div>' +
+          '<div class="helper">requested=' + escapeHtml(formatDate(promotion.requestedAt)) + ' | updated=' + escapeHtml(formatDate(promotion.updatedAt)) + '</div>' +
+          '<div>' + escapeHtml(promotion.verificationSummary || promotion.failureReason || promotion.rollbackReason || '-') + '</div>' +
         '</div>';
       }).join('') + '</div>';
     }

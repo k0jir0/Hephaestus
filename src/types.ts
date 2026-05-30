@@ -81,7 +81,14 @@ export interface TaskEvent {
     | 'board-synced'
     | 'side-effect-enqueued'
     | 'side-effect-completed'
-    | 'side-effect-failed';
+    | 'side-effect-failed'
+    | 'promotion.requested'
+    | 'promotion.verified'
+    | 'promotion.started'
+    | 'promotion.health_check_passed'
+    | 'promotion.completed'
+    | 'promotion.failed'
+    | 'promotion.rolled_back';
   createdAt: Date;
   details?: string;
   evidence?: Record<string, unknown>;
@@ -93,6 +100,9 @@ export interface TaskAttempt {
   ticketId: string;
   attemptNumber: number;
   status: TaskAttemptStatus;
+  workspaceId?: string;
+  workspaceRoot?: string;
+  isolationMode?: 'shared-root' | 'isolated-workspace';
   startedAt: Date;
   endedAt?: Date;
   result?: string;
@@ -101,6 +111,50 @@ export interface TaskAttempt {
   toolCalls?: ToolCall[];
   approval?: TaskApprovalState;
   artifacts: string[];
+}
+
+export type WorkerVersionStatus = 'candidate' | 'promotable' | 'active' | 'rolled_back';
+
+export interface WorkerVersion {
+  id: string;
+  attemptId: string;
+  workspaceId?: string;
+  workspaceRoot?: string;
+  patchBundlePath?: string;
+  verificationSummary?: string;
+  createdAt: Date;
+  activatedAt?: Date;
+  status: WorkerVersionStatus;
+}
+
+export type PromotionStatus =
+  | 'requested'
+  | 'verified'
+  | 'started'
+  | 'health_check_passed'
+  | 'completed'
+  | 'failed'
+  | 'rolled_back';
+
+export type PromotionEventType =
+  | 'promotion.requested'
+  | 'promotion.verified'
+  | 'promotion.started'
+  | 'promotion.health_check_passed'
+  | 'promotion.completed'
+  | 'promotion.failed'
+  | 'promotion.rolled_back';
+
+export interface PromotionRecord {
+  id: string;
+  workerVersionId: string;
+  status: PromotionStatus;
+  requestedAt: Date;
+  updatedAt: Date;
+  approvedBy?: string;
+  approvalId?: string;
+  failureReason?: string;
+  rollbackReason?: string;
 }
 
 export interface TaskApprovalState {

@@ -20,11 +20,14 @@ import { runStartupPreflight } from './preflight.js';
 import type {
   MemoryRepository,
   PendingTaskSideEffect,
+  PromotionRepository,
   RepositoryReadinessProbe,
   TaskArtifactRepository,
   TaskRepository,
   TaskSideEffectRepository,
+  TaskWorkspaceBindingRepository,
   ToolRuntimeReadinessProbe,
+  WorkerVersionRepository,
 } from './repositories.js';
 import { SafetySystem } from './safety.js';
 import { SelfAuditSeeder, type SelfAuditSeedResult } from './self-audit.js';
@@ -70,11 +73,17 @@ import { canTransitionTaskStatus, settleTaskStatus, transitionTask } from './dom
 import { classifyTaskEnvelope, formatTaskEnvelopeDecision, lintTaskEnvelopeQuality } from './task-envelope.js';
 import { TicketStoreRepository } from './task-store.js';
 import { EngineeringToolRuntime, type EngineeringToolRequest } from './tool-runtime.js';
+import {
+  createAttemptWorkspaceManager,
+  type AttemptWorkspaceBinding,
+  type AttemptWorkspaceManager,
+} from './workspace-manager.js';
 import type {
   AIResponse,
   AgentState,
   EngineeringToolResult,
   Task,
+  TaskAttempt,
   TaskApprovalState,
   TaskPlan,
   ToolCall,
@@ -112,6 +121,21 @@ export interface RuntimeToolPort extends ToolRuntimeReadinessProbe {
   getPolicySnapshot?(): ToolPolicySnapshot;
 }
 
+export interface RuntimeSupervisorPort {
+  validateStartup(candidate: {
+    ticketId: string;
+    attemptId: string;
+    workspaceId: string;
+    workspaceRoot: string;
+  }): Promise<{ ok: boolean; message: string }>;
+  checkHealth(candidate: {
+    ticketId: string;
+    attemptId: string;
+    workspaceId: string;
+    workspaceRoot: string;
+  }): Promise<{ ok: boolean; message: string }>;
+}
+
 export interface RuntimeSelfAuditSeeder {
   seedTickets(options?: { limit?: number; dryRun?: boolean; onlyWhenQueueEmpty?: boolean }): Promise<SelfAuditSeedResult>;
 }
@@ -133,6 +157,8 @@ export interface RuntimeDependencies {
   executor?: RuntimeExecutorPort;
   safety?: RuntimeSafetyPort;
   toolRuntime?: RuntimeToolPort;
+  supervisor?: RuntimeSupervisorPort;
+  workspaceManager?: AttemptWorkspaceManager;
   admissionController?: AdmissionController;
   preflightRunner?: (executor: RuntimeExecutorPort) => Promise<PreflightResult>;
   contextProvider?: (task?: Task) => Promise<string>;
@@ -175,6 +201,9 @@ export class HephaestusRuntime {
   private readonly executor: RuntimeExecutorPort;
   private readonly safety: RuntimeSafetyPort;
   private readonly toolRuntime: RuntimeToolPort;
+  private readonly useStaticToolRuntime: boolean;
+  private readonly supervisor: RuntimeSupervisorPort | null;
+  private readonly workspaceManager: AttemptWorkspaceManager;
   private readonly admissionController: AdmissionController;
   private readonly preflightRunner: (executor: RuntimeExecutorPort) => Promise<PreflightResult>;
   private readonly contextProvider: (task?: Task) => Promise<string>;
@@ -217,6 +246,15 @@ export class HephaestusRuntime {
       new EngineeringToolRuntime({
         workspaceRoot: this.runtimeConfig.targetProject,
         dryRun: this.runtimeConfig.toolRuntimeDryRun ?? false,
+      });
+    this.useStaticToolRuntime = Boolean(dependencies.toolRuntime);
+    this.supervisor = dependencies.supervisor ?? null;
+    this.workspaceManager =
+      dependencies.workspaceManager ??
+      createAttemptWorkspaceManager({
+        targetProject: this.runtimeConfig.targetProject,
+        mode: this.runtimeConfig.attemptWorkspaceMode,
+        workspaceRoot: path.join(this.runtimeConfig.baseDir, '.hephaestus', 'workspaces'),
       });
     this.admissionController =
       dependencies.admissionController ??
@@ -577,59 +615,78 @@ export class HephaestusRuntime {
         task.result = taskSummary;
         task.toolCalls = result.toolCalls;
 
-        const toolExecution = await this.executePlannedTools(
-          task,
-          result.plan,
-          result.toolCalls ?? [],
-          admission.correlationId,
-          {
-            skipPlanPrelude: resumedToolCalls !== null,
-          }
-        );
-        toolExecution.artifacts.push(formatBackendEvidenceArtifact({
-          correlationId: admission.correlationId,
-          backend: this.runtimeConfig.aiBackend,
-          model: this.runtimeConfig.aiModel,
-        }));
-        await this.appendTaskArtifacts(task.id, toolExecution.artifacts);
+        const taskToolRuntime = await this.resolveToolRuntime(task, admission.correlationId);
+        let workspaceOutcome: 'completed' | 'failed' | 'awaiting-approval' | 'rejected' = 'failed';
+        try {
+          await this.persistTaskWorkspaceBinding(task.id, taskToolRuntime.binding);
+          const toolExecution = await this.executePlannedTools(
+            task,
+            result.plan,
+            result.toolCalls ?? [],
+            admission.correlationId,
+            taskToolRuntime,
+            {
+              skipPlanPrelude: resumedToolCalls !== null,
+            }
+          );
+          toolExecution.artifacts.push(formatBackendEvidenceArtifact({
+            correlationId: admission.correlationId,
+            backend: this.runtimeConfig.aiBackend,
+            model: this.runtimeConfig.aiModel,
+          }));
+          await this.appendTaskArtifacts(task.id, toolExecution.artifacts);
 
-        const completionDecision = decideTaskCompletion({
-          plan: result.plan,
-          observedMutatedPaths: toolExecution.observedMutatedPaths ?? [],
-          failureReason: toolExecution.failureReason,
-          awaitingApprovalReason: toolExecution.awaitingApprovalReason,
-          pendingToolCalls: toolExecution.pendingToolCalls,
-          approvalState: toolExecution.approvalState,
-        });
-        if (completionDecision.action === 'awaiting_approval') {
-          task.error = completionDecision.reason;
-          task.toolCalls = completionDecision.pendingToolCalls ?? result.toolCalls ?? [];
-          task.approval = completionDecision.approvalState;
-          await this.handleAwaitingApprovalTask(task, completionDecision.reason, taskMarkedInProgress);
-          return 'awaiting_approval';
-        }
-
-        if (completionDecision.action === 'block') {
-          task.error = completionDecision.reason;
-          await this.handleBlockedTask(task, completionDecision.reason, taskMarkedInProgress, {
-            forceBlocked: completionDecision.forceBlocked,
+          const completionDecision = decideTaskCompletion({
+            plan: result.plan,
+            observedMutatedPaths: toolExecution.observedMutatedPaths ?? [],
+            failureReason: toolExecution.failureReason,
+            awaitingApprovalReason: toolExecution.awaitingApprovalReason,
+            pendingToolCalls: toolExecution.pendingToolCalls,
+            approvalState: toolExecution.approvalState,
           });
-          return 'failed';
+          if (completionDecision.action === 'awaiting_approval') {
+            workspaceOutcome = 'awaiting-approval';
+            task.error = completionDecision.reason;
+            task.toolCalls = completionDecision.pendingToolCalls ?? result.toolCalls ?? [];
+            task.approval = completionDecision.approvalState;
+            await this.handleAwaitingApprovalTask(task, completionDecision.reason, taskMarkedInProgress);
+            return 'awaiting_approval';
+          }
+
+          if (completionDecision.action === 'block') {
+            workspaceOutcome = 'failed';
+            task.error = completionDecision.reason;
+            await this.handleBlockedTask(task, completionDecision.reason, taskMarkedInProgress, {
+              forceBlocked: completionDecision.forceBlocked,
+            });
+            return 'failed';
+          }
+
+          workspaceOutcome = 'completed';
+          await this.tasks.markTaskCompleted(task);
+          Object.assign(task, settleTaskStatus(task, 'completed'));
+          const promotionArtifacts = await this.runPromotionFlow(
+            task,
+            taskToolRuntime.binding,
+            admission.correlationId
+          );
+          if (promotionArtifacts.length > 0) {
+            await this.appendTaskArtifacts(task.id, promotionArtifacts);
+          }
+          this.recordSuccessfulTask(task, result);
+          await this.recordCompletionSideEffects(task, taskSummary, admission.correlationId);
+
+          logger.info(`Task planned successfully: ${task.description}`);
+          logger.info(result.content, {
+            plannedFiles: result.plan?.intendedFiles.length ?? 0,
+            plannedCommands: result.plan?.commands.length ?? 0,
+          });
+
+          await this.markIdle();
+          return 'completed';
+        } finally {
+          await this.workspaceManager.releaseWorkspace(taskToolRuntime.binding, workspaceOutcome);
         }
-
-        await this.tasks.markTaskCompleted(task);
-        Object.assign(task, settleTaskStatus(task, 'completed'));
-        this.recordSuccessfulTask(task, result);
-        await this.recordCompletionSideEffects(task, taskSummary, admission.correlationId);
-
-        logger.info(`Task planned successfully: ${task.description}`);
-        logger.info(result.content, {
-          plannedFiles: result.plan?.intendedFiles.length ?? 0,
-          plannedCommands: result.plan?.commands.length ?? 0,
-        });
-
-        await this.markIdle();
-        return 'completed';
       }
 
       logger.error(`Task failed: ${task.description}`, { error: result.content });
@@ -763,18 +820,173 @@ export class HephaestusRuntime {
       : null;
   }
 
+  private getTaskWorkspaceBindingRepository(): (TaskRepository & TaskWorkspaceBindingRepository) | null {
+    return 'bindCurrentAttemptWorkspace' in this.tasks
+      ? (this.tasks as TaskRepository & TaskWorkspaceBindingRepository)
+      : null;
+  }
+
+  private getPromotionRepository():
+    | (TaskRepository & WorkerVersionRepository & PromotionRepository & {
+        listAttempts(ticketId: string): Promise<TaskAttempt[]>;
+      })
+    | null {
+    return 'createWorkerVersion' in this.tasks
+      && 'createPromotionRecord' in this.tasks
+      && 'listAttempts' in this.tasks
+      ? (this.tasks as TaskRepository & WorkerVersionRepository & PromotionRepository & {
+          listAttempts(ticketId: string): Promise<TaskAttempt[]>;
+        })
+      : null;
+  }
+
+  private async runPromotionFlow(
+    task: Task,
+    binding: AttemptWorkspaceBinding,
+    correlationId: string
+  ): Promise<string[]> {
+    if (!this.supervisor) {
+      return [];
+    }
+
+    const repository = this.getPromotionRepository();
+    if (!repository) {
+      return [];
+    }
+
+    const attempts = await repository.listAttempts(task.id);
+    const latestAttempt = attempts[attempts.length - 1];
+    if (!latestAttempt) {
+      return [`[${correlationId}] promotion.skip reason=no-attempt`];
+    }
+
+    const artifacts: string[] = [];
+    let promotionId: string | null = null;
+    let workerVersionId: string | null = null;
+
+    try {
+      const workerVersion = await repository.createWorkerVersion({
+        attemptId: latestAttempt.id,
+        workspaceId: binding.workspaceId,
+        workspaceRoot: binding.workspaceRoot,
+        verificationSummary: task.result,
+      });
+      workerVersionId = workerVersion.id;
+      artifacts.push(`[${correlationId}] promotion.worker-version id=${workerVersion.id} status=${workerVersion.status}`);
+
+      const promotion = await repository.createPromotionRecord({
+        workerVersionId: workerVersion.id,
+        approvedBy: 'runtime-supervisor',
+        approvalId: correlationId,
+      });
+      promotionId = promotion.id;
+      artifacts.push(`[${correlationId}] promotion.record id=${promotion.id} status=${promotion.status}`);
+
+      await repository.updatePromotionStatus(promotion.id, 'verified');
+      await repository.updateWorkerVersionStatus(workerVersion.id, 'promotable');
+      await repository.updatePromotionStatus(promotion.id, 'started');
+
+      const startupValidation = await this.supervisor.validateStartup({
+        ticketId: task.id,
+        attemptId: latestAttempt.id,
+        workspaceId: binding.workspaceId,
+        workspaceRoot: binding.workspaceRoot,
+      });
+      if (!startupValidation.ok) {
+        await repository.updatePromotionStatus(promotion.id, 'failed', {
+          failureReason: startupValidation.message,
+        });
+        await repository.updateWorkerVersionStatus(workerVersion.id, 'rolled_back');
+        await repository.updatePromotionStatus(promotion.id, 'rolled_back', {
+          rollbackReason: `startup-validation-failed: ${startupValidation.message}`,
+        });
+        artifacts.push(`[${correlationId}] promotion.rollback reason=startup-validation-failed message=${startupValidation.message}`);
+        return artifacts;
+      }
+
+      const healthCheck = await this.supervisor.checkHealth({
+        ticketId: task.id,
+        attemptId: latestAttempt.id,
+        workspaceId: binding.workspaceId,
+        workspaceRoot: binding.workspaceRoot,
+      });
+      if (!healthCheck.ok) {
+        await repository.updatePromotionStatus(promotion.id, 'failed', {
+          failureReason: healthCheck.message,
+        });
+        await repository.updateWorkerVersionStatus(workerVersion.id, 'rolled_back');
+        await repository.updatePromotionStatus(promotion.id, 'rolled_back', {
+          rollbackReason: `health-check-failed: ${healthCheck.message}`,
+        });
+        artifacts.push(`[${correlationId}] promotion.rollback reason=health-check-failed message=${healthCheck.message}`);
+        return artifacts;
+      }
+
+      await repository.updatePromotionStatus(promotion.id, 'health_check_passed');
+      await repository.updateWorkerVersionStatus(workerVersion.id, 'active');
+      await repository.updatePromotionStatus(promotion.id, 'completed');
+      artifacts.push(`[${correlationId}] promotion.completed id=${promotion.id} workerVersion=${workerVersion.id}`);
+      return artifacts;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      artifacts.push(`[${correlationId}] promotion.error message=${message}`);
+
+      if (promotionId && workerVersionId) {
+        try {
+          await repository.updatePromotionStatus(promotionId, 'failed', {
+            failureReason: message,
+          });
+          await repository.updateWorkerVersionStatus(workerVersionId, 'rolled_back');
+          await repository.updatePromotionStatus(promotionId, 'rolled_back', {
+            rollbackReason: `runtime-error: ${message}`,
+          });
+          artifacts.push(`[${correlationId}] promotion.rollback reason=runtime-error message=${message}`);
+        } catch (rollbackError) {
+          artifacts.push(
+            `[${correlationId}] promotion.rollback.error message=${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`
+          );
+        }
+      }
+
+      return artifacts;
+    }
+  }
+
+  private async persistTaskWorkspaceBinding(
+    ticketId: string,
+    binding: AttemptWorkspaceBinding
+  ): Promise<void> {
+    const repository = this.getTaskWorkspaceBindingRepository();
+    if (!repository) {
+      return;
+    }
+
+    await repository.bindCurrentAttemptWorkspace(ticketId, {
+      workspaceId: binding.workspaceId,
+      workspaceRoot: binding.workspaceRoot,
+      isolationMode: binding.isolationMode,
+    });
+  }
+
   private async executePlannedTools(
     task: Task,
     plan: TaskPlan | undefined,
     toolCalls: ToolCall[],
     correlationId: string,
+    taskToolRuntime: {
+      binding: AttemptWorkspaceBinding;
+      runtime: RuntimeToolPort;
+    },
     options: { skipPlanPrelude?: boolean } = {}
   ): Promise<PlannedToolExecutionOutcome> {
-    if ((!plan && toolCalls.length === 0) || !this.toolRuntime.execute) {
+    if ((!plan && toolCalls.length === 0) || !taskToolRuntime.runtime.execute) {
       return { artifacts: [] };
     }
 
     const artifacts: string[] = [];
+    artifacts.push(
+      `[${correlationId}] workspace.bind id=${taskToolRuntime.binding.workspaceId} mode=${taskToolRuntime.binding.isolationMode} root=${taskToolRuntime.binding.workspaceRoot}`
+    );
     const observedMutatedPaths = new Set<string>();
     const commandTelemetry = createCommandAttemptTelemetry();
     const appendCommandTelemetryArtifact = (): void => {
@@ -784,7 +996,7 @@ export class HephaestusRuntime {
       }
     };
 
-    const policySnapshot = this.toolRuntime.getPolicySnapshot?.();
+    const policySnapshot = taskToolRuntime.runtime.getPolicySnapshot?.();
     if (policySnapshot) {
       artifacts.push(formatPolicySnapshotArtifact(correlationId, policySnapshot));
     }
@@ -804,7 +1016,7 @@ export class HephaestusRuntime {
           continue;
         }
 
-        const result = await this.toolRuntime.execute({
+        const result = await taskToolRuntime.runtime.execute({
           tool: 'file.read',
           path: file.path,
           maxBytes: 8 * 1024,
@@ -849,7 +1061,7 @@ export class HephaestusRuntime {
           continue;
         }
 
-        const result = await this.toolRuntime.execute({
+        const result = await taskToolRuntime.runtime.execute({
           tool: 'command.run',
           command: parsedCommand.command,
           args: parsedCommand.args,
@@ -882,7 +1094,13 @@ export class HephaestusRuntime {
     }
 
     for (const [index, toolCall] of toolCalls.entries()) {
-      const execution = await this.executeGovernedToolCall(plan, toolCall, correlationId, commandTelemetry);
+      const execution = await this.executeGovernedToolCall(
+        plan,
+        toolCall,
+        correlationId,
+        taskToolRuntime.runtime,
+        commandTelemetry
+      );
       artifacts.push(...execution.artifacts);
       for (const mutatedPath of execution.observedMutatedPaths ?? []) {
         observedMutatedPaths.add(mutatedPath);
@@ -919,9 +1137,10 @@ export class HephaestusRuntime {
     plan: TaskPlan | undefined,
     toolCall: ToolCall,
     correlationId: string,
+    taskToolRuntime: RuntimeToolPort,
     commandTelemetry?: CommandAttemptTelemetry
   ): Promise<PlannedToolExecutionOutcome> {
-    if (!this.toolRuntime.execute) {
+    if (!taskToolRuntime.execute) {
       return { artifacts: [] };
     }
 
@@ -939,7 +1158,7 @@ export class HephaestusRuntime {
           };
         }
 
-        const result = await this.toolRuntime.execute({
+        const result = await taskToolRuntime.execute({
           tool: 'repo.search',
           query,
           maxResults: typeof toolCall.arguments.maxResults === 'number' ? toolCall.arguments.maxResults : undefined,
@@ -972,7 +1191,7 @@ export class HephaestusRuntime {
           };
         }
 
-        const dryRunResult = await this.toolRuntime.execute({
+        const dryRunResult = await taskToolRuntime.execute({
           tool: 'patch.apply',
           patch,
           dryRun: true,
@@ -1003,7 +1222,7 @@ export class HephaestusRuntime {
           };
         }
 
-        const applyResult = await this.toolRuntime.execute({
+        const applyResult = await taskToolRuntime.execute({
           tool: 'patch.apply',
           patch,
           approvalId,
@@ -1106,7 +1325,7 @@ export class HephaestusRuntime {
           };
         }
 
-        const result = await this.toolRuntime.execute({
+        const result = await taskToolRuntime.execute({
           tool: 'command.run',
           command: resolvedCommand,
           args: resolvedArgs,
@@ -1133,7 +1352,7 @@ export class HephaestusRuntime {
             command: subject,
             result,
             plan,
-            policySnapshot: this.toolRuntime.getPolicySnapshot?.(),
+            policySnapshot: taskToolRuntime.getPolicySnapshot?.(),
           }));
         }
         return result.status === 'failure' || result.status === 'denied'
@@ -1165,7 +1384,7 @@ export class HephaestusRuntime {
           };
         }
 
-        const result = await this.toolRuntime.execute({
+        const result = await taskToolRuntime.execute({
           tool: 'file.read',
           path: targetPath,
           startLine: typeof toolCall.arguments.startLine === 'number' ? toolCall.arguments.startLine : undefined,
@@ -1199,6 +1418,28 @@ export class HephaestusRuntime {
           failureReason: `Tool call ${toolCall.name} is not yet supported by the governed runtime.`,
         };
     }
+  }
+
+  private async resolveToolRuntime(
+    task: Task,
+    correlationId: string
+  ): Promise<{ binding: AttemptWorkspaceBinding; runtime: RuntimeToolPort }> {
+    const binding = await this.workspaceManager.bindWorkspace(task, correlationId);
+
+    if (this.useStaticToolRuntime) {
+      return {
+        binding,
+        runtime: this.toolRuntime,
+      };
+    }
+
+    return {
+      binding,
+      runtime: new EngineeringToolRuntime({
+        workspaceRoot: binding.workspaceRoot,
+        dryRun: this.runtimeConfig.toolRuntimeDryRun ?? false,
+      }),
+    };
   }
 
   private async appendTaskArtifacts(ticketId: string, artifacts: string[]): Promise<void> {

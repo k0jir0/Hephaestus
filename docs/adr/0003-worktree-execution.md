@@ -1,6 +1,6 @@
 # ADR 0003: Worktree Execution
 
-Status: Proposed
+Status: Accepted (Implemented)
 Date: 2026-05-29
 
 ## Context

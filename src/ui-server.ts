@@ -15,11 +15,13 @@ import { deriveRecoveryRecommendation } from './recovery-recommendation.js';
 import { computeOperationalSLOMetrics, type OperationalSLOMetrics } from './slo-metrics.js';
 import { TicketStoreRepository } from './task-store.js';
 import type {
+  PromotionRecord,
   TaskAttempt,
   TaskEvent,
   TaskStatus,
   TaskTicket,
   ToolCall,
+  WorkerVersion,
 } from './types.js';
 import { renderUIHtml } from './ui.js';
 
@@ -90,6 +92,20 @@ interface EfficiencySnapshot {
   };
 }
 
+interface PayloadMetadata {
+  schemaVersion: string;
+  generatedAt: string;
+  revision: string;
+  windows: {
+    recentTickets: number;
+    recentEvents: number;
+  };
+  sources: {
+    baselineAvailable: boolean;
+    efficiencySnapshotAvailable: boolean;
+  };
+}
+
 interface PolicySnapshotArtifact {
   raw: string;
   correlationId?: string;
@@ -110,6 +126,29 @@ interface FlattenedArtifact {
   attemptId: string;
   attemptNumber: number;
   raw: string;
+}
+
+interface TicketDetailWorkerVersion extends WorkerVersion {
+  ticketId: string;
+  attemptNumber: number;
+}
+
+interface TicketDetailPromotion extends PromotionRecord {
+  ticketId: string;
+  attemptId: string;
+  attemptNumber: number;
+  workspaceId?: string;
+  workspaceRoot?: string;
+  isolationMode?: TaskAttempt['isolationMode'];
+  patchBundlePath?: string;
+  verificationSummary?: string;
+  workerVersionStatus?: WorkerVersion['status'];
+}
+
+interface TicketTimelineEntry {
+  at: string;
+  source: string;
+  detail: string;
 }
 
 interface ApprovalQueueItem {
@@ -136,6 +175,9 @@ const defaultAdminToken = 'hephaestus-local-admin-token';
 const defaultHost = '127.0.0.1';
 const defaultPort = 4180;
 const defaultSseIntervalMs = 2_000;
+const overviewRecentTicketLimit = 12;
+const overviewRecentEventLimit = 18;
+const reliabilityRecentEventLimit = 24;
 
 export class UIServer {
   private readonly host: string;
@@ -323,6 +365,27 @@ export class UIServer {
       if (request.method === 'GET' && ticketDetailMatch) {
         this.requireRole(request, url, 'viewer');
         this.respondJson(response, 200, await this.buildTicketDetailResponse(decodeURIComponent(ticketDetailMatch[1] ?? '')));
+        return;
+      }
+
+      const ticketTimelineMatch = url.pathname.match(/^\/api\/tickets\/([^/]+)\/timeline$/);
+      if (request.method === 'GET' && ticketTimelineMatch) {
+        this.requireRole(request, url, 'viewer');
+        this.respondJson(response, 200, await this.buildTicketTimelineResponse(decodeURIComponent(ticketTimelineMatch[1] ?? '')));
+        return;
+      }
+
+      const ticketEvidenceMatch = url.pathname.match(/^\/api\/tickets\/([^/]+)\/evidence$/);
+      if (request.method === 'GET' && ticketEvidenceMatch) {
+        this.requireRole(request, url, 'viewer');
+        this.respondJson(response, 200, await this.buildTicketEvidenceResponse(decodeURIComponent(ticketEvidenceMatch[1] ?? '')));
+        return;
+      }
+
+      const ticketGatesMatch = url.pathname.match(/^\/api\/tickets\/([^/]+)\/gates$/);
+      if (request.method === 'GET' && ticketGatesMatch) {
+        this.requireRole(request, url, 'viewer');
+        this.respondJson(response, 200, await this.buildTicketGatesResponse(decodeURIComponent(ticketGatesMatch[1] ?? '')));
         return;
       }
 
@@ -547,10 +610,19 @@ export class UIServer {
     const efficiency = await readEfficiencySnapshot(this.efficiencySnapshotFile);
     const recentTickets = [...snapshot.tickets]
       .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
-      .slice(0, 12);
-    const recentEvents = snapshot.recentEvents.slice(0, 18);
+      .slice(0, overviewRecentTicketLimit);
+    const recentEvents = snapshot.recentEvents.slice(0, overviewRecentEventLimit);
 
     return {
+      metadata: await this.buildPayloadMetadata({
+        schemaVersion: 'overview.v1',
+        windows: {
+          recentTickets: overviewRecentTicketLimit,
+          recentEvents: overviewRecentEventLimit,
+        },
+        baselineAvailable: await fileExists(this.baselineFile),
+        efficiencySnapshotAvailable: Boolean(efficiency.timestamp),
+      }),
       ticketCounts: buildTicketCounts(snapshot.tickets),
       metrics: snapshot.metrics,
       model: buildModelStatus(config),
@@ -611,6 +683,37 @@ export class UIServer {
     }
 
     const attempts = await this.repository.listAttempts(ticketId);
+    const attemptIds = new Set(attempts.map((attempt) => attempt.id));
+    const attemptsById = new Map(attempts.map((attempt) => [attempt.id, attempt]));
+    const workerVersions = (await this.repository.listWorkerVersions())
+      .filter((workerVersion) => attemptIds.has(workerVersion.attemptId))
+      .map((workerVersion) => {
+        const attempt = attemptsById.get(workerVersion.attemptId);
+        return {
+          ...workerVersion,
+          ticketId,
+          attemptNumber: attempt?.attemptNumber ?? 0,
+        } as TicketDetailWorkerVersion;
+      });
+    const workerVersionById = new Map(workerVersions.map((workerVersion) => [workerVersion.id, workerVersion]));
+    const promotions = (await this.repository.listPromotionRecords())
+      .filter((promotion) => workerVersionById.has(promotion.workerVersionId))
+      .map((promotion) => {
+        const workerVersion = workerVersionById.get(promotion.workerVersionId);
+        const attempt = workerVersion ? attemptsById.get(workerVersion.attemptId) : undefined;
+        return {
+          ...promotion,
+          ticketId,
+          attemptId: workerVersion?.attemptId ?? '',
+          attemptNumber: attempt?.attemptNumber ?? 0,
+          workspaceId: workerVersion?.workspaceId,
+          workspaceRoot: workerVersion?.workspaceRoot,
+          isolationMode: attempt?.isolationMode,
+          patchBundlePath: workerVersion?.patchBundlePath,
+          verificationSummary: workerVersion?.verificationSummary,
+          workerVersionStatus: workerVersion?.status,
+        } as TicketDetailPromotion;
+      });
     const events = await this.repository.listEvents(ticketId);
     const sideEffects = await this.repository.listTaskSideEffects(ticketId);
     const artifacts = flattenArtifacts(attempts);
@@ -621,6 +724,8 @@ export class UIServer {
     return {
       ticket,
       attempts,
+      workerVersions,
+      promotions,
       events,
       sideEffects,
       derived: {
@@ -630,6 +735,206 @@ export class UIServer {
         recoveryRecommendation,
         currentPatch: extractPatchFromToolCalls(ticket.toolCalls),
       },
+    };
+  }
+
+  private async buildTicketTimelineResponse(ticketId: string): Promise<Record<string, unknown>> {
+    const ticket = await this.repository.getTicket(ticketId);
+    if (!ticket) {
+      throw new HttpError(404, `Ticket not found: ${ticketId}`);
+    }
+
+    const attempts = await this.repository.listAttempts(ticketId);
+    const events = await this.repository.listEvents(ticketId);
+    const attemptIds = new Set(attempts.map((attempt) => attempt.id));
+    const workerVersions = (await this.repository.listWorkerVersions())
+      .filter((workerVersion) => attemptIds.has(workerVersion.attemptId));
+    const workerVersionById = new Map(workerVersions.map((workerVersion) => [workerVersion.id, workerVersion]));
+    const workerVersionIds = new Set(workerVersions.map((workerVersion) => workerVersion.id));
+    const promotions = (await this.repository.listPromotionRecords())
+      .filter((promotion) => workerVersionIds.has(promotion.workerVersionId));
+
+    const entries: TicketTimelineEntry[] = [];
+
+    for (const event of events) {
+      entries.push({
+        at: event.createdAt.toISOString(),
+        source: `event.${event.type}`,
+        detail: event.details ?? '-',
+      });
+    }
+
+    for (const attempt of attempts) {
+      entries.push({
+        at: attempt.startedAt.toISOString(),
+        source: 'attempt.started',
+        detail: `${attempt.id} #${attempt.attemptNumber}`,
+      });
+
+      if (attempt.endedAt) {
+        entries.push({
+          at: attempt.endedAt.toISOString(),
+          source: 'attempt.ended',
+          detail: `${attempt.id} status=${attempt.status}`,
+        });
+      }
+    }
+
+    for (const workerVersion of workerVersions) {
+      entries.push({
+        at: workerVersion.createdAt.toISOString(),
+        source: 'worker-version.created',
+        detail: `${workerVersion.id} attempt=${workerVersion.attemptId} status=${workerVersion.status}`,
+      });
+
+      if (workerVersion.activatedAt) {
+        entries.push({
+          at: workerVersion.activatedAt.toISOString(),
+          source: 'worker-version.activated',
+          detail: `${workerVersion.id} status=${workerVersion.status}`,
+        });
+      }
+    }
+
+    for (const promotion of promotions) {
+      entries.push({
+        at: promotion.requestedAt.toISOString(),
+        source: 'promotion.requested',
+        detail: `${promotion.id} worker=${promotion.workerVersionId} status=${promotion.status}`,
+      });
+
+      const workerVersion = workerVersionById.get(promotion.workerVersionId);
+      entries.push({
+        at: promotion.updatedAt.toISOString(),
+        source: 'promotion.updated',
+        detail: `${promotion.id} worker=${promotion.workerVersionId} version=${workerVersion?.status ?? '-'} status=${promotion.status}`,
+      });
+    }
+
+    entries.sort((left, right) => left.at.localeCompare(right.at));
+
+    return {
+      metadata: await this.buildPayloadMetadata({
+        schemaVersion: 'ticket-timeline.v1',
+        windows: {
+          recentTickets: 1,
+          recentEvents: entries.length,
+        },
+        baselineAvailable: await fileExists(this.baselineFile),
+        efficiencySnapshotAvailable: await fileExists(this.efficiencySnapshotFile),
+      }),
+      ticket: {
+        id: ticket.id,
+        status: ticket.status,
+      },
+      entries,
+    };
+  }
+
+  private async buildTicketEvidenceResponse(ticketId: string): Promise<Record<string, unknown>> {
+    const ticket = await this.repository.getTicket(ticketId);
+    if (!ticket) {
+      throw new HttpError(404, `Ticket not found: ${ticketId}`);
+    }
+
+    const attempts = await this.repository.listAttempts(ticketId);
+    const sideEffects = await this.repository.listTaskSideEffects(ticketId);
+    const artifacts = flattenArtifacts(attempts);
+    const policySnapshots = extractPolicySnapshots(attempts);
+    const patchDeltas = extractPatchDeltas(attempts);
+
+    return {
+      metadata: await this.buildPayloadMetadata({
+        schemaVersion: 'ticket-evidence.v1',
+        windows: {
+          recentTickets: 1,
+          recentEvents: artifacts.length,
+        },
+        baselineAvailable: await fileExists(this.baselineFile),
+        efficiencySnapshotAvailable: await fileExists(this.efficiencySnapshotFile),
+      }),
+      ticket: {
+        id: ticket.id,
+        status: ticket.status,
+      },
+      evidence: {
+        currentPatch: extractPatchFromToolCalls(ticket.toolCalls),
+        artifacts,
+        policySnapshots,
+        patchDeltas,
+        sideEffects,
+      },
+    };
+  }
+
+  private async buildTicketGatesResponse(ticketId: string): Promise<Record<string, unknown>> {
+    const ticket = await this.repository.getTicket(ticketId);
+    if (!ticket) {
+      throw new HttpError(404, `Ticket not found: ${ticketId}`);
+    }
+
+    const attempts = await this.repository.listAttempts(ticketId);
+    const patchDeltas = extractPatchDeltas(attempts);
+    const intendedFiles = Array.isArray(ticket.plan?.intendedFiles)
+      ? ticket.plan.intendedFiles
+      : [];
+    const mutableTargets = intendedFiles
+      .filter((file) => file && file.changeType !== 'inspect' && typeof file.path === 'string')
+      .map((file) => file.path);
+
+    const observedMutations: string[] = [];
+    for (const delta of patchDeltas) {
+      const applyState = String(delta.apply ?? '').toLowerCase();
+      if (!applyState.startsWith('success')) {
+        continue;
+      }
+
+      for (const pathValue of delta.mutatedPaths) {
+        if (!observedMutations.includes(pathValue)) {
+          observedMutations.push(pathValue);
+        }
+      }
+    }
+
+    const normalizedObserved = observedMutations.map((value) => normalizePath(value));
+    const hasTargetIntersection = mutableTargets
+      .map((value) => normalizePath(value))
+      .some((candidate) => normalizedObserved.includes(candidate));
+    const errorText = typeof ticket.error === 'string' ? ticket.error : '';
+    const failedEvidenceGate = /No governed mutation evidence|do not intersect mutable intended files|Completion requires/i.test(errorText);
+
+    let gateStatus = 'pending evidence';
+    if (mutableTargets.length === 0) {
+      gateStatus = 'no mutable targets';
+    } else if (failedEvidenceGate) {
+      gateStatus = 'failed evidence gate';
+    } else if (hasTargetIntersection) {
+      gateStatus = 'mutation evidence present';
+    } else if (ticket.status === 'completed') {
+      gateStatus = 'completed without visible mutation evidence';
+    }
+
+    return {
+      metadata: await this.buildPayloadMetadata({
+        schemaVersion: 'ticket-gates.v1',
+        windows: {
+          recentTickets: 1,
+          recentEvents: patchDeltas.length,
+        },
+        baselineAvailable: await fileExists(this.baselineFile),
+        efficiencySnapshotAvailable: await fileExists(this.efficiencySnapshotFile),
+      }),
+      ticket: {
+        id: ticket.id,
+        status: ticket.status,
+      },
+      completionEvidence: {
+        gateStatus,
+        mutableTargets,
+        observedMutations,
+        gateReason: failedEvidenceGate ? errorText : '-',
+      },
+      recoveryRecommendation: deriveRecoveryRecommendation(ticket, attempts),
     };
   }
 
@@ -666,11 +971,38 @@ export class UIServer {
     const efficiency = await readEfficiencySnapshot(this.efficiencySnapshotFile);
 
     return {
+      metadata: await this.buildPayloadMetadata({
+        schemaVersion: 'reliability.v1',
+        windows: {
+          recentTickets: 0,
+          recentEvents: reliabilityRecentEventLimit,
+        },
+        baselineAvailable: baseline.markdown.trim().length > 0,
+        efficiencySnapshotAvailable: Boolean(efficiency.timestamp),
+      }),
       metrics: snapshot.metrics,
       comparisons: buildMetricComparisons(snapshot.metrics, baseline.values),
       baseline,
       efficiency,
-      recentEvents: snapshot.recentEvents.slice(0, 24),
+      recentEvents: snapshot.recentEvents.slice(0, reliabilityRecentEventLimit),
+    };
+  }
+
+  private async buildPayloadMetadata(input: {
+    schemaVersion: string;
+    windows: { recentTickets: number; recentEvents: number };
+    baselineAvailable: boolean;
+    efficiencySnapshotAvailable: boolean;
+  }): Promise<PayloadMetadata> {
+    return {
+      schemaVersion: input.schemaVersion,
+      generatedAt: new Date().toISOString(),
+      revision: this.revisionStamp || await this.computeRevisionStamp(),
+      windows: input.windows,
+      sources: {
+        baselineAvailable: input.baselineAvailable,
+        efficiencySnapshotAvailable: input.efficiencySnapshotAvailable,
+      },
     };
   }
 
@@ -820,6 +1152,10 @@ function buildTicketCounts(tickets: TaskTicket[]): Record<string, number> {
     counts[ticket.status] = (counts[ticket.status] ?? 0) + 1;
   }
   return counts;
+}
+
+function normalizePath(pathValue: string): string {
+  return String(pathValue || '').replace(/\\/g, '/').trim().toLowerCase();
 }
 
 function readAuthToken(request: IncomingMessage, url: URL): string | null {

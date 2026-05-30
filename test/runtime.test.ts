@@ -1718,4 +1718,156 @@ describe('HephaestusRuntime', () => {
     assert.equal(calls.seeded, 1);
     assert.equal(calls.stopped, 1);
   });
+
+  it('records promotion failed and rolled_back outcomes when supervisor health check fails', async () => {
+    const task = makeTask(
+      'Update README.md and verify with npm run build; expected signal: build exits 0.'
+    );
+    const attempts = [
+      {
+        id: 'attempt_promo_1',
+        ticketId: task.id,
+        attemptNumber: 1,
+        status: 'completed' as const,
+        startedAt: new Date(),
+        endedAt: new Date(),
+        artifacts: [],
+      },
+    ];
+    const calls = {
+      completed: 0,
+      workerStatuses: [] as string[],
+      promotionStatuses: [] as string[],
+    };
+
+    const runtime = new HephaestusRuntime({
+      memory: {
+        async initialize() {},
+        async updateStatus() {},
+        async recordTaskCompletion() {},
+        async recordBlocker() {},
+        async addToTaskHistory() {},
+        async addSessionSummary() {},
+      },
+      tasks: {
+        async start() {},
+        async stop() {},
+        async getPendingTasks() {
+          return [task];
+        },
+        async markTaskInProgress() {},
+        async markTaskAwaitingApproval() {},
+        async markTaskCompleted() {
+          calls.completed += 1;
+        },
+        async markTaskBlocked() {},
+        async markTaskFailed() {},
+        async listAttempts() {
+          return attempts;
+        },
+        async createWorkerVersion() {
+          return {
+            id: 'worker_1',
+            attemptId: 'attempt_promo_1',
+            createdAt: new Date(),
+            status: 'candidate' as const,
+          };
+        },
+        async updateWorkerVersionStatus(_workerVersionId, status) {
+          calls.workerStatuses.push(status);
+          return {
+            id: 'worker_1',
+            attemptId: 'attempt_promo_1',
+            createdAt: new Date(),
+            status,
+          };
+        },
+        async listWorkerVersions() {
+          return [];
+        },
+        async createPromotionRecord() {
+          calls.promotionStatuses.push('requested');
+          return {
+            id: 'promotion_1',
+            workerVersionId: 'worker_1',
+            status: 'requested' as const,
+            requestedAt: new Date(),
+            updatedAt: new Date(),
+          };
+        },
+        async updatePromotionStatus(_promotionId, status) {
+          calls.promotionStatuses.push(status);
+          return {
+            id: 'promotion_1',
+            workerVersionId: 'worker_1',
+            status,
+            requestedAt: new Date(),
+            updatedAt: new Date(),
+          };
+        },
+        async listPromotionRecords() {
+          return [];
+        },
+        async appendTaskAttemptArtifacts() {},
+      },
+      supervisor: {
+        async validateStartup() {
+          return { ok: true, message: 'startup-ok' };
+        },
+        async checkHealth() {
+          return { ok: false, message: 'health-check-failed' };
+        },
+      },
+      toolRuntime: {
+        async checkReadiness() {
+          return { available: true, message: 'ok' };
+        },
+      },
+      executor: {
+        async executeTask() {
+          return {
+            success: true,
+            content: 'Promotion-ready completion.',
+            plan: makePlan('Promotion-ready completion.'),
+          } satisfies AIResponse;
+        },
+        async checkHealth() {
+          return { available: true, message: 'ok' };
+        },
+      },
+      safety: {
+        async shouldContinue() {
+          return { allowed: true };
+        },
+        recordSuccess() {},
+        recordError() {},
+        recordTaskCompletion() {},
+        recordTokenUsage() {},
+        shouldAutoCommit() {
+          return false;
+        },
+        async performAutoCommit() {
+          return false;
+        },
+        getStatusSummary() {
+          return 'ok';
+        },
+        resetDailyCounters() {},
+      },
+      preflightRunner: async () => ({ ok: true, issues: [] }),
+      contextProvider: async () => 'README excerpt',
+    });
+
+    await runtime.run({ runOnce: true });
+
+    assert.equal(calls.completed, 1);
+    assert.deepEqual(calls.workerStatuses, ['promotable', 'rolled_back']);
+    assert.deepEqual(calls.promotionStatuses, [
+      'requested',
+      'verified',
+      'started',
+      'failed',
+      'rolled_back',
+    ]);
+  });
 });

@@ -8,6 +8,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import type { AIBackend, SafetyConfig } from './types.js';
 
+export type AttemptWorkspaceMode = 'shared-root' | 'isolated-workspace';
+
 export interface ConfigValidationIssue {
   code: string;
   message: string;
@@ -31,6 +33,7 @@ export interface Config {
   
   // Project
   targetProject: string;
+  attemptWorkspaceMode: AttemptWorkspaceMode;
   
   // Timing
   checkInterval: number;
@@ -58,6 +61,15 @@ export interface Config {
 
 function isSupportedAIBackend(value: string): value is AIBackend {
   return supportedAIBackends.includes(value as AIBackend);
+}
+
+function parseAttemptWorkspaceMode(value: string | undefined): AttemptWorkspaceMode {
+  const normalized = (value ?? '').trim().toLowerCase();
+  if (normalized === 'isolated-workspace' || normalized === 'isolated' || normalized === 'worktree') {
+    return 'isolated-workspace';
+  }
+
+  return 'shared-root';
 }
 
 function getEnv(key: string, defaultValue?: string): string {
@@ -98,6 +110,7 @@ function resolveFromBase(baseDir: string, candidate: string): string {
 export function loadConfig(): Config {
   const baseDir = path.resolve(__dirname, '..');
   const targetProject = resolveFromBase(baseDir, getEnv('TARGET_PROJECT', '.'));
+  const attemptWorkspaceMode = parseAttemptWorkspaceMode(getEnv('ATTEMPT_WORKSPACE_MODE', 'shared-root'));
   
   return {
     // AI Backend
@@ -114,6 +127,7 @@ export function loadConfig(): Config {
     
     // Project
     targetProject,
+    attemptWorkspaceMode,
     
     // Timing
     checkInterval: getEnvNumber('CHECK_INTERVAL', 60) * 1000, // Convert to ms
@@ -157,6 +171,16 @@ export function validateConfig(candidate: Config): ConfigValidationIssue[] {
     issues.push({
       code: 'missing-target-project',
       message: 'TARGET_PROJECT must resolve to a non-empty path.',
+    });
+  }
+
+  if (
+    candidate.attemptWorkspaceMode !== undefined &&
+    !['shared-root', 'isolated-workspace'].includes(candidate.attemptWorkspaceMode)
+  ) {
+    issues.push({
+      code: 'invalid-attempt-workspace-mode',
+      message: 'ATTEMPT_WORKSPACE_MODE must be one of: shared-root, isolated-workspace.',
     });
   }
 

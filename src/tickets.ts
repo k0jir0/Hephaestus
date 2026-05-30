@@ -9,7 +9,8 @@ import { parseOption, parsePositiveInteger } from './cli-utils.js';
 import { assessTicketTemplate, formatTicketTemplateAssessment } from './ticket-template.js';
 import { computeSourceGroundingMetrics, formatSourceGroundingMetrics } from './source-grounding-metrics.js';
 import { buildSourceGroundingDriftAudit } from './source-grounding-report.js';
-import type { TaskStatus } from './types.js';
+import { deriveRecoveryRecommendation } from './recovery-recommendation.js';
+import type { TaskAttempt, TaskStatus } from './types.js';
 
 const validStatuses: TaskStatus[] = [
   'pending',
@@ -44,6 +45,11 @@ Usage:
   npm run tickets -- export-bundle <ticket-id> [--out <directory>]
   npm run tickets -- codex-handoff [--status <status[,status...]>] [--out <directory>]
   npm run tickets -- attempts <ticket-id>
+  npm run tickets -- timeline <ticket-id>
+  npm run tickets -- evidence <ticket-id>
+  npm run tickets -- gates <ticket-id>
+  npm run tickets -- worker-versions <ticket-id>
+  npm run tickets -- promotions <ticket-id>
   npm run tickets -- self-audit [--limit <count>] [--dry-run]
   npm run tickets -- metrics [--source-grounding]
   npm run tickets -- audit-source-evidence [--max-drifted <count>] [--max-missing-evidence <count>]
@@ -96,6 +102,91 @@ function parseStatusesArgument(value: string | undefined): TaskStatus[] | undefi
 
 function formatTimestamp(value: Date | undefined): string {
   return value ? value.toISOString() : '-';
+}
+
+function normalizePath(pathValue: string): string {
+  return String(pathValue || '').replace(/\\/g, '/').trim().toLowerCase();
+}
+
+function extractPolicySnapshots(attempts: TaskAttempt[]): Array<{
+  raw: string;
+  correlationId?: string;
+  signature?: string;
+  parsed?: Record<string, unknown>;
+}> {
+  const results: Array<{
+    raw: string;
+    correlationId?: string;
+    signature?: string;
+    parsed?: Record<string, unknown>;
+  }> = [];
+
+  for (const attempt of attempts) {
+    for (const artifact of attempt.artifacts) {
+      const match = artifact.match(/^\[(?<correlation>[^\]]+)\] policy\.snapshot \[(?<signature>[^\]]+)\] (?<payload>.+)$/);
+      if (!match?.groups) {
+        continue;
+      }
+
+      let parsed: Record<string, unknown> | undefined;
+      try {
+        parsed = JSON.parse(match.groups.payload) as Record<string, unknown>;
+      } catch {
+        parsed = undefined;
+      }
+
+      results.push({
+        raw: artifact,
+        correlationId: match.groups.correlation,
+        signature: match.groups.signature,
+        parsed,
+      });
+    }
+  }
+
+  return results;
+}
+
+function extractPatchDeltas(attempts: TaskAttempt[]): Array<{
+  raw: string;
+  correlationId?: string;
+  subject: string;
+  dryRun: string;
+  apply: string;
+  mutatedPaths: string[];
+}> {
+  const results: Array<{
+    raw: string;
+    correlationId?: string;
+    subject: string;
+    dryRun: string;
+    apply: string;
+    mutatedPaths: string[];
+  }> = [];
+
+  for (const attempt of attempts) {
+    for (const artifact of attempt.artifacts) {
+      const match = artifact.match(/^\[(?<correlation>[^\]]+)\] patch\.delta (?<subject>.+?): dry-run=(?<dryRun>[^;]+); apply=(?<apply>[^;]+); mutatedPaths=(?<paths>.*)$/);
+      if (!match?.groups) {
+        continue;
+      }
+
+      const mutatedPaths = match.groups.paths && match.groups.paths !== '-'
+        ? match.groups.paths.split(',').map((value) => value.trim()).filter(Boolean)
+        : [];
+
+      results.push({
+        raw: artifact,
+        correlationId: match.groups.correlation,
+        subject: match.groups.subject,
+        dryRun: match.groups.dryRun,
+        apply: match.groups.apply,
+        mutatedPaths,
+      });
+    }
+  }
+
+  return results;
 }
 
 function parseRatioOption(value: string | undefined, name: string): number | undefined {
@@ -659,6 +750,270 @@ async function main(): Promise<void> {
           const endedAt = attempt.endedAt ? attempt.endedAt.toISOString() : '-';
           console.log(
             `${attempt.id}\t#${attempt.attemptNumber}\t${attempt.status}\t${attempt.startedAt.toISOString()}\t${endedAt}`
+          );
+        }
+        break;
+      }
+
+      case 'timeline': {
+        const ticketId = args[0];
+        if (!ticketId) {
+          throw new Error('timeline requires a ticket id.');
+        }
+
+        const attempts = await repository.listAttempts(ticketId);
+        const events = await repository.listEvents(ticketId);
+        const attemptIds = new Set(attempts.map((attempt) => attempt.id));
+        const workerVersions = (await repository.listWorkerVersions())
+          .filter((workerVersion) => attemptIds.has(workerVersion.attemptId));
+        const workerVersionById = new Map(workerVersions.map((workerVersion) => [workerVersion.id, workerVersion]));
+        const workerVersionIds = new Set(workerVersions.map((workerVersion) => workerVersion.id));
+        const promotions = (await repository.listPromotionRecords())
+          .filter((promotion) => workerVersionIds.has(promotion.workerVersionId));
+
+        const timelineEntries: Array<{ at: Date; source: string; detail: string }> = [];
+
+        for (const event of events) {
+          timelineEntries.push({
+            at: event.createdAt,
+            source: `event.${event.type}`,
+            detail: event.details ?? '-',
+          });
+        }
+
+        for (const attempt of attempts) {
+          timelineEntries.push({
+            at: attempt.startedAt,
+            source: 'attempt.started',
+            detail: `${attempt.id} #${attempt.attemptNumber}`,
+          });
+          if (attempt.endedAt) {
+            timelineEntries.push({
+              at: attempt.endedAt,
+              source: 'attempt.ended',
+              detail: `${attempt.id} status=${attempt.status}`,
+            });
+          }
+        }
+
+        for (const workerVersion of workerVersions) {
+          timelineEntries.push({
+            at: workerVersion.createdAt,
+            source: 'worker-version.created',
+            detail: `${workerVersion.id} attempt=${workerVersion.attemptId} status=${workerVersion.status}`,
+          });
+          if (workerVersion.activatedAt) {
+            timelineEntries.push({
+              at: workerVersion.activatedAt,
+              source: 'worker-version.activated',
+              detail: `${workerVersion.id} status=${workerVersion.status}`,
+            });
+          }
+        }
+
+        for (const promotion of promotions) {
+          const workerVersion = workerVersionById.get(promotion.workerVersionId);
+          timelineEntries.push({
+            at: promotion.requestedAt,
+            source: 'promotion.requested',
+            detail: `${promotion.id} worker=${promotion.workerVersionId} status=${promotion.status}`,
+          });
+          timelineEntries.push({
+            at: promotion.updatedAt,
+            source: 'promotion.updated',
+            detail: `${promotion.id} worker=${promotion.workerVersionId} version=${workerVersion?.status ?? '-'} status=${promotion.status}`,
+          });
+        }
+
+        timelineEntries.sort((left, right) => left.at.getTime() - right.at.getTime());
+
+        console.log(`Ticket: ${ticketId}`);
+        console.log(`Timeline entries: ${timelineEntries.length}`);
+        for (const entry of timelineEntries) {
+          console.log(`${entry.at.toISOString()}\t${entry.source}\t${entry.detail}`);
+        }
+        break;
+      }
+
+      case 'evidence': {
+        const ticketId = args[0];
+        if (!ticketId) {
+          throw new Error('evidence requires a ticket id.');
+        }
+
+        const attempts = await repository.listAttempts(ticketId);
+        if (attempts.length === 0) {
+          console.log('No attempts found for ticket.');
+          break;
+        }
+
+        const policySnapshots = extractPolicySnapshots(attempts);
+        const patchDeltas = extractPatchDeltas(attempts);
+
+        console.log(`Ticket: ${ticketId}`);
+        console.log(`Attempts: ${attempts.length}`);
+        console.log(`Policy snapshots: ${policySnapshots.length}`);
+        for (const snapshot of policySnapshots) {
+          const parsed = snapshot.parsed ? JSON.stringify(snapshot.parsed) : '-';
+          console.log(`${snapshot.signature ?? '-'}\tcorr=${snapshot.correlationId ?? '-'}\t${parsed}`);
+        }
+
+        console.log(`Patch deltas: ${patchDeltas.length}`);
+        for (const delta of patchDeltas) {
+          console.log(
+            `${delta.subject}\tcorr=${delta.correlationId ?? '-'}\tdry-run=${delta.dryRun}\tapply=${delta.apply}\tmutatedPaths=${delta.mutatedPaths.join(',') || '-'}`
+          );
+        }
+
+        const events = await repository.listEvents(ticketId);
+        if (events.length > 0) {
+          console.log(`Events: ${events.length}`);
+          for (const event of events) {
+            console.log(`${event.createdAt.toISOString()}\t${event.type}\t${event.details ?? '-'}`);
+          }
+        }
+        break;
+      }
+
+      case 'gates': {
+        const ticketId = args[0];
+        if (!ticketId) {
+          throw new Error('gates requires a ticket id.');
+        }
+
+        const ticket = await repository.getTicket(ticketId);
+        if (!ticket) {
+          throw new Error(`Ticket not found: ${ticketId}`);
+        }
+
+        const attempts = await repository.listAttempts(ticketId);
+        const patchDeltas = extractPatchDeltas(attempts);
+        const intendedFiles = Array.isArray(ticket.plan?.intendedFiles)
+          ? ticket.plan.intendedFiles
+          : [];
+        const mutableTargets = intendedFiles
+          .filter((file) => file && file.changeType !== 'inspect' && typeof file.path === 'string')
+          .map((file) => file.path);
+
+        const observedMutations: string[] = [];
+        for (const delta of patchDeltas) {
+          const applyState = String(delta.apply ?? '').toLowerCase();
+          if (!applyState.startsWith('success')) {
+            continue;
+          }
+
+          for (const pathValue of delta.mutatedPaths) {
+            if (!observedMutations.includes(pathValue)) {
+              observedMutations.push(pathValue);
+            }
+          }
+        }
+
+        const normalizedObserved = observedMutations.map((value) => normalizePath(value));
+        const hasTargetIntersection = mutableTargets
+          .map((value) => normalizePath(value))
+          .some((candidate) => normalizedObserved.includes(candidate));
+        const errorText = typeof ticket.error === 'string' ? ticket.error : '';
+        const failedEvidenceGate = /No governed mutation evidence|do not intersect mutable intended files|Completion requires/i.test(errorText);
+
+        let gateStatus = 'pending evidence';
+        if (mutableTargets.length === 0) {
+          gateStatus = 'no mutable targets';
+        } else if (failedEvidenceGate) {
+          gateStatus = 'failed evidence gate';
+        } else if (hasTargetIntersection) {
+          gateStatus = 'mutation evidence present';
+        } else if (ticket.status === 'completed') {
+          gateStatus = 'completed without visible mutation evidence';
+        }
+
+        const recoveryRecommendation = deriveRecoveryRecommendation(ticket, attempts);
+
+        console.log(`Ticket: ${ticketId}`);
+        console.log(`Gate Status: ${gateStatus}`);
+        console.log(`Mutable Targets: ${mutableTargets.join(', ') || '-'}`);
+        console.log(`Observed Mutations: ${observedMutations.join(', ') || '-'}`);
+        console.log(`Gate Reason: ${failedEvidenceGate ? errorText : '-'}`);
+        console.log(`Recovery Family: ${recoveryRecommendation.family || '-'}`);
+        console.log(`Recovery Source: ${recoveryRecommendation.source || '-'}`);
+        console.log(`Recovery Recommendation: ${recoveryRecommendation.recommendation || '-'}`);
+        break;
+      }
+
+      case 'worker-versions': {
+        const ticketId = args[0];
+        if (!ticketId) {
+          throw new Error('worker-versions requires a ticket id.');
+        }
+
+        const attempts = await repository.listAttempts(ticketId);
+        if (attempts.length === 0) {
+          console.log('No attempts found for ticket.');
+          break;
+        }
+
+        const attemptsById = new Map(attempts.map((attempt) => [attempt.id, attempt]));
+        const attemptIds = new Set(attempts.map((attempt) => attempt.id));
+        const workerVersions = (await repository.listWorkerVersions())
+          .filter((workerVersion) => attemptIds.has(workerVersion.attemptId));
+
+        if (workerVersions.length === 0) {
+          console.log('No worker versions found.');
+          break;
+        }
+
+        for (const workerVersion of workerVersions) {
+          const attempt = attemptsById.get(workerVersion.attemptId);
+          const workspaceParts = [
+            workerVersion.workspaceId ? `workspace=${workerVersion.workspaceId}` : null,
+            workerVersion.workspaceRoot ? `root=${workerVersion.workspaceRoot}` : null,
+            workerVersion.patchBundlePath ? `bundle=${workerVersion.patchBundlePath}` : null,
+          ].filter(Boolean);
+          console.log(
+            `${workerVersion.id}\tattempt=${workerVersion.attemptId} #${attempt?.attemptNumber ?? '-'}\t${workerVersion.status}\t${workspaceParts.join('\t')}\tcreated=${workerVersion.createdAt.toISOString()}\tactivated=${formatTimestamp(workerVersion.activatedAt)}`
+          );
+        }
+        break;
+      }
+
+      case 'promotions': {
+        const ticketId = args[0];
+        if (!ticketId) {
+          throw new Error('promotions requires a ticket id.');
+        }
+
+        const attempts = await repository.listAttempts(ticketId);
+        if (attempts.length === 0) {
+          console.log('No attempts found for ticket.');
+          break;
+        }
+
+        const attemptIds = new Set(attempts.map((attempt) => attempt.id));
+        const attemptsById = new Map(attempts.map((attempt) => [attempt.id, attempt]));
+        const workerVersions = (await repository.listWorkerVersions())
+          .filter((workerVersion) => attemptIds.has(workerVersion.attemptId));
+        const workerVersionIds = new Set(workerVersions.map((workerVersion) => workerVersion.id));
+        const workerVersionById = new Map(workerVersions.map((workerVersion) => [workerVersion.id, workerVersion]));
+
+        const promotions = (await repository.listPromotionRecords())
+          .filter((promotion) => workerVersionIds.has(promotion.workerVersionId));
+
+        if (promotions.length === 0) {
+          console.log('No promotion records found.');
+          break;
+        }
+
+        for (const promotion of promotions) {
+          const workerVersion = workerVersionById.get(promotion.workerVersionId);
+          const attempt = workerVersion ? attemptsById.get(workerVersion.attemptId) : undefined;
+          const promotionParts = [
+            attempt ? `attempt=${attempt.attemptNumber}` : null,
+            workerVersion?.workspaceId ? `workspace=${workerVersion.workspaceId}` : null,
+            workerVersion?.workspaceRoot ? `root=${workerVersion.workspaceRoot}` : null,
+            workerVersion?.status ? `version=${workerVersion.status}` : null,
+          ].filter(Boolean);
+          console.log(
+            `${promotion.id}\tworker=${promotion.workerVersionId}\t${promotion.status}\t${promotionParts.join('\t')}\trequested=${promotion.requestedAt.toISOString()}\tupdated=${promotion.updatedAt.toISOString()}\tfailure=${promotion.failureReason ?? '-'}\trollback=${promotion.rollbackReason ?? '-'}`
           );
         }
         break;

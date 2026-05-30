@@ -1,0 +1,222 @@
+Title: Experimental Protocol for True With-vs-Without Hephaestus Speedup
+Version: 1.0
+Date: 2026-05-30
+Owner: Hephaestus evaluation team
+
+1) Objective
+Estimate the causal speedup attributable to Hephaestus versus a baseline workflow and report a defensible percentage with uncertainty.
+
+Primary question:
+How much faster is task completion with Hephaestus than without it, under comparable task difficulty and quality constraints?
+
+2) Study Design
+Use a randomized crossover design with blocked task assignment.
+
+Rationale:
+- Controls for participant skill differences.
+- Controls for task difficulty variation.
+- Produces paired observations for stronger inference.
+
+2.1 Conditions
+Condition A (With Hephaestus):
+- Use the full Hephaestus workflow (ticket intake, planning, governed execution, approvals, review surfaces).
+
+Condition B (Without Hephaestus):
+- Use standard workflow tools only (editor, terminal, tests, git) without Hephaestus queueing or control-plane assistance.
+
+2.2 Crossover Structure
+- Each participant completes half the task set in A and half in B.
+- Counterbalance order:
+  Group 1: A then B
+  Group 2: B then A
+- Include a short washout break between phases to reduce carryover bias.
+
+3) Participants and Sample Size
+3.1 Participants
+- Minimum 6 developers preferred, absolute minimum 4.
+- Similar proficiency bands across participants.
+
+3.2 Task Units
+- 24 to 40 bounded engineering tasks total.
+- Balanced across categories:
+  - feature change
+  - bug fix
+  - test addition
+  - refactor
+  - docs update with verification
+
+3.3 Power Guidance
+- Start with 24 tasks if constrained.
+- Target 32+ tasks for tighter confidence intervals.
+- Use paired analysis; if 95% CI remains wide, add tasks until CI half-width is acceptable.
+
+4) Task Selection and Blocking
+4.1 Inclusion Criteria
+- Each task has explicit acceptance criteria.
+- Each task has executable verification command(s).
+- Estimated effort in 15 to 90 minutes.
+- No hidden external dependencies.
+
+4.2 Exclusion Criteria
+- Tasks requiring unavailable credentials or external approvals.
+- Tasks with uncertain acceptance conditions.
+- Tasks requiring non-reproducible environment changes.
+
+4.3 Difficulty Blocking
+Before assignment, label each task with:
+- complexity score (1-5)
+- surface area (files touched expected)
+- verification burden (light, medium, heavy)
+
+Randomize within blocks so both conditions receive comparable difficulty.
+
+5) Environment Controls
+- Same repository commit baseline for all runs.
+- Same machine class or same machine for all participants.
+- Same toolchain versions (Node, dependencies, test runner, OS).
+- Same network policy.
+- Same time budget per task.
+- Same review rubric.
+
+Record environment metadata for each run.
+
+6) Execution Procedure
+6.1 Pre-Run
+- Freeze repo at baseline commit.
+- Prepare task packets with IDs and acceptance criteria.
+- Pre-generate random assignment sequence.
+- Confirm participants can run build and tests.
+
+6.2 Per-Task Run Steps
+For each task:
+1. Start timer at first interaction with task packet.
+2. Execute in assigned condition (A or B).
+3. Stop timer only when all completion criteria are met:
+   - code changes done
+   - required verification command(s) pass
+   - reviewer checklist passes
+4. Capture logs, artifacts, and timestamps.
+5. Record outcome:
+   - completed
+   - failed
+   - timed out
+   - blocked external
+
+6.3 Review Gate (Quality Constraint)
+A task counts as completed only if:
+- tests/build pass as specified
+- reviewer finds no severity-high defects
+- acceptance criteria fully satisfied
+
+If not, mark non-complete for primary completion-rate metrics.
+
+7) Metrics
+7.1 Primary Metric (Speed)
+For paired task-participant observations:
+- Time-to-acceptable-completion (minutes)
+
+Primary speedup percentage:
+SpeedupPercent = 100 * (MedianTimeWithout - MedianTimeWith) / MedianTimeWithout
+
+7.2 Secondary Metrics
+- Completion rate within budget
+- Rework rate (post-review fixes required)
+- Defect escape count within 48 hours
+- Command/test pass rate on first attempt
+- Throughput per hour
+
+7.3 Optional Productivity Composite
+If needed, report a secondary adjusted score:
+AdjustedThroughput = CompletedTasks / TotalEngineerHours
+
+8) Statistical Analysis Plan
+8.1 Primary Analysis
+Use paired non-parametric estimator:
+- Compute per-pair percent improvement
+- Report median paired improvement
+- 95% CI via bootstrap over participant-task pairs (10,000 resamples)
+
+8.2 Sensitivity Analyses
+- Exclude timed-out tasks and rerun.
+- Include timed-out tasks as censored max-time and rerun.
+- Stratify by task difficulty block.
+
+8.3 Significance Test
+- Wilcoxon signed-rank test for paired times.
+- Also report effect size (rank-biserial correlation).
+
+8.4 Defensible Claim Rule
+Only claim X percent faster if:
+- Primary estimator shows improvement > 0
+- 95% CI lower bound > 0
+- Quality non-inferiority holds (no meaningful drop in completion quality)
+
+9) Data Collection Schema
+For each run row, store:
+- participant_id
+- task_id
+- condition (with_hephaestus or without_hephaestus)
+- sequence_order
+- block_complexity
+- start_timestamp
+- end_timestamp
+- duration_minutes
+- completion_status
+- verification_passed
+- reviewer_pass
+- defects_found
+- rework_required
+- environment_hash
+
+Store as CSV plus immutable JSONL audit log.
+
+10) Threats and Mitigations
+10.1 Learning Effects
+- Mitigation: crossover counterbalancing and washout break.
+
+10.2 Task Leakage
+- Mitigation: no participant gets semantically duplicate tasks across conditions.
+
+10.3 Reviewer Bias
+- Mitigation: blinded reviewer to condition when feasible.
+
+10.4 Environment Drift
+- Mitigation: fixed baseline commit and pinned dependencies.
+
+10.5 Small Sample Noise
+- Mitigation: bootstrap CI and preplanned expansion if CI is too wide.
+
+11) Reporting Template
+Report these values exactly:
+- Median time with Hephaestus
+- Median time without Hephaestus
+- Estimated speedup percentage
+- 95% CI for speedup
+- p-value (paired test)
+- Completion quality comparison
+
+Example statement format:
+"Under controlled crossover evaluation on N paired task runs, median completion time was X minutes with Hephaestus vs Y minutes without, corresponding to Z% speedup (95% CI: L% to U%, Wilcoxon p=P), with no quality degradation by predefined review gates."
+
+12) Practical Run Plan for This Repository
+Phase 1 pilot:
+- 8 tasks, 2 participants, validate instrumentation and rubric.
+
+Phase 2 main run:
+- 24 to 32 tasks, 4 to 6 participants, full analysis.
+
+Phase 3 confirmation:
+- Repeat on a new task batch one week later to test stability.
+
+13) Decision Thresholds
+- Claim accepted if CI lower bound > 0 and quality non-inferiority holds.
+- Strong claim threshold: CI lower bound >= 10%.
+- Operational rollout threshold: median speedup >= 15% with stable quality.
+
+14) Deliverables
+- Raw dataset CSV
+- Audit JSONL
+- Analysis notebook or script outputs
+- Final report with the exact claim statement and limitations
+
+End of protocol.
