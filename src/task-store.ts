@@ -787,14 +787,14 @@ export class TicketStoreRepository
               `select id, ticket_id, event_type, details, evidence_json, correlation_id, legacy_event_id, created_at
                from domain_events
                where ticket_id = ?
-               order by created_at asc, id asc`
+               order by created_at asc, legacy_event_id asc, id asc`
             )
             .all(ticketId)
         : this.getDatabase()
             .prepare(
               `select id, ticket_id, event_type, details, evidence_json, correlation_id, legacy_event_id, created_at
                from domain_events
-               order by created_at asc, id asc`
+               order by created_at asc, legacy_event_id asc, id asc`
             )
             .all()
     ) as unknown as DomainEventRow[];
