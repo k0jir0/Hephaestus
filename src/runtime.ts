@@ -1722,10 +1722,10 @@ export class HephaestusRuntime {
     }
 
     try {
-      const { exec } = await import('child_process');
+      const { execFile } = await import('child_process');
       const { promisify } = await import('util');
-      const execAsync = promisify(exec);
-      const { stdout } = await execAsync('git status --short', {
+      const execFileAsync = promisify(execFile);
+      const { stdout } = await execFileAsync('git', ['status', '--short'], {
         cwd: this.runtimeConfig.targetProject,
       });
 

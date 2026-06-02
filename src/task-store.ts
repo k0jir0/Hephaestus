@@ -67,6 +67,8 @@ export interface TicketStoreRepositoryOptions {
   projectionEnabled?: boolean;
   pollingIntervalMs?: number;
   redispatchPendingAfterMs?: number;
+  redispatchPendingMaxAfterMs?: number;
+  redispatchBackoffMultiplier?: number;
   projectionRetryDelayMs?: number;
   projectionRetryMaxDelayMs?: number;
   staleRecoveryMinAgeMs?: number;
@@ -241,12 +243,15 @@ export class TicketStoreRepository
   private readonly projectionEnabled: boolean;
   private readonly pollingIntervalMs: number;
   private readonly redispatchPendingAfterMs: number;
+  private readonly redispatchPendingMaxAfterMs: number;
+  private readonly redispatchBackoffMultiplier: number;
   private readonly projectionRetryDelayMs: number;
   private readonly projectionRetryMaxDelayMs: number;
   private readonly staleRecoveryMinAgeMs: number;
   private readonly projectionWriter: (tasksFile: string, content: string) => Promise<void>;
   private readonly knownPendingTaskIds = new Set<string>();
   private readonly pendingRedispatchAfter = new Map<string, number>();
+  private readonly pendingRedispatchDelayMs = new Map<string, number>();
   private readonly pendingDispatchInFlight = new Set<string>();
   private pendingPollTimer: NodeJS.Timeout | null = null;
   private projectionRetryTimer: NodeJS.Timeout | null = null;
@@ -274,13 +279,27 @@ export class TicketStoreRepository
     this.importLegacyTaskBoardIfStoreEmpty =
       options.importLegacyTaskBoardIfStoreEmpty ?? true;
     this.projectionEnabled = options.projectionEnabled ?? true;
-    this.pollingIntervalMs = options.pollingIntervalMs ?? 1000;
-    this.redispatchPendingAfterMs = options.redispatchPendingAfterMs ?? 60_000;
+    this.pollingIntervalMs = Math.max(
+      100,
+      options.pollingIntervalMs ?? Number.parseInt(process.env.TICKET_POLLING_INTERVAL_MS ?? '500', 10)
+    );
+    this.redispatchPendingAfterMs = Math.max(
+      1_000,
+      options.redispatchPendingAfterMs ?? Number.parseInt(process.env.REDISPATCH_PENDING_AFTER_MS ?? '15000', 10)
+    );
+    this.redispatchPendingMaxAfterMs = Math.max(
+      this.redispatchPendingAfterMs,
+      options.redispatchPendingMaxAfterMs ?? Number.parseInt(process.env.REDISPATCH_PENDING_MAX_AFTER_MS ?? '120000', 10)
+    );
+    this.redispatchBackoffMultiplier = Math.max(
+      1,
+      options.redispatchBackoffMultiplier ?? Number.parseFloat(process.env.REDISPATCH_BACKOFF_MULTIPLIER ?? '1.5')
+    );
     this.projectionRetryDelayMs = options.projectionRetryDelayMs ?? 1_000;
     this.projectionRetryMaxDelayMs = options.projectionRetryMaxDelayMs ?? 30_000;
     this.staleRecoveryMinAgeMs = Math.max(
       0,
-      options.staleRecoveryMinAgeMs ?? Number.parseInt(process.env.STALE_RECOVERY_MIN_AGE_MS ?? '180000', 10)
+      options.staleRecoveryMinAgeMs ?? Number.parseInt(process.env.STALE_RECOVERY_MIN_AGE_MS ?? '60000', 10)
     );
     this.projectionMinWriteIntervalMs = Math.max(
       0,
@@ -339,6 +358,7 @@ export class TicketStoreRepository
 
     this.knownPendingTaskIds.clear();
     this.pendingRedispatchAfter.clear();
+    this.pendingRedispatchDelayMs.clear();
     this.pendingDispatchInFlight.clear();
     this.onNewTask = null;
   }
@@ -2812,9 +2832,19 @@ export class TicketStoreRepository
 
         const refreshedTicket = await this.getTicket(task.id);
         if (refreshedTicket?.status === 'pending') {
-          this.pendingRedispatchAfter.set(task.id, Date.now() + this.redispatchPendingAfterMs);
+          const currentDelayMs = this.pendingRedispatchDelayMs.get(task.id) ?? this.redispatchPendingAfterMs;
+          this.pendingRedispatchAfter.set(task.id, Date.now() + currentDelayMs);
+          const nextDelayMs = Math.min(
+            this.redispatchPendingMaxAfterMs,
+            Math.max(
+              this.redispatchPendingAfterMs,
+              Math.floor(currentDelayMs * this.redispatchBackoffMultiplier)
+            )
+          );
+          this.pendingRedispatchDelayMs.set(task.id, nextDelayMs);
         } else {
           this.pendingRedispatchAfter.delete(task.id);
+          this.pendingRedispatchDelayMs.delete(task.id);
         }
       }
 

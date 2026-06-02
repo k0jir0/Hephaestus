@@ -7,7 +7,7 @@ param(
     [int]$MaxActive = 100,
     [int]$MaxAttempts = 3,
     [ValidateRange(10, 3600)]
-    [int]$CycleIntervalSeconds = 300,
+    [int]$CycleIntervalSeconds = 60,
     [ValidateRange(1, 168)]
     [int]$MaxRuntimeHours = 24,
     [int]$MaxIterations = 0,
