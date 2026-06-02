@@ -4,12 +4,22 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, it } from 'node:test';
 import { exportCodexHandoffBundles } from '../src/codex-handoff.js';
+import { config } from '../src/config.js';
 import { TicketStoreRepository } from '../src/task-store.js';
 import type { TaskAttempt, TaskEvent, TaskTicket } from '../src/types.js';
 
 const tempDirs: string[] = [];
+const originalBaseDir = config.baseDir;
+const originalOutputDir = process.env.HEPHAESTUS_OUTPUT_DIR;
 
 afterEach(async () => {
+  config.baseDir = originalBaseDir;
+  if (originalOutputDir === undefined) {
+    delete process.env.HEPHAESTUS_OUTPUT_DIR;
+  } else {
+    process.env.HEPHAESTUS_OUTPUT_DIR = originalOutputDir;
+  }
+
   while (tempDirs.length > 0) {
     const tempDir = tempDirs.pop();
     if (tempDir) {
@@ -187,6 +197,43 @@ describe('codex handoff bundles', () => {
     };
     assert.equal(Array.isArray(sample.codexContext.localAssistedHandoff.failedActions), true);
     assert.equal(sample.routingEvidence.threshold, 4);
+  });
+
+  it('writes default bundles under the project output folder', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-codex-default-output-'));
+    tempDirs.push(rootDir);
+    config.baseDir = rootDir;
+    delete process.env.HEPHAESTUS_OUTPUT_DIR;
+
+    const generatedAt = new Date('2026-05-28T00:00:00.000Z');
+    const ticket: TaskTicket = {
+      id: 'ticket_default_output',
+      description: 'Default output folder check',
+      status: 'pending',
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+      attemptCount: 1,
+      sourceOrder: 1,
+    };
+
+    const repository = {
+      async listTickets() {
+        return [ticket];
+      },
+      async listAttempts() {
+        return [];
+      },
+      async listEvents() {
+        return [buildEvent(ticket.id, generatedAt)];
+      },
+    };
+
+    const exported = await exportCodexHandoffBundles(repository, { statuses: ['pending'], generatedAt });
+    assert.equal(exported.length, 1);
+
+    const expectedRoot = path.join(rootDir, 'output', 'codex-handoff');
+    assert.ok(exported[0]);
+    assert.equal(path.dirname(exported[0]!.outputFile), expectedRoot);
   });
 });
 

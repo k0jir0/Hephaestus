@@ -230,6 +230,7 @@ UI_TOKENS=viewer:<strong-token>,operator:<strong-token>,approver:<strong-token>,
 UI_HOST=127.0.0.1
 TASK_BOARD_PROJECTION_ENABLED=true
 ALLOW_MARKDOWN_TASK_FALLBACK=false
+HEPHAESTUS_OUTPUT_DIR=output
 ```
 
 ## Runtime Requirements
@@ -295,6 +296,7 @@ Hephaestus/
 ├── .hephaestus-tickets.db*     # Canonical SQLite ticket store files
 ├── dist/                       # Compiled TypeScript output
 ├── logs/                       # Local runtime and ops logs
+├── output/                     # Generated codex handoff + delivery export artifacts
 ├── run/                        # Runtime outputs and local bundles
 ├── sources/                    # Source evidence and reference inputs
 ├── watch-tasks-board.ps1       # Board watch helper for local operations

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { config } from './config.js';
+import { resolveProjectOutputPath } from './output-paths.js';
 import type { TaskAttempt, TaskEvent, TaskTicket, ToolCall } from './types.js';
 
 export interface PatchBundleRepository {
@@ -40,7 +40,7 @@ export async function exportPatchBundle(
   }
 
   const generatedAt = options.generatedAt ?? new Date();
-  const outputRoot = options.outputRoot ?? path.join(config.baseDir, '.hephaestus', 'delivery');
+  const outputRoot = options.outputRoot ?? resolveProjectOutputPath('delivery');
   const outputDir = path.join(outputRoot, sanitizePathSegment(ticket.id));
   const patchFile = path.join(outputDir, 'bundle.patch');
   const manifestFile = path.join(outputDir, 'manifest.json');

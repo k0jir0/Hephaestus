@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { config } from './config.js';
+import { resolveProjectOutputPath } from './output-paths.js';
 import type { TaskAttempt, TaskEvent, TaskStatus, TaskTicket } from './types.js';
 
 export type CodexExecutionLane = 'fast' | 'deep';
@@ -203,7 +203,7 @@ export async function exportCodexHandoffBundles(
   options: CodexHandoffExportOptions = {}
 ): Promise<ExportedCodexHandoffBundle[]> {
   const generatedAt = options.generatedAt ?? new Date();
-  const outputRoot = options.outputRoot ?? path.join(config.baseDir, '.hephaestus', 'codex-handoff');
+  const outputRoot = options.outputRoot ?? resolveProjectOutputPath('codex-handoff');
   const statuses = options.statuses ?? DEFAULT_ACTIVE_STATUSES;
 
   const allTickets = await repository.listTickets('all');
