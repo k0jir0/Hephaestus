@@ -1,0 +1,43 @@
+﻿{
+    "runId":  "stage-a-baseline-2026-06-02T114657",
+    "mode":  "baseline",
+    "timestamp":  "2026-06-02T11:47:03.5188627-04:00",
+    "applyAutopilot":  false,
+    "parameters":  {
+                       "cohortSize":  50,
+                       "treatmentWindowDays":  7,
+                       "maxAttempts":  3,
+                       "maxActive":  20,
+                       "waveSize":  5
+                   },
+    "reviewWave":  {
+                       "decision":  "NO-GO",
+                       "logPath":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-02T114657\\tickets-review-wave.log"
+                   },
+    "autopilot":  {
+                      "logPath":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-02T114657\\autopilot-stage-a.log",
+                      "pausedByGates":  true
+                  },
+    "efficiency":  {
+                       "completionRate":  0.263,
+                       "targetScore":  70,
+                       "p95AdmissionToCompleteMs":  5508794,
+                       "throughputPerDay":  0,
+                       "status":  "below-target",
+                       "allowlistDenialRate":  0.013,
+                       "retryRate":  0.082,
+                       "score":  25.867
+                   },
+    "sourceGrounding":  {
+                            "eventEvidenceCoverage":  1,
+                            "driftedTickets":  0,
+                            "coverage":  1
+                        },
+    "logs":  {
+                 "metricsEfficiency":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-02T114657\\metrics-efficiency.log",
+                 "reviewWave":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-02T114657\\tickets-review-wave.log",
+                 "metricsEfficiencyWeekly":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-02T114657\\metrics-efficiency-weekly.log",
+                 "autopilot":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-02T114657\\autopilot-stage-a.log",
+                 "ticketsMetrics":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-02T114657\\tickets-metrics-source-grounding.log"
+             }
+}

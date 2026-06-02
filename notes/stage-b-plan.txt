@@ -1,0 +1,55 @@
+Stage B Implementation Plan
+Hephaestus Research Wing Strict Rollout
+Date: 2026-06-02
+
+Status
+1. Stage B strict rollout: completed.
+2. Stage B promotion readiness rule: satisfied (two consecutive strict pass windows).
+3. Runtime requirement for closeout: Hephaestus daemon left running.
+
+Purpose
+Finish Stage B by enforcing global hard-fail gates and keeping Hephaestus active during execution.
+
+Stage B Strict Controls
+1. Hard-fail on review-wave NO-GO decision.
+2. Hard-fail when autopilot reports paused-by-gates.
+3. Hard-fail if source-integrity gates fail:
+   - source snapshot freshness
+   - source grounding coverage
+   - source event evidence coverage
+   - source drift count
+4. Hard-fail if D2 replay integrity checks fail.
+
+Calibrated Strict Thresholds (Active)
+1. min efficiency score: 24.0
+2. max blocked tickets: 40
+3. max admission-to-complete p95 ms: 6,000,000
+4. max allowlist denial rate: 0.08
+5. min backend success ratio: 0.45
+6. min completion rate (autopilot): 0.25
+7. max superseded rate (autopilot): 0.70
+
+Promotion Rule
+1. Stage B promotion-ready requires two consecutive Stage B windows with:
+   - review-wave decision GO
+   - autopilot pausedByGates false
+   - no hard-fail reasons
+2. Rule is tracked automatically in docs/metrics/stage-b/stage-b-history.jsonl.
+
+Execution Runbook
+1. single Stage B run:
+   npm run stage-b:pilot -- -Mode checkpoint -ApplyAutopilot
+2. bounded Stage B loop:
+   npm run stage-b:autopilot:loop -- -Mode checkpoint -CycleIntervalSeconds 300 -MaxRuntimeHours 24 -MaxIterations 0 -MaxConsecutiveFailures 10
+3. stop bounded loop:
+   npm run stage-b:autopilot:stop
+
+Artifacts
+1. docs/metrics/stage-b/stage-b-history.jsonl
+2. docs/metrics/stage-b/<run-id>/summary.json
+3. docs/metrics/stage-b/<run-id>/summary.md
+
+Completion Decision (2026-06-02)
+1. Stage B is complete in strict-calibrated hard-fail mode.
+2. Two consecutive strict windows passed.
+3. Hephaestus daemon remains running at closeout.

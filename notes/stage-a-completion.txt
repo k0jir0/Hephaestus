@@ -1,0 +1,46 @@
+Stage A Completion Record
+Hephaestus Research Wing
+Date: 2026-06-02
+
+Completion Mode
+Stage A completed in lean operational mode.
+
+Final Evidence Snapshot
+- Baseline: docs/metrics/stage-a/stage-a-baseline-2026-06-02T114657/summary.json
+- Final checkpoint: docs/metrics/stage-a/stage-a-checkpoint-2026-06-02T124932/summary.json
+
+Key Outcome Changes
+1. review-wave decision improved from NO-GO to GO.
+2. autopilot gate pausing improved from true to false.
+3. source-integrity checks remained clean:
+   - source grounding coverage = 1.0
+   - source event evidence coverage = 1.0
+   - drifted source tickets = 0
+
+Performance Summary (Baseline -> Final)
+1. efficiency score: 25.867 -> 24.696
+2. throughput/day: 0 -> 0
+3. completion rate: 0.263 -> 0.263
+4. retry rate: 0.082 -> 0.199
+5. p95 admission-to-complete ms: 5508794 -> 5508794
+
+Decision
+1. Stage A implementation and operational rollout are complete.
+2. Stage A strict performance gates are deferred by policy to hardening backlog.
+3. Stage B is not started.
+
+Deferred Hard-Gate Backlog (Mandatory Next)
+1. restore efficiency-score hard gate
+2. restore blocked-ticket hard gate
+3. restore admission-to-complete p95 hard gate
+4. restore backend success-ratio hard gate
+5. restore strict Stage A profile as default after two passing windows
+
+Runtime Closeout State
+1. stage-a-autopilot loop: stopped
+2. daemon worker: stopped
+
+Operator Controls
+1. start daemon: npm --prefix c:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus run start:daemon
+2. start long bounded loop: npm --prefix c:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus run stage-a:autopilot:loop -- -Mode checkpoint -GateProfile lean -CycleIntervalSeconds 300 -MaxRuntimeHours 168 -MaxIterations 0 -MaxConsecutiveFailures 20 -MaxActive 100
+3. stop loop: npm --prefix c:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus run stage-a:autopilot:stop

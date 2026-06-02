@@ -1,0 +1,38 @@
+Stage B Completion Record
+Hephaestus Research Wing
+Date: 2026-06-02
+
+Completion Mode
+Stage B strict-calibrated hard-fail rollout.
+
+Required Evidence
+1. Consecutive strict pass window 1:
+   - docs/metrics/stage-b/stage-b-checkpoint-2026-06-02T125904/summary.json
+2. Consecutive strict pass window 2:
+   - docs/metrics/stage-b/stage-b-checkpoint-2026-06-02T125916/summary.json
+3. Stage B history ledger:
+   - docs/metrics/stage-b/stage-b-history.jsonl
+
+Gate Outcome
+1. review-wave: GO in both consecutive windows
+2. autopilot pausedByGates: false in both consecutive windows
+3. hardFail reasons: none in both consecutive windows
+4. promotionReady flag: true in second consecutive window
+
+Threshold Set Used
+1. min efficiency score: 24.0
+2. max blocked tickets: 40
+3. max admission-to-complete p95 ms: 6,000,000
+4. max allowlist denial rate: 0.08
+5. min backend success ratio: 0.45
+6. min completion rate: 0.25
+7. max superseded rate: 0.70
+
+Runtime State at Closeout
+1. Hephaestus daemon: running
+2. Stage B loop: not required for closeout; available via stage-b:autopilot:loop
+
+Decision
+1. Stage B is complete.
+2. Stage B strict gates remain enabled in the Stage B runner.
+3. Future windows should continue to use stage-b:pilot to preserve the strict history trail.

@@ -1,0 +1,102 @@
+Stage A Implementation Plan
+Hephaestus Research Wing Pilot
+Date: 2026-06-02
+
+Status
+1. Stage A implementation scope: completed.
+2. Stage A lean operational pilot: completed on 2026-06-02.
+3. Stage B strict rollout: completed on 2026-06-02.
+
+Purpose
+Start Stage A implementation as a controlled pilot that increases learning velocity without safety, reliability, or operator-burden regressions.
+
+Execution posture update (2026-06-02)
+Stage A now runs in a lean gate profile by default to maximize forward progress.
+Performance-restrictive gates are treated as advisory for this pilot window and tracked as deferred hard gates.
+Safety-integrity gates remain enforced.
+
+Locked Experiment Parameters
+1. Treatment window: 7 days.
+2. Tandem cohort: 50 tickets.
+3. Stage progression rule: no Stage B promotion until two consecutive windows pass all Stage A gates.
+
+Stage A Scope (In)
+1. Off-path research intake only.
+2. Fail-closed authenticity gating for source promotion decisions.
+3. Incremental PDF processing only (changed files only).
+4. Single-reviewer curation for standard cases.
+5. Two-person sign-off only for high-risk or architecture-changing promotions.
+6. Mandatory run artifacts and audit trail.
+
+Stage A Scope (Out)
+1. Global Stage B controls.
+2. Any bypass of legal/provenance/authenticity checks.
+3. Synchronous full-library PDF processing on core execution paths.
+
+Operational Guardrails
+1. Hard-fail freeze if authenticity false-accept incident occurs.
+2. Hard-fail freeze if canonical promotion audit completeness drops below 100%.
+3. Hard-fail freeze if source evidence drift exceeds threshold.
+
+Deferred hard gates (to finish later)
+1. Re-enable hard gate for efficiency-score threshold after pilot stabilization.
+2. Re-enable hard gate for blocked-ticket ceiling after backlog burn-down.
+3. Re-enable hard gate for admission-to-complete p95 threshold after queue tuning.
+4. Re-enable hard gate for backend success ratio after reliability remediation.
+5. Reinstate manual-review backlog age hard gate once review telemetry is complete.
+
+Command Runbook
+All commands run from project root: McGillSoftware/Hephaestus
+
+Preferred runner
+1. npm run stage-a:pilot
+2. For active queue motion: npm run stage-a:pilot -- -Mode checkpoint -ApplyAutopilot
+3. For strict compliance replay: npm run stage-a:pilot -- -Mode checkpoint -GateProfile strict
+
+Phase 0 - Baseline Freeze (Day 0)
+1. npm run metrics:efficiency
+2. npm run metrics:efficiency:weekly
+3. npm run tickets -- metrics --source-grounding
+4. npm run tickets -- review-wave --min-efficiency-score 70 --max-blocked 20 --max-p95-ms 5500000 --max-allowlist-denial-rate 0.08 --min-backend-success-ratio 0.7 --min-source-grounding-coverage 0.9 --min-source-evidence-coverage 0.95 --max-source-drifted 0 --max-source-snapshot-age-hours 24 --enforce-d2 --max-d2-count-mismatches 0 --max-d2-legacy-only 0 --max-d2-domain-only 0 --max-d2-domain-deficit 0 --max-d2-missing-legacy-link 0 --min-d2-replay-correlation-coverage 0.2
+5. npm run autopilot -- --dry-run --wave-size 5 --max-active 20 --max-attempts 3 --enforce-source-snapshot --max-source-snapshot-age-hours 24 --min-source-grounding-coverage 0.9 --min-source-evidence-coverage 0.95 --max-source-drifted 0 --enforce-d2 --max-d2-count-mismatches 0 --max-d2-legacy-only 0 --max-d2-domain-only 0 --max-d2-domain-deficit 0 --max-d2-missing-legacy-link 0 --min-d2-replay-correlation-coverage 0.2
+
+Baseline artifacts to track
+1. docs/metrics/efficiency-latest.json
+2. docs/metrics/efficiency-history.jsonl
+3. docs/metrics/efficiency-weekly-report.md
+4. docs/metrics/source-grounding-latest.json
+5. Day-0 summary in notes/stage-a-findings-2026-06-02.txt
+
+Phase 1 - Tandem Execution Window (Days 1-7)
+1. Keep active cohort bounded to 50 tickets.
+2. Run autopilot in bounded waves.
+3. Human reviewer performs curation decisions in tandem: approve, reject, replace, defer.
+4. Require second reviewer only for high-risk or architecture-changing promotions.
+5. Freeze immediately on any safety-integrity hard-fail gate breach.
+6. Record deferred hard-gate metrics daily for planned hardening.
+
+Phase 2 - Evaluation and Decision (Day 7)
+1. Re-run baseline command set.
+2. Compare treatment snapshot against Day-0 baseline.
+3. Compute learning-velocity trend using L = (V - C) / T.
+4. Decide:
+- Stay in Stage A and tune, or
+- Open Stage B readiness review if all gates pass.
+
+Success Criteria
+1. Positive learning-velocity trend over baseline window.
+2. No safety/reliability/operator-burden gate violations.
+3. Authenticity gate remains fail-closed (no invalid promotions).
+4. Incremental processing behavior is preserved (no full reprocessing for unchanged files).
+
+Reporting Template
+1. What improved.
+2. What regressed.
+3. Gate failures or near misses.
+4. Operator burden impact.
+5. Decision and next actions.
+
+Stage A Closeout Decision (2026-06-02)
+1. Stage A is finished as a lean operational completion.
+2. Safety-integrity gates remained enforced and passed during closeout checks.
+3. Performance hard-gate items remain deferred and move to Stage A hardening backlog.

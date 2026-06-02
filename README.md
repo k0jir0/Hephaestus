@@ -144,6 +144,10 @@ That means the agent reads and reasons about this repository itself. To point it
 - `npm run models:benchmark -- --models codellama:latest,gpt-oss:20b,qwen3-coder:30b` compares candidate models on small agent-discipline checks
 - `npm run metrics:source-grounding` writes source-grounding snapshots and markdown reports
 - `npm run metrics:source-grounding:audit` runs strict source-evidence drift and missing-evidence gates
+- `npm run stage-a:pilot` runs the Stage A pilot workflow and writes run artifacts to `docs/metrics/stage-a/`
+- `npm run stage-b:pilot` runs the Stage B strict workflow and writes run artifacts to `docs/metrics/stage-b/`
+- `npm run stage-b:autopilot:loop` runs bounded Stage B cycles with stop-file and failure limits
+- `npm run stage-b:autopilot:stop` signals or force-stops the Stage B bounded loop
 - `npm test` runs contract, repository, runtime, and smoke tests
 
 ## Task Lifecycle

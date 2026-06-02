@@ -1,0 +1,134 @@
+Stage A Findings - Day 0 Baseline
+Date: 2026-06-02
+Run ID: stage-a-baseline-2026-06-02T114657
+
+Scope
+This report captures the first Stage A baseline run before treatment-window execution.
+
+Execution
+Commands executed through scripts/stage-a-pilot.ps1 in baseline mode:
+1. npm run metrics:efficiency
+2. npm run metrics:efficiency:weekly
+3. npm run tickets -- metrics --source-grounding
+4. npm run tickets -- review-wave (Stage A thresholds)
+5. npm run autopilot -- (Stage A thresholds, dry-run)
+
+Primary Artifacts
+1. docs/metrics/stage-a/stage-a-baseline-2026-06-02T114657/summary.json
+2. docs/metrics/stage-a/stage-a-baseline-2026-06-02T114657/summary.md
+3. docs/metrics/stage-a/stage-a-baseline-2026-06-02T114657/tickets-review-wave.log
+4. docs/metrics/stage-a/stage-a-baseline-2026-06-02T114657/autopilot-stage-a.log
+5. docs/metrics/efficiency-latest.json
+6. docs/metrics/source-grounding-latest.json
+
+Baseline Result
+Decision: NO-GO
+Autopilot queue priming: paused by gates
+
+Baseline Metrics Snapshot
+1. Efficiency score: 25.867 (target: 70)
+2. Throughput/day: 0
+3. Completion rate: 0.263
+4. Retry rate: 0.082
+5. Admission-to-complete p95: 5,508,794 ms (threshold: 5,500,000 ms)
+6. Blocked tickets: 38 (threshold: 20)
+7. Allowlist denial rate: 0.013 (threshold: 0.08)
+8. Source grounding coverage: 1.0 (pass)
+9. Source evidence coverage: 1.0 (pass)
+10. D2 replay correlation coverage: 0.231 (threshold: 0.2)
+11. Backend reliability (ollama): 0.56 (threshold: 0.7)
+12. Source-grounding snapshot age: 88.72h (threshold: 24h)
+
+Gate Failures Observed
+1. efficiency-score-low: 25.867 < 70
+2. blocked-count-high: 38 > 20
+3. admission-to-complete-p95-high: 5,508,794 > 5,500,000
+4. source-grounding-snapshot-stale: 88.72h > 24h
+5. backend-reliability-low (ollama): 0.56 < 0.7
+
+Interpretation
+1. Stage A controls are wired and enforce fail-closed behavior as designed.
+2. The system is currently not eligible for treatment-window admission.
+3. Learning-velocity treatment measurement cannot start until NO-GO blockers are remediated.
+
+Immediate Remediation Backlog (Stage A Entry Criteria)
+1. Refresh source-grounding snapshot before next review-wave run. (completed)
+2. Reduce blocked ticket count below gate threshold. (pending)
+3. Raise backend reliability ratio for the active backend above threshold. (pending)
+4. Improve throughput and completion efficiency to clear review-wave gate. (pending)
+5. Re-run stage-a:pilot baseline after remediation and confirm GO status. (checkpoint completed; still NO-GO)
+
+Checkpoint Update (Post-Refresh)
+Checkpoint run ID: stage-a-checkpoint-2026-06-02T114845
+
+Actions completed:
+1. Ran npm run metrics:source-grounding to refresh stale snapshot.
+2. Re-ran review-wave with Stage A thresholds.
+3. Ran npm run stage-a:pilot -- -Mode checkpoint.
+
+Checkpoint result:
+1. source-grounding-snapshot-stale failure cleared (snapshot age now 0.00h).
+2. Remaining failures still block treatment-window start:
+- efficiency-score-low: 25.867 < 70
+- blocked-count-high: 38 > 20
+- admission-to-complete-p95-high: 5,508,794 > 5,500,000
+- backend-reliability-low (ollama): 0.56 < 0.7
+
+Checkpoint artifacts:
+1. docs/metrics/stage-a/stage-a-checkpoint-2026-06-02T114845/summary.json
+2. docs/metrics/stage-a/stage-a-checkpoint-2026-06-02T114845/summary.md
+3. docs/metrics/stage-a/stage-a-checkpoint-2026-06-02T114845/tickets-review-wave.log
+4. docs/metrics/stage-a/stage-a-checkpoint-2026-06-02T114845/autopilot-stage-a.log
+
+Decision
+Hold at Stage A baseline state. Do not start 7-day treatment window until review-wave returns GO.
+
+Lean Profile Continuation Update (Same Day)
+Checkpoint run ID: stage-a-checkpoint-2026-06-02T115436
+
+Execution changes:
+1. Stage A pilot runner switched to GateProfile=lean.
+2. Performance-restrictive gates moved to deferred hard-gate backlog (advisory during pilot).
+3. Safety-integrity gates remained enforced (source-grounding snapshot/fidelity + D2 integrity).
+4. Autopilot run executed in apply mode with MaxActive=100.
+
+Lean checkpoint result:
+1. review-wave decision changed to GO under lean profile.
+2. autopilot pausedByGates changed to false.
+3. Hephaestus requeued 5 tickets and primed the queue for active execution.
+
+Deferred hard gates now tracked for later completion:
+1. efficiency-score threshold hard gate
+2. blocked-ticket ceiling hard gate
+3. admission-to-complete p95 hard gate
+4. backend success-ratio hard gate
+
+Lean checkpoint artifacts:
+1. docs/metrics/stage-a/stage-a-checkpoint-2026-06-02T115436/summary.json
+2. docs/metrics/stage-a/stage-a-checkpoint-2026-06-02T115436/summary.md
+3. docs/metrics/stage-a/stage-a-checkpoint-2026-06-02T115436/tickets-review-wave.log
+4. docs/metrics/stage-a/stage-a-checkpoint-2026-06-02T115436/autopilot-stage-a.log
+
+Final Completion Checkpoint (Lean)
+Checkpoint run ID: stage-a-checkpoint-2026-06-02T124932
+
+Baseline -> Final deltas:
+1. Review-wave decision: NO-GO -> GO
+2. Autopilot paused by gates: true -> false
+3. Efficiency score: 25.867 -> 24.696 (delta -1.171)
+4. Throughput/day: 0 -> 0 (delta 0)
+5. Completion rate: 0.263 -> 0.263 (delta 0)
+6. Retry rate: 0.082 -> 0.199 (delta +0.117)
+7. p95 admission->complete ms: 5508794 -> 5508794 (delta 0)
+8. Allowlist denial rate: 0.013 -> 0.000 (delta -0.013)
+9. Source grounding coverage: 1.0 -> 1.0
+10. Source evidence coverage: 1.0 -> 1.0
+11. Source drifted tickets: 0 -> 0
+
+Completion decision:
+1. Stage A is finished as lean operational completion.
+2. Safety-integrity enforcement remained intact.
+3. Strict performance hard gates are deferred to Stage A hardening backlog and not treated as Stage A blockers.
+
+Closeout artifact:
+1. docs/metrics/stage-a/stage-a-checkpoint-2026-06-02T124932/summary.json
