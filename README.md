@@ -2,8 +2,6 @@
 
 Hephaestus is a local-first AI engineering workflow product for turning queued software work into inspectable, policy-gated execution plans. It keeps canonical ticket state in a local SQLite store, can project that state into an operator-facing board view, gathers repository context, routes work through configurable AI backends, and records structured plans plus visible state transitions so operators can see how work moves from intake to attempted execution.
 
-In the current self-hosted operator workflow, running Hephaestus in parallel with development tasks yielded an estimated ~61% effective throughput improvement (latest measured efficiency score: 60.867) by reducing orchestration overhead, tightening feedback loops, and improving queue-level prioritization.
-
 This repository is configured to run Hephaestus on itself by default. That makes it useful as a GitHub-ready demonstration of governed AI engineering workflow instead of an opaque "magic agent" claim.
 
 ## Core Capabilities
@@ -25,9 +23,16 @@ This repository is configured to run Hephaestus on itself by default. That makes
 - fail-closed mutation and delivery behavior for safety
 - operator-in-the-loop approvals for sensitive actions
 
-## Current Scope
+## Scope
 
 Hephaestus is an engineering control plane, not a general autonomous programmer. It executes bounded read, search, patch, and verification plans through a governed tool runtime; pauses for approval when required; records durable artifacts and evidence; and exports local patch bundles for developer review.
+
+### Non-Goals
+
+- not a fully autonomous coding system that bypasses operator review
+- not a cloud multi-tenant orchestration platform
+- not a replacement for branch protection, CI policy, or code review
+- not a direct branch/push/PR automation path in the default runtime
 
 ## Workflow Overview
 
@@ -38,30 +43,16 @@ Hephaestus is an engineering control plane, not a general autonomous programmer.
 5. Review: inspect evidence, gates, timeline, and artifacts in CLI or UI.
 6. Resolution: complete, block, retry, supersede, or cancel with durable state transitions.
 
-## What It Demonstrates
-
-- Queue-driven automation through durable ticket objects
-- Canonical ticket objects backed by a local SQLite task store
-- Operator ticket management through `npm run tickets`
-- Browser-based operator UI through `npm run ui`
-- Startup preflight and policy-first task admission before queue mutation
-- Structured planning contracts with intended files, commands, verification, and risks
-- Typed engineering tool runtime for bounded reads, search, patch validation/application, and allowlisted commands
-- Ticket-store-backed repository adapters with markdown projection and bounded fixture smoke coverage
-- Repository context gathering from `package.json`, `README.md`, focused file ranking, selected file indexes, and git status
-- Pluggable AI backends for GitHub Copilot CLI, OpenAI, Claude, and Ollama
-- Guardrails for budget, iteration count, error thresholds, and optional auto-commit
-- Persistent state tracking in `AGENT.md`
-- Single-pass execution for bounded demos and CI-friendly runs
-
 ## Quick Start
 
-```bash
+Windows (PowerShell):
+
+```powershell
 # Install dependencies
 npm install
 
 # Configure environment
-cp .env.example .env
+Copy-Item .env.example .env
 
 # Validate configuration before launch
 npm run validate:config
@@ -83,6 +74,16 @@ npm run ui
 
 # Or run in watcher mode
 npm run start
+```
+
+POSIX shell (macOS/Linux):
+
+```bash
+npm install
+cp .env.example .env
+npm run validate:config
+npm run tickets -- create "Inspect the runtime flow"
+npm run cli
 ```
 
 Canonical operator path:
@@ -190,6 +191,23 @@ UI_SSE_INTERVAL_MS=2000
 
 Supported UI roles are `viewer`, `operator`, `approver`, and `admin`.
 
+## Security Posture
+
+- Development mode may auto-generate a local admin UI token when `UI_TOKENS` is unset.
+- Treat the logged development token as sensitive, local-only bootstrap material.
+- For shared machines or production-like environments, always set explicit `UI_TOKENS` and restrict host binding.
+- Keep `UI_HOST=127.0.0.1` unless you have a deliberate reverse-proxy or network policy in place.
+- Preserve fail-closed behavior for risky mutations and delivery operations.
+
+Recommended production-like baseline:
+
+```env
+UI_TOKENS=viewer:<strong-token>,operator:<strong-token>,approver:<strong-token>,admin:<strong-token>
+UI_HOST=127.0.0.1
+TASK_BOARD_PROJECTION_ENABLED=true
+ALLOW_MARKDOWN_TASK_FALLBACK=false
+```
+
 ## Runtime Requirements
 
 Hephaestus requires Node.js 22.5 or newer because the default ticket store uses `node:sqlite`.
@@ -202,14 +220,26 @@ The typed engineering tools live behind a policy runtime. It supports bounded re
 
 See `docs/architecture.md` for the current runtime shape and the shift-left roadmap.
 
+## Verification Matrix
+
+Use the following checks to verify key system claims:
+
+| Capability | Command | Expected Evidence |
+|---|---|---|
+| Build integrity | `npm run build` | Successful TypeScript compile and refreshed `dist/` output |
+| Contract/runtime correctness | `npm test` | Passing contract, repository, runtime, and smoke suites |
+| Config and backend readiness | `npm run preflight` | Readiness gate output with actionable failures when misconfigured |
+| Source-grounding health | `npm run metrics:source-grounding` | Snapshot + markdown report under `docs/metrics/` |
+| Source-evidence drift gate | `npm run metrics:source-grounding:audit` | Strict drift/missing-evidence pass-fail signal |
+| Ticket lifecycle and projection | `npm run tickets -- render-board` | Markdown board projection synchronized from SQLite state |
+| Operator control-plane visibility | `npm run ui` | Local UI with ticket, gate, and evidence inspection surfaces |
+
 ## Project Structure
 
-Core directories and key files are organized as follows:
+Canonical source and interfaces:
 
 ```text
 Hephaestus/
-├── .hephaestus/                # Local runtime state and generated artifacts
-├── .hephaestus-tickets.db      # Canonical SQLite ticket store
 ├── src/
 │   ├── agent.ts                # Agent orchestration
 │   ├── executor.ts             # Plan execution and policy wiring
@@ -222,13 +252,22 @@ Hephaestus/
 │   ├── architecture.md         # Runtime architecture and roadmap
 │   └── metrics/                # Reliability and source-grounding reports
 ├── test/                       # Unit and integration tests
+├── AGENT.md                    # Project state projection and operator notes
+├── TASKS.md                    # Optional markdown board projection
+├── start.ps1                   # Canonical numbered control-plane launcher
+└── package.json                # Script and dependency manifest
+```
+
+Runtime and generated artifacts:
+
+```text
+Hephaestus/
+├── .hephaestus/                # Local runtime state and generated artifacts
+├── .hephaestus-tickets.db*     # Canonical SQLite ticket store files
 ├── dist/                       # Compiled TypeScript output
 ├── logs/                       # Local runtime and ops logs
 ├── run/                        # Runtime outputs and local bundles
 ├── sources/                    # Source evidence and reference inputs
-├── AGENT.md                    # Project state projection and operator notes
-├── TASKS.md                    # Optional markdown board projection
-├── start.ps1                   # Canonical numbered control-plane launcher
 ├── watch-tasks-board.ps1       # Board watch helper for local operations
 └── watch-ollama-stream.ps1     # Model stream watch helper
 ```
