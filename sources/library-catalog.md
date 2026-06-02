@@ -47,6 +47,23 @@ been converted into project-usable notes.
 | `LevesonThomas2018STPAHandbook` | systems safety analysis | unsafe control action analysis for autonomy and oversight | `D3-D6` | `copy+note` | `copy+note` |
 | `FooteYoder1997BigBallOfMud` | architecture complexity control | complexity drift and modularity discipline under growth | `D1-D4` | `copy+note` | `copy+note` |
 
+## New Research Intake (2026-06-02)
+
+| Key | Domain | Why It Matters | Phase | Target Status | Current Status |
+| --- | --- | --- | --- | --- | --- |
+| `NewResearch01_2408-08592` | runtime verification | runtime monitor framing for autonomous control loops | `P1-P5-P8` | `copy+note` | `copy+note` |
+| `NewResearch02_2209-03013` | causal analysis | quantitative causal validation for incident attribution quality | `P2-P3-P8` | `copy+note` | `copy+note` |
+| `NewResearch03_2503-16227` | human oversight | trust-dynamics evidence for human-on-the-loop intervention policy | `P3-P7` | `copy+note` | `copy+note` |
+| `NewResearch04_2604-09452` | safe policy optimization | constrained safe policy updates for autonomy risk tiers | `P3-P8` | `copy+note` | `copy+note` |
+| `NewResearch05_2404-14498` | candidate replacement slot | temporary placeholder from automated pull; replace with stronger saga source | `P4-P6` | `copy+note` | `copy+note` |
+| `NewResearch06_2406-04710` | software agent benchmarking | long-horizon software engineering benchmark perspective | `P5` | `copy+note` | `copy+note` |
+| `NewResearch07_2202-12139` | testing methods | comparative testing methods applicable to stronger verification harness design | `P1-P2-P4` | `copy+note` | `copy+note` |
+| `NewResearch08_2306-00133` | progressive delivery | canary exposure interpretation for promotion and rollback governance | `P6-P8` | `copy+note` | `copy+note` |
+| `NewResearch09_2512-11833` | explainability | explainable decision structures for operator-facing decisions | `P3-P7` | `copy+note` | `copy+note` |
+| `NewResearch10_2410-05787` | multi-objective optimization | safety-throughput objective balancing methods | `P2-P3-P8` | `copy+note` | `copy+note` |
+| `NewResearch11_2507-00421` | devops socio-technical systems | operational context for socio-technical incident response planning | `P8` | `copy+note` | `copy+note` |
+| `NewResearch12_2411-16100` | autonomy economics | economics lens for autonomy tradeoffs and policy profile selection | `P8` | `copy+note` | `copy+note` |
+
 ## Next Backlog Tier
 
 | Key | Domain | Why It Matters | Phase | Target Status |

@@ -112,6 +112,8 @@ Initial implementation status:
 - `sources/notes/` now exists and contains notes for the active catalog
 - `sources/papers/` now exists and contains the first lawful open-access batch
 - `sources/acquisition-manifest.md` tracks what is stocked, note-only, or still pending lawful acquisition
+- `sources/papers/60-new-research/` now contains the 2026-06-02 new research intake batch
+- `sources/new-research-acquisition-run-2026-06-02.md` records target-to-paper intake mapping
 
 Recommended on-drive structure:
 

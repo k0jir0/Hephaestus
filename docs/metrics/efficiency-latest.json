@@ -1,8 +1,8 @@
 {
-  "timestamp": "2026-05-29T13:09:50.983Z",
+  "timestamp": "2026-06-02T16:59:18.206Z",
   "totals": {
     "tickets": 316,
-    "attempts": 208,
+    "attempts": 263,
     "completed": 83,
     "blocked": 38,
     "awaitingApproval": 0,
@@ -11,8 +11,8 @@
     "cancelled": 17
   },
   "throughput": {
-    "completedLast24h": 55,
-    "completedPerDay": 55
+    "completedLast24h": 0,
+    "completedPerDay": 0
   },
   "latencyMs": {
     "admissionToStart": {
@@ -38,30 +38,25 @@
     }
   },
   "quality": {
-    "retryRate": 0.082,
+    "retryRate": 0.199,
     "blockRate": 0.12,
     "approvalRate": 0,
     "completionRate": 0.263
   },
   "policy": {
-    "allowlistDenialCount": 4,
-    "allowlistDenialRate": 0.013,
-    "allowlistDenialTaxonomyTop": [
-      {
-        "bucket": "command is not allowlisted",
-        "count": 4
-      }
-    ]
+    "allowlistDenialCount": 0,
+    "allowlistDenialRate": 0,
+    "allowlistDenialTaxonomyTop": []
   },
   "efficiencyIndex": {
-    "score": 60.867,
+    "score": 24.696,
     "targetScore": 70,
     "status": "below-target",
     "components": {
-      "throughputScore": 1,
+      "throughputScore": 0,
       "latencyScore": 0.327,
       "completionScore": 0.263,
-      "retryPenaltyScore": 0.918
+      "retryPenaltyScore": 0.801
     },
     "attribution": {
       "topCohorts": [
@@ -104,7 +99,7 @@
     }
   },
   "variance": {
-    "sampleCount": 12,
+    "sampleCount": 21,
     "alerts": [],
     "deltas": {
       "completedPerDayDelta": 0,

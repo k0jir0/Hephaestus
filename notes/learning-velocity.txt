@@ -1,0 +1,92 @@
+Learning Velocity
+
+Purpose
+This note defines learning velocity as a practical operating concept for autonomous and semi-autonomous engineering systems.
+
+Definition
+Learning velocity is the rate at which new information is converted into validated, useful improvements.
+
+Core Formula
+L = (V - C) / T
+
+Where:
+- L = learning velocity
+- V = validated value gained
+- C = cost of errors, regressions, and wasted effort
+- T = elapsed time
+
+Interpretation
+A system is not learning quickly just because it changes quickly. It is learning quickly only when net validated value rises per unit time.
+
+What Counts as "Learning"
+Learning is a full cycle, not a single action:
+1. intake of new evidence (research, incidents, benchmark results)
+2. interpretation into design or policy hypotheses
+3. implementation of a bounded change
+4. verification (tests, policy checks, operational checks)
+5. measured impact on defined metrics
+
+If the cycle stops before validation and measured impact, it is activity, not learning.
+
+Why This Matters
+Learning velocity helps prevent two common failures:
+- motion without improvement (high activity, low value)
+- unsafe acceleration (changes shipped faster than they are verified)
+
+A good system increases learning velocity while controlling risk.
+
+Relation to Known ML Ideas
+The concept aligns with established ML and decision frameworks:
+- average reward rate (maximize reward per time)
+- cost-sensitive optimization (value minus error cost)
+- regret minimization (reduce avoidable loss over time)
+
+So the label may be custom, but the mathematics and logic are standard.
+
+Measurement Guidance
+To operationalize L, define measurable inputs:
+- V inputs: throughput gain, reliability gain, reduced approval latency, rollback reduction
+- C inputs: regressions, rollbacks, false positives/false negatives, operator burden increase
+- T input: fixed time window (weekly, bi-weekly, monthly)
+
+Compute L over consistent windows and track trend, not one-off spikes.
+
+Quality Gates
+Learning velocity should be bounded by governance:
+- high-risk changes require approval
+- evidence artifacts must validate before promotion
+- source quality and relevance must pass curation before becoming canonical
+
+This preserves safety while sustaining adaptation.
+
+Continuous Research and Learning Velocity
+Continuous research can improve learning velocity if it is supervised:
+- automate discovery, dedupe, lawful acquisition, and triage
+- require human gate for source promotion and high-impact decisions
+- connect accepted research to concrete design deltas and KPI expectations
+
+Without those gates, continuous research can increase noise and reduce net learning.
+
+Should We Implement a Research Plane?
+Recommendation: yes, as a supervised subsystem.
+
+Rationale:
+- It can increase evidence-to-decision speed.
+- It can improve repeatability and auditability of research intake.
+- It can systematically feed development and CI with higher-quality proposals.
+
+Required constraints:
+- separate it from the core control-plane critical path
+- enforce legal and provenance checks (fail-closed)
+- enforce domain-fit curation gate before active-source promotion
+- keep human approval on high-risk or architecture-changing promotions
+
+Decision Rule
+Implement the research plane if and only if:
+- it improves L over baseline windows, and
+- it does not degrade safety, reliability, or operator burden metrics.
+
+Summary
+Learning velocity is a simple but powerful governing metric:
+net validated improvement per unit time.
+When paired with strict verification and curation gates, it enables faster, safer system evolution.

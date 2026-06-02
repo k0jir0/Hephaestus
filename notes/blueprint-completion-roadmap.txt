@@ -1,0 +1,436 @@
+Blueprint Re-Compilation (State-Aware)
+Hephaestus
+
+Purpose
+Re-compile the original always-on blueprint using the current observed system state.
+This document is not a greenfield plan. It is a continuation plan from what is already implemented.
+
+Decision Boundary
+- Complete supervised autonomy: yes.
+- Complete unconstrained autonomy: no.
+
+Delta-Only Execution Rules (Anti-Overlap)
+1. Every roadmap item must be classified before work starts:
+  - consolidate (normalize existing behavior)
+  - harden (tests, invariants, observability)
+  - extend (incremental capability on existing path)
+  - net-new (no current implementation path)
+2. No item may proceed without an Existing Coverage Check listing:
+  - current modules touched
+  - current tests already covering behavior
+  - current artifacts/APIs likely affected
+3. No-Duplicate Gate (required for merge):
+  - no parallel policy engine for an already-governed decision path
+  - no duplicate schema for an existing artifact domain
+  - no duplicate command when current command can be extended
+  - no duplicate report if current report can be versioned or augmented
+4. Delta Statement (required in ticket/PR):
+  - current behavior
+  - target behavior
+  - minimal change path
+  - rollback path
+5. Reuse-First Rule:
+  prefer config/profile/schema extension before introducing new runtime components.
+
+Duplicate-Risk Scoring
+- Low: clearly net-new capability with no existing module overlap.
+- Medium: extends existing module with bounded migration impact.
+- High: touches existing critical path where alternative implementation already exists.
+High-risk items require architecture sign-off before implementation.
+
+Working Definition of Completion
+Blueprint completion is achieved when:
+1. Always-on operation is bounded by policy and health guardrails.
+2. Risky actions are approval-gated and auditable.
+3. Recovery and rollback are reliable and test-backed.
+4. Capability claims are tied to deterministic evidence artifacts.
+5. Cross-platform operator flows are documented and validated in CI.
+
+Status Rubric (Objective)
+- Not started: <25% of deliverables implemented and no reliable test coverage.
+- Partial: 25-74% of deliverables implemented or coverage/integration incomplete.
+- Mostly complete: >=75% of deliverables implemented with passing tests, but one or more hard gates pending.
+- Complete: 100% deliverables implemented, hard gates enabled, and CI/ops verification passing.
+
+Formal Invariants (Must Hold)
+1. No high-risk mutation executes without recorded gate decision.
+2. Every mutating attempt has attributable workspace and policy provenance.
+3. Promotion cannot become active after failed health validation.
+4. Required evidence artifacts must exist and validate before release-candidate promotion.
+
+Formal Evaluation Protocol (Research + Operations)
+- Hypotheses:
+  - H1: supervised autonomy improves queue throughput without increasing rollback rate.
+  - H2: risk-tier gating reduces unsafe mutation attempts at acceptable operator latency.
+  - H3: checkpoint + rollback policy reduces mean recovery time under injected failures.
+- Evaluation corpus:
+  - fixed benchmark ticket set (low/medium/high risk classes), versioned by date and schema.
+- Method:
+  - compare baseline vs treatment windows with identical ticket mix constraints.
+  - report confidence intervals for key deltas (throughput, rollback rate, approval latency).
+- Validity controls:
+  - document internal validity threats (ticket mix drift, operator behavior variance).
+  - document external validity limits (repo size, domain specificity, model/provider effects).
+
+Research-Grounded Design Constraints (From Active Sources)
+1. Situation awareness requirement (Endsley1995):
+  operator surfaces must provide perception, comprehension, and projection, not raw status only.
+2. Trust calibration requirement (LeeSee2004):
+  gates should optimize appropriate reliance; track both overtrust and undertrust outcomes.
+3. Unsafe control action analysis (LevesonThomas2018STPAHandbook):
+  each autonomy control path must map to explicit hazards, controls, and feedback channels.
+4. Snapshot consistency requirement (ChandyLamport1985):
+  checkpoint/replay must use explicit capture boundaries so historical reconstruction is consistent.
+5. Compensation-first reliability requirement (Helland2007LifeBeyondDistributedTransactions):
+  long-running workflows must prefer compensating actions over implicit global-transaction assumptions.
+6. Invariant testing requirement (ClaessenHughes2000):
+  lifecycle and policy modules require property-based tests, not scenario tests alone.
+7. Realistic benchmark requirement (Jimenez2024SWEBench):
+  evaluation must include repository-realistic issue-to-fix tasks with environment constraints.
+8. Simplicity baseline requirement (Xia2024Agentless):
+  complex autonomous workflows must be compared against simpler staged baselines before adoption.
+
+Effects of New Research Intake (2026-06-02)
+Accepted effects on blueprint direction:
+1. Safety update constraint effect:
+  policy updates must be constrained and safety-checked before activation, not only runtime-monitored after activation.
+2. Causal incident quality effect:
+  incident records must include explicit causal attribution fields and confidence notes, not correlation-only summaries.
+3. Trust dynamics effect:
+  approval policy tuning must account for intervention timing and operator trust dynamics, not approval rate alone.
+4. Canary interpretation effect:
+  promotion decisions must include canary exposure interpretation rules, not binary canary pass/fail only.
+5. Multi-objective tuning effect:
+  safety-throughput-latency tradeoffs should be tuned using explicit multi-objective criteria.
+6. Socio-technical response effect:
+  incident runbooks must include human coordination steps and communication paths, not tool actions only.
+
+Intake quality caveat (applied governance rule):
+- automated acquisition can return low-fit papers; every new source must pass a domain-fit curation gate before becoming a long-term active source.
+
+Current State Snapshot (Re-Compiled Baseline)
+
+Phase 1: State Machine Hardening
+Status: Mostly complete
+Status basis: lifecycle and tests present; remaining work is contract normalization across all surfaces.
+Evidence in current state:
+- Ticket lifecycle states and transition guards exist.
+- Attempt lifecycle states and guards exist.
+- Awaiting-approval and verifying states are integrated in runtime and policies.
+- Test coverage exists across runtime and policy domains.
+What remains:
+- Normalize lifecycle terminology to a single canonical state contract across docs, CLI, API, and UI.
+- Define property-based lifecycle invariants and add generators/shrinkers for transition edge cases.
+
+Phase 2: Scheduler and Watcher Reliability
+Status: Partial
+Status basis: scheduler foundation exists; explicit cooldown/backoff and race-proofing gates are incomplete.
+Evidence in current state:
+- Autopilot scheduling policy exists.
+- Retry/failure policy modules exist.
+- Runtime pause behavior and queue-preserving pause mode exist.
+What remains:
+- Formal, explicit backoff/cooldown contract.
+- Clear concurrency policy contract and tests for duplicate-attempt prevention under restart races.
+- Add starvation-bound and fairness policy with measurable scheduler SLOs.
+
+Phase 3: Policy and Risk Gates
+Status: Partial (strong foundation)
+Status basis: policy modules exist; explicit risk-tier scoring and precision metrics are not yet complete.
+Evidence in current state:
+- Command catalog and plan-binding policies exist.
+- Source-grounding policy and audits exist.
+- Approval-required and approval-resume flows are implemented.
+What remains:
+- Dedicated risk scoring engine with explicit low/medium/high tier evaluation.
+- False-positive and false-negative policy-gate measurement pipeline.
+- Add trust-calibration metrics to detect over-automation and over-gating.
+
+Phase 4: Workspace Isolation and Recovery
+Status: Partial to near-complete
+Status basis: workspace isolation exists; checkpoint contract and recovery SLO instrumentation are incomplete.
+Evidence in current state:
+- Attempt-scoped worktree support exists.
+- Worktree cleanup support exists.
+- Rollback behavior exists in promotion/runtime paths.
+What remains:
+- Unified checkpoint policy module with both time-based and event-based checkpoints.
+- Recovery objective targets (RTO) instrumented and reported.
+- Add explicit snapshot boundary markers and replay-consistency checks.
+- Add compensation playbooks for non-rollbackable side effects.
+
+Phase 5: Verification Discipline and Evidence Contracts
+Status: Partial
+Status basis: report generation exists; CI artifact contract enforcement not yet hard-gated.
+Evidence in current state:
+- Metrics artifacts already generated under docs/metrics.
+- Source-grounding and upgrade telemetry pipelines exist.
+- Verification matrix is documented.
+What remains:
+- CI-enforced evidence contract checks (artifact existence, schema version, freshness).
+- Release candidate gate that blocks promotion on missing/invalid required evidence.
+- Add benchmark protocol with repository-realistic tasks and simple staged baselines.
+
+Phase 6: Promotion Governance
+Status: Mostly complete
+Status basis: lifecycle + rollback implemented; profile-level policy packaging and health contract publication pending.
+Evidence in current state:
+- Promotion lifecycle domain primitives and guards exist.
+- Promotion rollback paths are implemented.
+- Promotion lifecycle test coverage exists.
+What remains:
+- Formal policy profiles (strict, standard, dev) with explicit operator controls.
+- Promotion health check contract published as policy doc and tested against failure matrix.
+
+Phase 7: Cross-OS Operator Consistency
+Status: Partial
+Status basis: docs and scripts exist; platform CI validation and support matrix still pending.
+Evidence in current state:
+- Cross-platform npm entrypoints exist.
+- README includes Windows and POSIX guidance.
+What remains:
+- CI matrix across Windows, Linux, and macOS for core control-plane flows.
+- Tested-version support table and known-limitations matrix.
+
+Phase 8: Autonomy Guardrails for Production-Like Use
+Status: Partial
+Status basis: core budgets/pause controls exist; emergency-stop, alerting, and incident integration incomplete.
+Evidence in current state:
+- Max-iteration and token-budget controls exist.
+- Pause behavior and safety controls exist.
+What remains:
+- Profiled guardrail presets (dev/staging/production-like) as first-class config sets.
+- Emergency-stop and incident-response runbook wired to alerting hooks.
+
+Re-Compiled Execution Plan (From Current State)
+
+Execution Metadata Template (Apply to every A/B item)
+- Work type: consolidate | harden | extend | net-new
+- Existing coverage:
+  - modules:
+  - tests:
+  - artifacts/APIs:
+- Duplicate-risk score: low | medium | high
+- Delta statement:
+  - current behavior:
+  - target behavior:
+  - minimal change path:
+  - rollback path:
+
+Track A: Close Partial Foundations (P2-P5)
+A1. Scheduler policy completion
+Work type: extend + harden
+Duplicate-risk score: medium
+- Add explicit cooldown and backoff strategy contract.
+- Add concurrency policy contract and duplicate-attempt race tests.
+Exit criteria:
+- Scheduler behavior deterministic under restart and contention.
+- Restart fault-injection suite passes with duplicate-attempt incidence rate = 0 in test window.
+- Cooldown and backoff parameters are externally configurable and reflected in runtime diagnostics.
+- Queue fairness SLO and starvation upper bound are defined, measured, and met.
+
+A2. Risk-tier policy engine
+Work type: extend
+Duplicate-risk score: high
+- Add risk scoring module with weighted factors.
+- Map risk tiers to allow/approve/deny paths.
+- Add score decomposition output and causal-reason fields for each gate decision.
+Exit criteria:
+- All high-risk actions require approval.
+- Gate outcomes recorded with reason codes.
+- Weekly gate calibration review computes false-positive and false-negative rates.
+- Policy threshold changes require changelog entry and before/after metric snapshot.
+- Trust calibration report includes overtrust and undertrust indicators for operator reliance.
+- Gate decisions include an auditable score breakdown and decision rationale payload.
+
+A3. Checkpoint and recovery contract
+Work type: extend + harden
+Duplicate-risk score: medium
+- Add checkpoint policy module:
+  - time-based snapshots (fixed interval)
+  - event-based snapshots (pre-patch, pre-verify, pre-promotion)
+- Add rollback verification tests.
+Exit criteria:
+- Recovery succeeds to known checkpoint under defined failure scenarios.
+- Recovery runbook validated by automated fault harness at least once per release cycle.
+- Recovery RTO p95 target is defined and met in validation runs.
+- Snapshot replay consistency checks pass for sampled checkpoint windows.
+- Compensation tests pass for side effects that cannot be safely rolled back.
+
+A4. Evidence contract enforcement in CI
+Work type: consolidate + harden
+Duplicate-risk score: medium
+- Define required artifact manifest for release candidate validation.
+- Add CI job to validate artifact presence, schema, and timestamp freshness.
+Exit criteria:
+- CI fails when required evidence artifacts are missing or invalid.
+- Release-candidate pipeline blocks promotion when artifact contract checks fail.
+- Artifact schema version mismatch is treated as hard failure unless compatibility mode is explicitly enabled.
+- CI publishes baseline-vs-treatment benchmark summaries and blocks on missing benchmark evidence.
+
+Track B: Operationalization (P6-P8)
+B1. Promotion policy profiles
+Work type: consolidate + extend
+Duplicate-risk score: medium
+- Implement strict/standard/dev policy profiles.
+- Wire profile selection into CLI and config validation.
+Exit criteria:
+- Promotion behavior changes predictably by profile with audit visibility.
+- Profile selection and active profile are surfaced in API/CLI/UI diagnostics.
+
+B2. Cross-OS CI support
+Work type: harden
+Duplicate-risk score: low
+- Add matrix CI jobs for ubuntu-latest, windows-latest, macos-latest.
+- Validate core flows: build, preflight, tickets CLI smoke, UI startup smoke.
+- Validate failure-mode flows: denied mutation, approval-required pause/resume, rollback path.
+- Validate long-running behavior: daemon/watch soak smoke on each OS target.
+Exit criteria:
+- Core operator flow passes in all supported OS targets.
+- Failure-mode parity passes across OS targets.
+- Support matrix documents tested shell/runtime versions and known limitations.
+- Operator-awareness UX checks verify state, meaning, and projected-next-effect visibility in approval surfaces.
+
+B3. Production-like guardrails
+Work type: extend
+Duplicate-risk score: high
+- Add preset guardrail bundles (budgets, retries, mutation caps, pause triggers).
+- Add emergency stop command and incident log schema.
+- Add multi-objective guardrail tuning profile (safety, throughput, latency) with explicit weights.
+Exit criteria:
+- Pathological loops auto-stop.
+- Incident artifacts captured automatically.
+- Emergency-stop is test-covered and leaves system in deterministic safe state.
+- Guardrail profile tuning produces reproducible before/after KPI deltas.
+
+Critical Dependencies
+1. Stable canonical lifecycle schema across runtime, API DTO, and UI representation.
+2. Policy snapshot schema versioning.
+3. Deterministic artifact paths for CI validation.
+4. Cross-platform script parity for core control-plane operations.
+
+Re-Compiled KPI Set
+
+Core Outcome KPIs
+- Attempt success rate (policy-compliant completed attempts / started attempts)
+- Approval latency by risk tier
+- Rollback success rate
+- Queue-to-completion latency by priority
+- Trust calibration gap (overtrust and undertrust indicator rate)
+- Causal attribution completeness rate in incident records
+- Canary interpretation error rate (rollbacks attributable to misread canary exposure)
+
+Reliability KPIs
+- Scheduler uptime
+- Duplicate-attempt incidence rate
+- Mean time to detect failed attempt
+- Mean time to recover blocked attempt
+- Scheduler fairness index and starvation bound compliance
+- Snapshot replay consistency pass rate
+- Compensation success rate for non-rollbackable side effects
+
+Evidence KPIs
+- Required artifact completeness ratio
+- Artifact schema validation pass rate
+- Source-drift and missing-evidence gate breach frequency
+- Benchmark evidence completeness (including simple staged baseline comparisons)
+- New-source curation pass rate (domain-fit approved / intake candidates)
+
+Risk Register (Top Items)
+1. Risk-tier overblocking increases operator burden.
+Mitigation: monitor gate precision, tune thresholds by profile.
+Calibration cadence: weekly threshold review; monthly policy stability review.
+
+2. Cross-OS parity introduces script drift.
+Mitigation: enforce CI matrix and maintain script compatibility tests.
+
+3. Checkpoint overhead impacts throughput.
+Mitigation: apply event-based checkpoints to high-risk transitions; tune time interval.
+
+4. Evidence contract brittleness blocks useful progress.
+Mitigation: version schemas and support strict plus transitional validation modes.
+
+5. Autonomy complexity creep outperforms governance value.
+Mitigation: require staged-baseline comparison before increasing agentic complexity.
+
+6. Automated research intake semantic drift introduces low-fit references.
+Mitigation: enforce domain-fit curation gate and placeholder-replacement workflow before source promotion.
+
+Suggested Timeline (State-Aware)
+- Iteration 1 (2-3 weeks): A1 + A2
+- Iteration 2 (2-3 weeks): A3 + A4
+- Iteration 3 (2-3 weeks): B1 + B2
+- Iteration 4 (2-3 weeks): B3 + hardening/observability closure
+
+Timeline Assumptions and Validation Tiers
+- Tier 1 (implementation): feature complete behind flags.
+- Tier 2 (verification): tests, fault harness, and evidence checks pass.
+- Tier 3 (operational readiness): CI parity, runbooks, and rollback drills pass.
+- If Tier 2 or Tier 3 fails, milestone is not considered complete regardless of implementation status.
+
+Anti-Overlap Milestone Rule
+- A milestone cannot close if any item introduces a duplicate implementation path for an existing governed function.
+- Deprecation and migration plans are required when replacing an existing path.
+
+Immediate Next Actions (Next 7 Days)
+1. Publish a canonical lifecycle contract document and align terminology.
+2. Implement initial risk-tier engine behind feature flag.
+3. Add checkpoint policy module skeleton with pre-patch and pre-promotion hooks.
+4. Draft evidence artifact manifest and CI validator command.
+5. Propose and open CI matrix workflow for Linux/Windows/macOS.
+6. Run curation pass on new-research intake and replace low-fit placeholders with domain-strong alternatives.
+
+Final Recommendation
+Continue forward and complete the blueprint as supervised autonomy.
+Do not pursue unconstrained autonomous software engineering as a completion target.
+
+Panel Manifest and Independent Review
+
+Panel Charter
+This panel reviews the blueprint for formal correctness, operational safety, and operator usability.
+
+Panel Members
+1. Formal Methods and Safety Reviewer (Turing-style lens)
+  Focus: invariants, state transition soundness, proof obligations, gate correctness.
+2. Hyperscale Reliability Reviewer (Google SRE/CTO-style lens)
+  Focus: always-on behavior, incident handling, SLO feasibility, failure containment.
+3. Operator Experience Reviewer (Jobs-style product lens)
+  Focus: human-in-the-loop clarity, cognitive load, safe defaults, decision UX.
+
+Review Date
+2026-06-02
+
+Consolidated Findings (Severity Ordered)
+1. High: Phase status language needs strict completion thresholds in operational governance.
+  Panel decision: accepted and fixed by objective status rubric and validation tiers.
+2. High: Exit criteria required stronger hard gates for CI and promotion.
+  Panel decision: accepted and fixed by explicit fail conditions in A4 and milestone tiers.
+3. Medium: Risk-tier policy needed calibration cadence and precision tracking.
+  Panel decision: accepted and fixed by weekly and monthly calibration requirements.
+4. Medium: Cross-OS support needed failure-mode parity, not only happy-path checks.
+  Panel decision: accepted and fixed by B2 failure-mode and soak validation requirements.
+5. Medium: Recovery claims needed measurable RTO commitments.
+  Panel decision: accepted and fixed by RTO p95 requirement and release-cycle fault-harness validation.
+6. Low: Research framing needed explicit hypothesis and validity controls.
+  Panel decision: accepted and fixed by formal evaluation protocol section.
+
+Panel Go/No-Go Decision
+Go with conditions.
+
+Mandatory Conditions for Go
+1. Tier 2 and Tier 3 validation must pass before milestone closure.
+2. High-risk mutation approval gate must remain fail-closed by default.
+3. Evidence contract validation must block release-candidate promotion when invalid.
+4. Cross-OS CI matrix must include failure-mode parity checks.
+
+Residual Concerns
+1. Overly strict risk thresholds may reduce throughput if not tuned with real workload mix.
+2. Checkpoint overhead may impact queue latency under high churn.
+3. Operator burden may rise if approval surfaces are not streamlined.
+
+Panel-Directed Next 14 Days
+1. Publish canonical lifecycle schema and make it the sole status dictionary.
+2. Implement risk-tier engine behind feature flag with initial calibration report.
+3. Add CI artifact contract validator and enforce as release-candidate gate.
+4. Add cross-OS workflow matrix including denied mutation and rollback scenarios.
+5. Run one controlled fault-harness drill and publish RTO findings.

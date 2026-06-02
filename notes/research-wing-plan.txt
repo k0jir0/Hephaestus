@@ -1,0 +1,392 @@
+Research Wing Development Plan (Supervised Research Plane)
+Hephaestus
+
+Purpose
+Define a practical, gated plan to implement the research wing to an acceptable operational state without destabilizing the core automation system.
+
+Decision
+Proceed with implementation under strict supervision and fail-closed governance.
+
+Non-Negotiable Constraints (Accepted)
+1. The research wing must run off the core control-plane critical path.
+2. Legal/licensing/provenance checks must fail-closed.
+3. Domain-fit curation gate must pass before source promotion.
+4. Human approval remains mandatory for high-risk and architecture-changing promotions.
+5. Continuation depends on measurable improvement in learning velocity without safety/reliability/operator burden regression.
+6. PDF extraction/indexing must be asynchronous and incremental; no synchronous full-library PDF scans in core execution flows.
+
+Stringency Deployment Strategy
+To keep delivery practical while preserving controls, deploy stringency in two steps:
+1. Stage A (Pilot strictness):
+- authenticity verification, fail-closed promotion blocking, incremental PDF processing, and single-reviewer curation.
+- two-person sign-off required only for high-risk or architecture-changing promotions.
+2. Stage B (Full strictness):
+- two-person sign-off mandatory for all canonical promotions.
+- hard-fail auto-freeze gates enabled globally.
+
+Promotion to Stage B requires two consecutive review windows meeting all pilot targets.
+
+Complexity Posture (Anti-Overengineering Rule)
+This plan is intentionally staged to avoid implementing full governance complexity before value is proven.
+
+1. Build minimum necessary controls first (Stage A) to prevent unsafe or invalid source promotion.
+2. Do not implement Stage B controls globally until pilot evidence shows net value.
+3. Any control without measurable risk reduction or learning-velocity benefit is deferred.
+4. Prefer the smallest mechanism that satisfies safety/compliance requirements.
+
+Product Simplicity Rule (Operator-First)
+Rigor remains mandatory, but user-facing complexity must be minimized.
+
+1. Stage A is the default operator path and should feel like one workflow, not many subsystems.
+2. Governance controls should be invisible-by-default in normal cases and explicit only on exceptions.
+3. Every required operator action must map to a clear decision outcome (approve, reject, replace).
+4. If a safety check can be automated reliably, automate it and present only the result and rationale.
+
+Minimum Viable Research Wing (MVRW)
+Stage A is the required initial scope and is considered successful if all of the following hold:
+1. Off-path intake runs reliably.
+2. Authenticity fail-closed promotion blocking works.
+3. Incremental PDF processing avoids unchanged-file reprocessing.
+4. Single-reviewer curation works, with two-person sign-off only for high-risk or architecture-changing promotions.
+5. Learning velocity trend is positive without safety/reliability/operator burden regression.
+
+Stage B is optional until Stage A demonstrates stable gains.
+
+Definition of Acceptable State
+The research wing is acceptable when:
+1. It continuously discovers and stages relevant sources with lawful provenance.
+2. It cannot auto-promote sources into canonical active status without curation approval.
+3. It produces reproducible artifacts (manifest, notes, curation decisions, audit trail).
+4. It improves evidence-to-decision cycle time while maintaining safety and reliability thresholds.
+5. It meets all hard-fail gates for authenticity, latency, and governance for two consecutive review windows.
+6. Operator review flow remains concise and usable under normal load.
+
+System Boundary
+In scope:
+- research discovery, ingestion, dedupe, lawful acquisition attempts
+- relevance scoring and curation workflow
+- integration proposal generation (notes/manifests/design delta suggestions)
+- reporting for learning velocity and curation quality
+
+Out of scope:
+- direct autonomous merges to master
+- bypassing policy/approval gates for production changes
+- storing unauthorized copyrighted documents
+
+Target Architecture
+1. Intake Engine
+- runs on schedule and on-demand
+- queries selected sources (arXiv first, then metadata providers)
+- deduplicates by DOI/arXiv/title fingerprint
+- attempts lawful acquisition only
+
+2. Evidence Store
+- keeps metadata, source URL, retrieval timestamp, license signal, checksum
+- stores staged PDFs in dedicated research tier
+- records unavailable items and lawful acquisition blockers
+- uses content-hash tracking to process only new or changed PDFs
+- stores extracted text/chunk cache so unchanged files are not re-parsed
+
+3. Authenticity Verifier
+- verifies paper identity across multiple metadata providers when possible
+- checks DOI/arXiv consistency, title-author-year consistency, and venue metadata integrity
+- flags suspicious items: hallucinated citations, fake papers, unverifiable papers, and non-reputable sources
+- enforces fail-closed behavior for unverifiable or contradictory metadata
+
+4. Curation Gate
+- computes domain-fit and confidence score
+- applies must-have and must-not-have topic filters
+- requires reviewer action: approve, reject, replace, defer
+- blocks canonical promotion by default
+- enforces two-person approval for canonical promotion (curation reviewer + authenticity reviewer)
+- presents a single decision card view with pre-computed rationale and evidence links
+
+5. Integration Layer
+- generates structured note stubs
+- prepares manifest/catalog/index delta proposals
+- attaches expected roadmap impact and KPI implications
+
+6. Governance and Metrics
+- tracks learning velocity: L = (V - C) / T
+- tracks curation precision, recall proxy, false-accept/false-reject indicators
+- tracks operational impact and guardrail compliance
+
+Execution Plan
+
+Phase 0: Baseline and Policy Lock (3-5 days)
+Goals:
+- establish policy and schema baseline before adding capability.
+Tasks:
+1. Publish research-wing policy doc with fail-closed defaults.
+2. Define schemas for source record, curation decision, promotion record.
+3. Freeze baseline metrics window for pre/post comparison.
+Exit criteria:
+- policy approved
+- schemas versioned
+- baseline metrics snapshot captured
+
+Phase 1: Intake Foundation (1-2 weeks)
+Goals:
+- reliable discovery and lawful acquisition staging.
+Tasks:
+1. Scheduled query runner with retry/backoff and deterministic logs.
+2. Dedupe service (DOI/arXiv/title fingerprint).
+3. Lawful acquisition checks (no unauthorized storage).
+4. Intake report artifact generation.
+5. Incremental PDF processing pipeline (hash-check + changed-files-only extraction).
+Exit criteria:
+- >=95% scheduled runs complete without manual intervention
+- every staged item has provenance fields
+- unauthorized acquisition attempts are blocked and logged
+- no full-library reprocessing for unchanged PDFs in routine runs
+
+Phase 2: Curation Gate and Review Workflow (1-2 weeks)
+Goals:
+- enforce relevance and human decision boundaries.
+Tasks:
+1. Domain-fit scoring model/rules engine.
+2. Reviewer decision workflow (approve/reject/replace/defer).
+3. Mandatory rationale and confidence fields per decision.
+4. Placeholder-replacement flow for low-fit accepted-by-automation items.
+5. Build a single-screen review flow with default-safe actions and exception highlighting.
+Exit criteria:
+- 100% of promotions require explicit reviewer decision
+- no item enters canonical set without curation record
+- reviewer SLA and queue metrics are visible
+- Stage A: no single-reviewer canonical promotions for high-risk or architecture-changing items
+- Stage B: no single-reviewer canonical promotions (two-person rule required)
+- operator review interaction remains within defined UX budget targets
+
+Phase 2.5: Research Authenticity and Source Credibility Verification (1-2 weeks)
+Goals:
+- block hallucinated, fake, unverifiable, or non-reputable research before curation promotion.
+Tasks:
+1. Add authenticity schema fields:
+	- verification status (verified, suspicious, failed, manual-review)
+	- identity checks (DOI/arXiv/title-author-year cross-check)
+	- venue/source credibility flags
+2. Add multi-source verification pipeline:
+	- cross-check against at least two independent metadata providers when available
+	- verify that PDF metadata and citation metadata are coherent
+	- require publisher/venue resolution check or institutional index resolution when DOI exists
+3. Add credibility-source policy:
+	- maintain explicit allowlist/watchlist/denylist rules for venues and source domains
+	- unresolved venue credibility defaults to manual-review status
+4. Add hard reject rules for:
+	- hallucinated references (cannot be resolved)
+	- fake papers (contradictory identity metadata)
+	- unverified papers (insufficient identity confidence)
+	- invalid/non-reputable source patterns defined by policy
+5. Add manual escalation queue for borderline cases with unresolved credibility.
+Exit criteria:
+- 100% of staged papers have authenticity status recorded
+- 0 canonical promotions from failed authenticity status
+- suspicious/unverified items are fail-closed and routed to manual review
+- authenticity audit report generated each run
+- 0 canonical promotions from manual-review status until resolved to verified
+
+Phase 3: Integration Automation (1-2 weeks)
+Goals:
+- convert approved sources into consistent library artifacts.
+Tasks:
+1. Auto-generate note templates from approved sources.
+2. Update manifest/catalog/index through controlled patch workflow.
+3. Attach expected design delta and KPI impact statement.
+4. Validate schema and link consistency in CI.
+Exit criteria:
+- approved sources generate complete artifact set deterministically
+- CI rejects malformed research artifacts
+- integration changes are traceable to a curation decision ID
+
+Phase 4: Quality and Safety Hardening (1-2 weeks)
+Goals:
+- reduce semantic drift and protect core reliability.
+Tasks:
+1. Add semantic drift detector and replacement queue.
+2. Add quality regression alarms (curation pass rate drops, low-fit rise).
+3. Enforce resource budgets and isolation (CPU/time/network budgets).
+4. Add incident runbook for research wing failures.
+5. Add metadata-first retrieval path so full PDF text is fetched only on demand.
+Exit criteria:
+- low-fit rate below agreed threshold for two consecutive windows
+- no core runtime SLO regression attributable to research jobs
+- incident drills for research wing pass
+- PDF processing jobs stay within resource budgets and do not impact core request latency
+- authenticity verifier false-accept rate remains at or below agreed threshold for two consecutive windows
+
+Phase 5: Operational Acceptance (1 week)
+Goals:
+- verify value and decide continue/adjust/rollback.
+Tasks:
+1. Compare post-implementation metrics to baseline.
+2. Evaluate learning velocity improvement and risk changes.
+3. Conduct governance review for continuation decision.
+4. Decide Stage B promotion or hold at Stage A based on objective thresholds.
+Exit criteria:
+- learning velocity improved vs baseline in agreed window
+- no safety/reliability/operator burden KPI violations
+- formal go decision recorded
+- stage decision recorded: remain Stage A or promote to Stage B
+
+Acceptance Criteria (System-Level)
+1. Safety:
+- zero unauthorized source promotions
+- zero bypasses of approval-gated promotion path
+- zero canonical promotions without two-person sign-off
+
+2. Compliance:
+- 100% canonical sources contain provenance and curation decision record
+- legal/license violations blocked by default
+- 100% canonical sources contain authenticity verification record
+- no canonical source with failed or unresolved authenticity status
+- 100% canonical sources include reproducible identity evidence bundle (provider checks + hash + timestamp)
+
+3. Operational quality:
+- curation pass rate and low-fit replacement rate tracked weekly
+- reproducible artifact generation in CI with schema validation
+- incremental extraction cache hit rate is tracked and maintained above target
+- canonical promotion audit trail completeness must remain at 100%
+- review UX budget compliance remains above target (decision latency and interaction count)
+
+Provisional Numeric Targets (Until Recalibrated)
+1. Core-path p95 latency regression attributable to research jobs: <=1% (target 0%).
+2. Authenticity false-accept incidents: 0 per review window.
+3. Incremental extraction cache-hit rate: >=85% on steady-state windows.
+4. Manual-review backlog age p95: <=14 days.
+5. Canonical promotion audit completeness: 100%.
+6. Operator decision interactions per standard review (p50): <=3 explicit actions.
+7. Operator decision time for standard review (p50): <=120 seconds.
+
+4. Value:
+- measurable reduction in evidence-to-decision cycle time
+- positive trend in learning velocity over baseline window
+
+Metrics Pack
+1. Throughput metrics
+- discovered sources per week
+- staged sources per week
+- curated approvals per week
+- PDF processing throughput (new/changed files per run)
+
+2. Quality metrics
+- domain-fit curation pass rate
+- low-fit detection rate
+- replacement completion rate
+- authenticity verification pass rate
+- suspicious-source detection rate
+- manual-review resolution time for authenticity exceptions
+- operator review interaction count (p50/p95)
+- operator review decision time (p50/p95)
+
+3. Risk metrics
+- policy bypass attempts (target: 0)
+- unauthorized acquisition attempts blocked
+- promotion reversals attributable to poor curation
+- core-path latency regression attributable to research PDF jobs (target: 0)
+- authenticity false-accept incidents (target: 0)
+- canonical promotion without two-person sign-off (target: 0)
+- manual-review backlog breaches above SLA window
+
+4. Learning metrics
+- evidence-to-ticket lead time
+- ticket-to-validated-change lead time
+- learning velocity L = (V - C) / T
+
+Guardrail Policies
+1. Fail-closed defaults on missing provenance or uncertain license.
+2. No canonical promotion without reviewer identity and rationale.
+3. Resource ceilings for all research jobs.
+4. Rollback mechanism for source demotion and artifact retraction.
+5. No canonical promotion for papers failing authenticity or credibility verification.
+6. No synchronous PDF parsing/indexing in user-facing or policy-critical hot paths.
+7. Two-person rule for canonical promotions is mandatory and non-bypassable.
+8. Any hard-fail gate breach triggers automatic promotion freeze pending governance review.
+9. No multi-step review labyrinths: standard promotion decisions must stay within UX budget limits.
+
+Operating Cadence
+- Daily: intake run + anomaly check
+- Daily: authenticity verification run + suspicious-source triage
+- Weekly: curation review and threshold calibration
+- Bi-weekly: metric review and low-fit replacement sweep
+- Monthly: governance review and continuation decision
+- Monthly: red-team authenticity drill using seeded fake/ambiguous references
+
+Roles and Responsibility
+1. Research intake owner
+- maintains runners, parsers, and acquisition checks
+
+2. Research authenticity reviewer
+- adjudicates suspicious, unverifiable, and credibility-flagged sources
+
+3. Curation reviewers
+- approve/reject/replace with documented rationale
+
+4. Governance owner
+- monitors safety/compliance KPIs and approves threshold changes
+
+5. Runtime owner
+- ensures no core-path regression from research wing activity
+
+Risks and Mitigations
+1. Semantic drift in automated retrieval
+- mitigation: strict curation gate, replacement queue, confidence thresholds
+
+2. Reviewer overload
+- mitigation: batching, SLA policies, prioritization by roadmap impact
+
+2.1 Operator workflow complexity creep
+- mitigation: single-screen review design, UX budget thresholds, and periodic workflow pruning
+
+3. Metric gaming
+- mitigation: include negative-cost terms and rollback penalties in L
+
+4. Reliability contention with core system
+- mitigation: hard resource isolation and off-path scheduling
+ - mitigation extension: incremental processing, extraction caching, metadata-first retrieval
+
+5. Fake or hallucinated paper ingestion
+- mitigation: multi-source identity verification, fail-closed authenticity gate, manual adjudication queue
+
+6. Gate erosion over time (process shortcuts)
+- mitigation: non-bypassable hard-fail gates, two-person sign-off enforcement, monthly red-team drills
+
+Immediate Next 10 Days
+1. Publish policy and schema docs for research wing artifacts.
+2. Implement scheduler hardening and deterministic run logs for intake.
+3. Add curation decision schema and approval-required gate in pipeline.
+4. Add CI validation for manifest/catalog/index consistency.
+5. Run first baseline vs treatment measurement window.
+6. Implement authenticity verifier and block canonical promotion on failed verification.
+7. Implement hash-based changed-files-only PDF extraction and cache metrics.
+8. Enable Stage A controls and collect two pilot review windows.
+9. Draft venue/source credibility allowlist/watchlist/denylist policy.
+10. Define objective trigger for Stage B cutover.
+11. Define and implement Stage A single-screen review flow and UX budget telemetry.
+
+Go/No-Go Rule
+Continue rollout only if:
+1. Learning velocity improves over baseline, and
+2. safety/reliability/operator burden KPIs stay within limits.
+3. no hard-fail gate breaches occur in the review window.
+Otherwise:
+- freeze expansion,
+- tighten gates,
+- run corrective replacement and calibration cycle.
+
+Stage B Promotion Rule
+Promote from Stage A to Stage B only if all are true for two consecutive review windows:
+1. Learning velocity is positive relative to baseline.
+2. Authenticity false-accept incidents remain 0.
+3. Core-path latency regression attributable to research jobs remains within threshold.
+4. Manual-review backlog remains within SLA bounds.
+If any criterion fails, remain in Stage A and run corrective actions.
+
+Hard-Fail Gates (Automatic Freeze)
+1. Any canonical promotion from failed, suspicious, unresolved, or manual-review authenticity status.
+2. Any canonical promotion without required sign-off for the current deployment stage.
+3. Any measured core-path latency regression attributable to research PDF processing above threshold.
+4. Any legal/provenance compliance violation for a promoted source.
+
+Summary
+The research wing should be developed as a supervised evidence subsystem.
+It is acceptable when it increases validated learning per unit time without introducing governance or reliability regressions.
