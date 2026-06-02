@@ -2,7 +2,14 @@
 
 Hephaestus is a local-first AI engineering workflow product for turning queued software work into inspectable, policy-gated execution plans. It keeps canonical ticket state in a local SQLite store, can project that state into an operator-facing board view, gathers repository context, routes work through configurable AI backends, and records structured plans plus visible state transitions so operators can see how work moves from intake to attempted execution.
 
-This repository is configured to run Hephaestus on itself by default. That makes it useful as a GitHub-ready demonstration of governed AI engineering workflow instead of an opaque "magic agent" claim.
+This repository is configured to run Hephaestus on itself by default. That makes it useful as a reproducible demonstration of governed AI engineering workflow.
+
+## Audience
+
+This README is written for both:
+
+- engineering practitioners operating local workflows
+- researchers evaluating reproducibility, policy enforcement, and evidence quality
 
 ## Core Capabilities
 
@@ -45,6 +52,12 @@ Hephaestus is an engineering control plane, not a general autonomous programmer.
 
 ## Quick Start
 
+Cross-platform note:
+
+- Windows users can use the PowerShell launcher.
+- macOS and Linux users can run the same control plane through npm scripts.
+- `npm run cli` is the canonical cross-platform control-plane entrypoint.
+
 Windows (PowerShell):
 
 ```powershell
@@ -86,10 +99,15 @@ npm run tickets -- create "Inspect the runtime flow"
 npm run cli
 ```
 
+Optional launcher equivalents for other OS:
+
+- macOS/Linux: `npm run cli` (or `npm run start` for watcher mode)
+- Windows: `./start.ps1` or `npm run cli`
+
 Canonical operator path:
 
-- Canonical launcher: `.\start.ps1`
-- Numbered control plane: `npm run cli`
+- Canonical cross-platform control plane: `npm run cli`
+- Windows launcher convenience: `.\start.ps1`
 - Service-level runs for development and verification: `npm run start`, `npm run start:once`, `npm run ui`
 
 Self-hosted proof path:
@@ -178,6 +196,8 @@ npm run tickets -- render-board
 
 The UI server is local-first and token-gated. By default it binds to `127.0.0.1:4180`.
 
+Security warning: Do not rely on implicit token generation outside local development. Always set explicit `UI_TOKENS` for shared or production-like environments.
+
 The current CLI defaults to the same UI port (`4180`), so stack status checks and "Open UI" actions target the same control-plane endpoint.
 
 If `UI_TOKENS` is unset, Hephaestus starts the UI with a local development admin token and logs that token on startup. To define explicit roles, set:
@@ -222,21 +242,26 @@ See `docs/architecture.md` for the current runtime shape and the shift-left road
 
 ## Verification Matrix
 
-Use the following checks to verify key system claims:
+Use the following checks to verify key system claims with explicit acceptance criteria:
 
-| Capability | Command | Expected Evidence |
-|---|---|---|
-| Build integrity | `npm run build` | Successful TypeScript compile and refreshed `dist/` output |
-| Contract/runtime correctness | `npm test` | Passing contract, repository, runtime, and smoke suites |
-| Config and backend readiness | `npm run preflight` | Readiness gate output with actionable failures when misconfigured |
-| Source-grounding health | `npm run metrics:source-grounding` | Snapshot + markdown report under `docs/metrics/` |
-| Source-evidence drift gate | `npm run metrics:source-grounding:audit` | Strict drift/missing-evidence pass-fail signal |
-| Ticket lifecycle and projection | `npm run tickets -- render-board` | Markdown board projection synchronized from SQLite state |
-| Operator control-plane visibility | `npm run ui` | Local UI with ticket, gate, and evidence inspection surfaces |
+| Capability | Command | Expected Evidence | Acceptance Criteria |
+|---|---|---|---|
+| Build integrity | `npm run build` | Successful TypeScript compile and refreshed `dist/` output | command exits `0`; no TypeScript compile errors |
+| Contract/runtime correctness | `npm test` | Passing contract, repository, runtime, and smoke suites | command exits `0`; no failing tests |
+| Config and backend readiness | `npm run preflight` | Readiness gate output with actionable failures when misconfigured | command exits `0` when configured correctly; exits non-zero with explicit errors otherwise |
+| Source-grounding health | `npm run metrics:source-grounding` | Snapshot + markdown report under `docs/metrics/` | command exits `0`; at least one new/updated report artifact appears in `docs/metrics/` |
+| Source-evidence drift gate | `npm run metrics:source-grounding:audit` | Strict drift/missing-evidence pass-fail signal | command exits `0` only when configured thresholds are satisfied |
+| Ticket lifecycle and projection | `npm run tickets -- render-board` | Markdown board projection synchronized from SQLite state | command exits `0`; `TASKS.md` reflects current ticket-store state |
+| Operator control-plane visibility | `npm run ui` | Local UI with ticket, gate, and evidence inspection surfaces | UI process starts without fatal errors; local endpoint responds |
 
 ## Project Structure
 
 Canonical source and interfaces:
+
+Edit policy:
+
+- Treat this block as source of truth for human-authored changes.
+- Do not manually edit runtime-generated artifacts listed in the next block.
 
 ```text
 Hephaestus/
