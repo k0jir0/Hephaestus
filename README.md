@@ -6,130 +6,37 @@ In the current self-hosted operator workflow, running Hephaestus in parallel wit
 
 This repository is configured to run Hephaestus on itself by default. That makes it useful as a GitHub-ready demonstration of governed AI engineering workflow instead of an opaque "magic agent" claim.
 
-## Current State (2026-05-30)
+## Core Capabilities
 
-Hephaestus has progressed from a queue-driven planning demo into a local operator control plane with durable workflow state, governed execution, reliability tooling, and an operator-facing UI.
+- canonical ticket storage in local SQLite with optional markdown board projection
+- policy-gated tool execution with approval and resume flows for risky mutations
+- structured execution plans with explicit files, commands, verification steps, and risks
+- durable attempt, side-effect, evidence, and lifecycle event recording
+- attempt-scoped workspaces (shared-root or isolated git worktree)
+- operator control surfaces across CLI, REST API, SSE streams, and browser UI
+- promotion and rollback domain records with lifecycle guards and operator visibility
+- reliability and source-grounding metrics with repeatable audit commands
 
-Current implemented state includes:
+## Core Principles
 
-- canonical ticket storage in local SQLite
-- durable side-effect and attempt persistence
-- policy-gated tool execution with approval/resume flows for risky mutations
-- structured plans with explicit files, commands, verification steps, and risks
-- autopilot-driven queue execution with self-audit seeding and approval handling
-- a browser-based local control plane for tickets, approvals, operations, and reliability views
-- startup and shutdown orchestration for the managed local stack on Windows
-- reliability harnesses, SLO metrics, and published baseline/reporting flows
-- D6-complete control-plane DTO surfaces across API, CLI, and browser UI
+- local-first operation and inspectable state
+- explicit policy boundaries over implicit agent behavior
+- durable, replayable workflow history
+- fail-closed mutation and delivery behavior for safety
+- operator-in-the-loop approvals for sensitive actions
 
-## D2 Progress Snapshot (2026-05-29)
+## Current Scope
 
-Since the last README update, D2 (Event and Evidence Spine) advanced with the following implemented increments:
+Hephaestus is an engineering control plane, not a general autonomous programmer. It executes bounded read, search, patch, and verification plans through a governed tool runtime; pauses for approval when required; records durable artifacts and evidence; and exports local patch bundles for developer review.
 
-- source-grounding policy enforcement for blueprint/D2+ tickets in template and envelope gates
-- source-grounding metrics and report pipeline with persisted snapshots under `docs/metrics/`
-- explicit source-evidence drift gate via `npm run tickets -- audit-source-evidence`
-- strict audit alias via `npm run metrics:source-grounding:audit`
-- additive canonical D2 schema start in SQLite with `domain_events` and `event_evidence`
-- dual-write from lifecycle event recording into both legacy `ticket_events` and canonical D2 event tables
-- canonical read preference for `domain_events` with compatibility fallback to legacy rows
-- idempotent legacy backfill into canonical event/evidence tables with restart-safe uniqueness constraints
-- deterministic D2 parity and replay verifier command via `npm run tickets -- verify-d2`
-- strict D2 gate alias via `npm run metrics:d2:verify` (parity, link completeness, replay stability, replay correlation coverage)
-- opt-in strict D2 gate integration into `autopilot` and `review-wave` via `--enforce-d2`
-- D2 closure snapshot generator via `npm run metrics:d2:closure` with report output under `docs/metrics/`
+## Workflow Overview
 
-Current D2 status: complete. D2 closure evidence artifacts are published, and strict runtime D2 gates remain opt-in by policy via `--enforce-d2`.
-
-## D3 Progress Snapshot (2026-05-29)
-
-Since the D2 closure pass, D3 (Policy and Command Catalog) advanced with the
-following implemented increments:
-
-- declarative command catalog policy with stable command IDs and platform
-    mappings
-- structured plan parsing support for `commandId` (including commandId-only
-    command entries)
-- policy-generated plan prompts that prefer command IDs and include catalog
-    guidance
-- pre-execution runtime rejection for unknown command IDs in both plan prelude
-    commands and governed `command.run` tool calls
-- command-id-aware plan binding and denial diagnostics
-- per-attempt command telemetry for command ID usage and allowlist denials,
-    integrated into upgrade telemetry reports
-
-Current D3 status: complete for command catalog and command-ID enforcement.
-Evidence is generated via `npm run metrics:upgrade-telemetry`.
-
-## D4 Progress Snapshot (2026-05-29)
-
-Since the D3 closure pass, D4 (Isolated Execution Workspaces) advanced with the
-following implemented increments:
-
-- attempt-scoped workspace manager with shared-root and isolated-worktree modes
-- runtime workspace binding persisted into attempt records and delivery
-    provenance
-- isolated workspace cleanup and shared-root fallback behavior
-- git worktree creation and cleanup validation in `test/workspace-manager.test.ts`
-
-Current D4 status: implemented and validated for the isolated git worktree path.
-Evidence is generated via `npm run build` and `node scripts/run-tests.mjs test/workspace-manager.test.ts`.
-
-## D5 Progress Snapshot (2026-05-30)
-
-Since the D4 closure pass, D5 (Promotion and Rollback) has started with
-foundation domain primitives:
-
-- typed `WorkerVersion` and `PromotionRecord` objects with explicit status enums
-- promotion lifecycle transition guards from `requested` through `rolled_back`
-- worker version lifecycle transition guards from `candidate` through
-    `rolled_back`
-- stable mapping from promotion status to promotion event names for downstream
-    event emission wiring
-- unit coverage for valid paths and invalid-transition rejection in
-    `test/promotion-lifecycle.test.ts`
-- SQLite-backed persistence for worker versions and promotion records in the
-    ticket store, including lifecycle guard enforcement
-- runtime supervisor validation and health-check scaffold with failed promotion
-    rollback persistence
-- canonical promotion lifecycle event emission for promotion status transitions
-- operator visibility for D5 records via ticket detail API/UI and ticket CLI
-    worker-version and promotion inspection commands
-
-## D6 Closure Snapshot (2026-05-30)
-
-Control-plane refinement has completed for the D6 scope with richer promotion
-DTO and operator inspection surfaces:
-
-- ticket detail API joins worker versions and promotions with attempt/workspace metadata
-- browser timelines surface attempt, workspace, bundle, and version-state context
-- ticket CLI inspection commands (`timeline`, `evidence`, `gates`, `worker-versions`, `promotions`) print the same enriched promotion context for terminal review
-- overview/reliability API payloads include metadata for schema version, revision, generation time, and response window/source context
-- ticket timeline API DTO (`/api/tickets/:id/timeline`) exposes chronological event/attempt/promotion flow with explicit payload metadata
-- ticket evidence API DTO (`/api/tickets/:id/evidence`) exposes policy/patch/artifact/side-effect evidence with explicit payload metadata
-- ticket gates API DTO (`/api/tickets/:id/gates`) exposes completion-evidence gate status and recovery recommendation payloads with explicit metadata
-- browser ticket detail consumes `/api/tickets/:id/timeline` and renders timeline metadata plus chronological entries for operator review
-- browser ticket detail consumes `/api/tickets/:id/evidence` and prefers structured evidence payloads for patch/policy/artifact/side-effect rendering
-- browser ticket detail consumes `/api/tickets/:id/gates` and prefers gate DTO values for completion evidence and recovery recommendation rendering
-
-Current D6 status: complete for control-plane refinement scope.
-Follow-up implementation hygiene remains for physical UI file extraction and
-additional metric payload cleanup.
-
-Current D5 status: domain and persistence foundations are implemented with an
-initial runtime supervisor rollback scaffold; full successor startup and
-process-level promotion orchestration remain upcoming work.
-
-## Validated Today (2026-05-30)
-
-Today focused on D6 closure verification and operator-surface consistency:
-
-- `npm run build` passed after terminal `gates` command and documentation updates
-- `node scripts/run-tests.mjs test/ui-server.test.ts test/tickets-cli.test.ts` passed with 179/179 tests green
-- no compile or lint diagnostics were introduced in changed D6 files
-- README, blueprint, and terminal/API/UI inspection surfaces now agree on D6 closure state
-
-This confirms the D6 control-plane refinement objective is complete for current scope, with follow-up hygiene separated from phase closure.
+1. Intake: create work as tickets in the SQLite store.
+2. Admission: apply readiness and policy gates before queue mutation.
+3. Planning: produce structured plans with intended files, commands, verification, and risk notes.
+4. Execution: run governed tools in a bounded runtime with policy enforcement.
+5. Review: inspect evidence, gates, timeline, and artifacts in CLI or UI.
+6. Resolution: complete, block, retry, supersede, or cancel with durable state transitions.
 
 ## What It Demonstrates
 
@@ -146,10 +53,6 @@ This confirms the D6 control-plane refinement objective is complete for current 
 - Guardrails for budget, iteration count, error thresholds, and optional auto-commit
 - Persistent state tracking in `AGENT.md`
 - Single-pass execution for bounded demos and CI-friendly runs
-
-## Current Scope
-
-Hephaestus is intentionally a local-first engineering control plane, not a general autonomous programmer. It can execute bounded read/search/patch/verification plans through the governed tool runtime, pauses for approval on risky mutations, records durable attempts and artifacts, and exports local patch bundles for developer review.
 
 ## Quick Start
 
@@ -301,27 +204,33 @@ See `docs/architecture.md` for the current runtime shape and the shift-left road
 
 ## Project Structure
 
+Core directories and key files are organized as follows:
+
 ```text
 Hephaestus/
+├── .hephaestus/                # Local runtime state and generated artifacts
+├── .hephaestus-tickets.db      # Canonical SQLite ticket store
 ├── src/
-│   ├── agent.ts
-│   ├── config.ts
-│   ├── executor.ts
-│   ├── logger.ts
-│   ├── memory.ts
-│   ├── plan-contract.ts
-│   ├── preflight.ts
-│   ├── repositories.ts
-│   ├── runtime.ts
-│   ├── safety.ts
-│   ├── types.ts
-│   └── watcher.ts
+│   ├── agent.ts                # Agent orchestration
+│   ├── executor.ts             # Plan execution and policy wiring
+│   ├── runtime.ts              # Governed tool runtime
+│   ├── repositories.ts         # Ticket and memory repository interfaces
+│   ├── preflight.ts            # Startup readiness checks
+│   └── ...                     # Config, contracts, logging, safety, types
+├── scripts/                    # Helper scripts for tests, ops, and metrics
 ├── docs/
-│   └── architecture.md
-├── test/
-├── TASKS.md
-├── AGENT.md
-└── start.ps1
+│   ├── architecture.md         # Runtime architecture and roadmap
+│   └── metrics/                # Reliability and source-grounding reports
+├── test/                       # Unit and integration tests
+├── dist/                       # Compiled TypeScript output
+├── logs/                       # Local runtime and ops logs
+├── run/                        # Runtime outputs and local bundles
+├── sources/                    # Source evidence and reference inputs
+├── AGENT.md                    # Project state projection and operator notes
+├── TASKS.md                    # Optional markdown board projection
+├── start.ps1                   # Canonical numbered control-plane launcher
+├── watch-tasks-board.ps1       # Board watch helper for local operations
+└── watch-ollama-stream.ps1     # Model stream watch helper
 ```
 
 ## Safety Controls
