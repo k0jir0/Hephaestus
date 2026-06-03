@@ -7,6 +7,7 @@ import { getTicketAutopilotRetryQuarantineReason } from './domain/scheduling/tic
 import { exportPatchBundle } from './delivery.js';
 import { exportCodexHandoffBundles } from './codex-handoff.js';
 import { parseOption, parsePositiveInteger } from './cli-utils.js';
+import { isOperationalTicket } from './operational-ticket-filter.js';
 import { assessTicketTemplate, formatTicketTemplateAssessment } from './ticket-template.js';
 import { computeSourceGroundingMetrics, formatSourceGroundingMetrics } from './source-grounding-metrics.js';
 import { buildSourceGroundingDriftAudit } from './source-grounding-report.js';
@@ -1072,7 +1073,7 @@ async function main(): Promise<void> {
       }
 
       case 'metrics': {
-        const tickets = await repository.listTickets('all');
+        const tickets = (await repository.listTickets('all')).filter(isOperationalTicket);
         const attemptsByTicket = await repository.listAttemptsForTickets(tickets.map((ticket) => ticket.id));
         const lastBoardSyncAt = await repository.getLatestEventTimestamp('board-synced');
         const metrics = computeOperationalSLOMetrics({ tickets, attemptsByTicket, lastBoardSyncAt });
@@ -1265,7 +1266,7 @@ async function main(): Promise<void> {
         const sourceGroundingRaw = await fs.readFile('docs/metrics/source-grounding-latest.json', 'utf-8');
         const sourceGrounding = JSON.parse(sourceGroundingRaw) as SourceGroundingLatestSnapshot;
 
-        const tickets = await repository.listTickets('all');
+        const tickets = (await repository.listTickets('all')).filter(isOperationalTicket);
         const attemptsByTicket = await repository.listAttemptsForTickets(tickets.map((ticket) => ticket.id));
         const failures: string[] = [];
 
@@ -1345,7 +1346,9 @@ async function main(): Promise<void> {
           computeBackendReliabilityMetrics({
             tickets,
             attemptsByTicket,
-            includeTicket: (ticket) => getTicketAutopilotRetryQuarantineReason(ticket) === undefined,
+            includeTicket: (ticket) => (
+              isOperationalTicket(ticket) && getTicketAutopilotRetryQuarantineReason(ticket) === undefined
+            ),
           })
         );
         for (const [backend, metrics] of actionableBackendReliabilityEntries) {

@@ -120,7 +120,7 @@ describe('plan binding policy', () => {
     assert.deepEqual(decideReadPlanBinding(makePlan(), 'package.json'), {
       allowed: false,
       code: 'read-path-not-declared',
-      reason: 'File read target package.json is not declared in the validated plan. Declared plan files: src/runtime.ts, README.md.',
+      reason: 'File read target package.json is not declared in the validated plan. Declared plan files: src/runtime.ts, README.md. Next step: add package.json to the validated plan or remove the undeclared file.read call.',
     });
   });
 

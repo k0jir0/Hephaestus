@@ -1,24 +1,24 @@
 # Hephaestus Weekly Efficiency Report
 
-Generated: 2026-06-03T19:16:02.923Z
+Generated: 2026-06-03T19:28:19.069Z
 
 ## Current 7-Day Window
 
-- Samples: 42
-- Average efficiency score: 32.763
-- Average throughput/day: 9.357
-- Average p95 admission->complete (ms): 23984793.714
+- Samples: 44
+- Average efficiency score: 32.506
+- Average throughput/day: 9.205
+- Average p95 admission->complete (ms): 44641356.432
 - Average completion rate: 0.289
-- Average retry rate: 0.149
+- Average retry rate: 0.151
 - Average allowlist denial rate: 0.004
 
 ## Week-over-Week Delta
 
-- Efficiency score delta: 32.763
-- Throughput/day delta: 9.357
-- p95 admission->complete delta (ms): 23984793.714
+- Efficiency score delta: 32.506
+- Throughput/day delta: 9.205
+- p95 admission->complete delta (ms): 44641356.432
 - Completion rate delta: 0.289
-- Retry rate delta: 0.149
+- Retry rate delta: 0.151
 - Allowlist denial rate delta: 0.004
 
 ## Denial Taxonomy (Latest Snapshot)
@@ -28,10 +28,10 @@ Generated: 2026-06-03T19:16:02.923Z
 ## Cohort Attribution (Latest Snapshot)
 
 - FIX: tickets=4, completion=1.000, retry=0.000, contribution=100.000
+- UPDATE: tickets=3, completion=1.000, retry=0.000, contribution=100.000
 - PERSIST: tickets=2, completion=1.000, retry=0.000, contribution=100.000
 - CHANGE: tickets=2, completion=1.000, retry=0.000, contribution=100.000
 - BUILD: tickets=1, completion=1.000, retry=0.000, contribution=100.000
-- TRANSFORM: tickets=1, completion=1.000, retry=0.000, contribution=100.000
 
 ## Recommended Actions
 
@@ -64,4 +64,10 @@ Generated: 2026-06-03T19:16:02.923Z
 - completion-rate variance alert z=-3
 - completion-rate variance alert z=-2.38
 - completion-rate variance alert z=-2
+- throughput variance alert z=4.359
+- p95-admission-to-complete-ms variance alert z=4.359
+- throughput variance alert z=4.333
+- p95-admission-to-complete-ms variance alert z=3
+- completion-rate variance alert z=2.346
+- efficiency-score variance alert z=19.799
 

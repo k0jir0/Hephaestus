@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { generateWeeklyEfficiencyReport } from './efficiency-weekly-report.js';
+import { isOperationalTicket } from './operational-ticket-filter.js';
 import { TicketStoreRepository } from './task-store.js';
 import type { TaskStatus, TaskTicket } from './types.js';
 
@@ -313,7 +314,7 @@ function printHumanSummary(snapshot: EfficiencySnapshot): void {
 async function collectSnapshot(): Promise<EfficiencySnapshot> {
   const repository = new TicketStoreRepository({ projectionEnabled: false });
   try {
-    const tickets = await repository.listTickets('all');
+    const tickets = (await repository.listTickets('all')).filter(isOperationalTicket);
     const attemptsByTicket = await repository.listAttemptsForTickets(tickets.map((ticket) => ticket.id));
 
     const now = Date.now();

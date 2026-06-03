@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { isSyntheticBenchmarkTicket } from '../src/operational-ticket-filter.js';
 import { runTicketAutopilot } from '../src/ticket-autopilot.js';
 import type { TaskApprovalState, TaskTicket } from '../src/types.js';
 
@@ -151,6 +152,48 @@ describe('runTicketAutopilot', () => {
     assert.deepEqual(calls.retried, ['ticket_transient']);
     assert.deepEqual(result.quarantinedRetryTickets.map((ticket) => ticket.id), ['ticket_allowlist']);
     assert.equal(result.requeued.length, 1);
+  });
+
+  it('ignores H50J3 benchmark tickets during autopilot recovery', async () => {
+    const calls = {
+      retried: [] as string[],
+    };
+
+    const benchmarkTicket = {
+      ...makeTicket('ticket_h50', 'blocked'),
+      description:
+        'Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-050 checkpoint entry, verify with npm run build, expected signal: build exits 0.',
+    };
+
+    assert.equal(isSyntheticBenchmarkTicket(benchmarkTicket), true);
+
+    const result = await runTicketAutopilot(
+      {
+        repository: {
+          async listTickets() {
+            return [
+              benchmarkTicket,
+              {
+                ...makeTicket('ticket_actionable', 'blocked'),
+                description: 'Fix queue retry telemetry regression',
+              },
+            ];
+          },
+          async retryTicket(ticketId: string) {
+            calls.retried.push(ticketId);
+            return makeTicket(ticketId, 'pending');
+          },
+          async resumeApprovedTicket() {
+            throw new Error('resumeApprovedTicket should not be called in this test');
+          },
+        },
+      },
+      { maxAttempts: 3 }
+    );
+
+    assert.deepEqual(calls.retried, ['ticket_actionable']);
+    assert.deepEqual(result.requeued.map((ticket) => ticket.id), ['ticket_actionable']);
+    assert.equal(result.runnableTicketCount, 0);
   });
 
   it('seeds self-audit when the queue is idle after automation prep', async () => {

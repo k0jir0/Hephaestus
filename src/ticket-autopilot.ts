@@ -4,6 +4,7 @@ import {
   resolveSelfAuditSeedLimit,
   shouldSeedSelfAuditFromAutopilot,
 } from './domain/scheduling/ticket-autopilot-policy.js';
+import { isOperationalTicket } from './operational-ticket-filter.js';
 import type { TaskStatus, TaskTicket } from './types.js';
 
 export interface TicketAutopilotRepository {
@@ -82,7 +83,7 @@ export async function runTicketAutopilot(
   },
   options: TicketAutopilotOptions = {}
 ): Promise<TicketAutopilotResult> {
-  const tickets = await dependencies.repository.listTickets('all');
+  const tickets = (await dependencies.repository.listTickets('all')).filter(isOperationalTicket);
   const schedule = planTicketAutopilotSchedule(tickets, options);
   const {
     runnableTicketCount,

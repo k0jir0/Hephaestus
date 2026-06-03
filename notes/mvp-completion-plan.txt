@@ -16,7 +16,8 @@ Current State Summary
 - Source-grounding policy is active and D2+ pathways already reference source notes.
 - Research library is implemented with broad note coverage and many lawful local copies.
 - Bibliographic validity audit is clean (verified catalog entries, zero quarantined).
-- Main MVP gaps are operational: low efficiency score, stale/blocked queue behavior, low completion throughput, and inconsistent coupling between source evidence and runtime outcomes.
+- Main MVP gaps are now time-window operational metrics rather than live queue blockers: efficiency is still below target, throughput/day is 7, completion rate is 0.29, and the recent latency cohort is still dominated by tickets created on 2026-05-29 and only closed on 2026-06-03.
+- The live queue has been cleaned to 0 operational blocked/stale tickets after removing synthetic H50J3 and qwen-wave reporting artifacts plus unsupported broad optimization/review backlog.
 
 Definition of Done for MVP
 MVP is complete only when all gate families pass for 7 consecutive daily runs.

@@ -91,7 +91,11 @@ export function computeOperationalSLOMetrics(input: {
   attemptsByTicket: Map<string, TaskAttempt[]>;
   events?: TaskEvent[];
   lastBoardSyncAt?: Date;
+  includeTicket?: (ticket: TaskTicket) => boolean;
 }): OperationalSLOMetrics {
+  const scopedTickets = input.includeTicket
+    ? input.tickets.filter((ticket) => input.includeTicket?.(ticket) ?? true)
+    : input.tickets;
   const createdAtByTicket = new Map<string, Date>();
   const startedAtByTicket = new Map<string, Date>();
   let lastBoardSyncAt = input.lastBoardSyncAt;
@@ -115,7 +119,7 @@ export function computeOperationalSLOMetrics(input: {
     }
   }
 
-  const admissionLatencies = input.tickets.flatMap((ticket) => {
+  const admissionLatencies = scopedTickets.flatMap((ticket) => {
     const attempts = input.attemptsByTicket.get(ticket.id) ?? [];
     const firstAttempt = attempts[0];
     const createdAt = ticket.createdAt ?? createdAtByTicket.get(ticket.id);
@@ -130,7 +134,8 @@ export function computeOperationalSLOMetrics(input: {
   let blockedRetryPopulation = 0;
   let blockedRetrySuccesses = 0;
   const failureTaxonomyCounts = new Map<string, number>();
-  for (const attempts of input.attemptsByTicket.values()) {
+  for (const ticket of scopedTickets) {
+    const attempts = input.attemptsByTicket.get(ticket.id) ?? [];
     const blockedAttemptIndex = attempts.findIndex((attempt) => attempt.status === 'blocked');
     if (blockedAttemptIndex !== -1) {
       blockedRetryPopulation += 1;
@@ -149,7 +154,7 @@ export function computeOperationalSLOMetrics(input: {
     }
   }
 
-  const latestTicketUpdateMs = input.tickets.reduce(
+  const latestTicketUpdateMs = scopedTickets.reduce(
     (latest, ticket) => Math.max(latest, ticket.updatedAt.getTime()),
     0
   );
@@ -159,11 +164,14 @@ export function computeOperationalSLOMetrics(input: {
   const totalFailures = failureCounts.reduce((sum, value) => sum + value, 0);
 
   return {
-    totalTickets: input.tickets.length,
-    totalAttempts: [...input.attemptsByTicket.values()].reduce((sum, attempts) => sum + attempts.length, 0),
-    completedTickets: input.tickets.filter((ticket) => ticket.status === 'completed').length,
-    blockedTickets: input.tickets.filter((ticket) => ticket.status === 'blocked').length,
-    awaitingApprovalTickets: input.tickets.filter((ticket) => ticket.status === 'awaiting_approval').length,
+    totalTickets: scopedTickets.length,
+    totalAttempts: scopedTickets.reduce(
+      (sum, ticket) => sum + (input.attemptsByTicket.get(ticket.id)?.length ?? 0),
+      0
+    ),
+    completedTickets: scopedTickets.filter((ticket) => ticket.status === 'completed').length,
+    blockedTickets: scopedTickets.filter((ticket) => ticket.status === 'blocked').length,
+    awaitingApprovalTickets: scopedTickets.filter((ticket) => ticket.status === 'awaiting_approval').length,
     stateConsistencyLagMs: Math.max(0, latestTicketUpdateMs - boardSyncMs),
     averageAdmissionToStartLatencyMs: average(admissionLatencies),
     blockedRetrySuccessRatio: blockedRetryPopulation === 0 ? 1 : blockedRetrySuccesses / blockedRetryPopulation,
@@ -172,6 +180,7 @@ export function computeOperationalSLOMetrics(input: {
     backendReliability: computeBackendReliabilityMetrics({
       tickets: input.tickets,
       attemptsByTicket: input.attemptsByTicket,
+      includeTicket: input.includeTicket,
     }),
     lastBoardSyncAt,
   };

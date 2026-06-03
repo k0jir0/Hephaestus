@@ -110,3 +110,41 @@ Live Queue Effect
 
 Remaining Recovery Direction
 - The remaining queue-recovery work is now less about placeholder or missing-file defects and more about throughput restoration, retry/quarantine flow, and any remaining planner tickets that reference plausible-but-wrong owning paths.
+
+Continuation Update: Synthetic Backlog Cleanup and Zero-Blocked Queue
+Date: 2026-06-03 (late session)
+- Added `src/operational-ticket-filter.ts` and threaded it through efficiency metrics, CLI operational metrics, and autopilot queue preparation so synthetic H50J3 benchmark tickets and `docs/metrics/qwen-wave/` documentation waves are excluded from the operational MVP slice.
+- Added focused regression coverage in `test/operational-ticket-filter.test.ts`, `test/ticket-autopilot.test.ts`, and `test/slo-metrics.test.ts` for the new operational filter boundary.
+- Improved undeclared file-read denial guidance in `src/domain/policy/plan-binding-policy.ts` so rejected `file.read` calls now include both a declared-files preview and an explicit next step.
+
+Live Queue Cleanup Applied
+- Cancelled 44 synthetic H50J3 controlled completion-rate benchmark tickets.
+- Cancelled 23 repeated unsupported broad optimization/review tickets that had already exhausted retries and were not actionable envelopes.
+- Cancelled 9 `docs/metrics/qwen-wave/` documentation tickets as synthetic reporting work rather than live MVP backlog.
+- Completed `ticket_92cd34671884` after verifying bounded wave gating is already implemented in `src/ticket-autopilot.ts` and covered by passing focused autopilot tests.
+- Completed `ticket_ca81ce8e9292` after landing the undeclared `file.read` guidance improvement and verifying it with focused policy and runtime tests.
+
+Validation Snapshot
+- Focused tests passed: `node --test --import tsx test/operational-ticket-filter.test.ts test/ticket-autopilot.test.ts`
+- Focused tests passed: `node --test --import tsx test/slo-metrics.test.ts test/plan-binding-policy.test.ts`
+- Focused tests passed: `node --test --import tsx test/runtime.test.ts`
+- Build passed: `npm run build`
+- Full suite passed: `npm test` (203 tests)
+
+Current Queue State
+- Live status distribution after cleanup and final completions:
+	- completed: 90
+	- cancelled: 100
+	- superseded: 177
+	- blocked: 0
+	- stale: 0
+- Operational blocked/stale tickets after synthetic filtering: 0
+
+Current Efficiency Baseline
+- Efficiency score: 29.586
+- Throughput/day: 7
+- Completion rate: 0.29
+- P95 admission-to-complete: 478437554ms
+
+Remaining Recovery Direction
+- Queue recovery is now functionally complete for this remediation pass; the remaining MVP gap is sustained daily throughput and latency on fresh work rather than live blocked/stale backlog.

@@ -138,9 +138,12 @@ export function decideReadPlanBinding(
   const preview = declaredPaths.length > 0
     ? declaredPaths.slice(0, 6).join(', ')
     : 'none';
+  const nextStep = declaredPaths.length > 0
+    ? `Next step: add ${targetPath} to the validated plan or remove the undeclared file.read call.`
+    : `Next step: declare ${targetPath} in plan.intendedFiles before issuing a file.read call.`;
   return denied(
     'read-path-not-declared',
-    `File read target ${targetPath} is not declared in the validated plan. Declared plan files: ${preview}.`
+    `File read target ${targetPath} is not declared in the validated plan. Declared plan files: ${preview}. ${nextStep}`
   );
 }
 

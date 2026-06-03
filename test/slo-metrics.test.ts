@@ -182,4 +182,65 @@ describe('Operational SLO metrics', () => {
     assert.equal(metrics.ollama?.completedAttempts, 1);
     assert.equal(metrics.ollama?.successRatio, 1);
   });
+
+  it('can scope operational SLO metrics to an included ticket slice', () => {
+    const tickets: TaskTicket[] = [
+      {
+        id: 'ticket_actionable',
+        description: 'Actionable ticket',
+        status: 'completed',
+        createdAt: new Date('2026-05-27T00:00:00.000Z'),
+        updatedAt: new Date('2026-05-27T00:00:05.000Z'),
+        attemptCount: 1,
+        sourceOrder: 1,
+      },
+      {
+        id: 'ticket_benchmark',
+        description: 'Synthetic benchmark ticket',
+        status: 'blocked',
+        createdAt: new Date('2026-05-27T00:01:00.000Z'),
+        updatedAt: new Date('2026-05-27T00:01:05.000Z'),
+        attemptCount: 1,
+        sourceOrder: 2,
+      },
+    ];
+    const attemptsByTicket = new Map<string, TaskAttempt[]>([
+      ['ticket_actionable', [
+        {
+          id: 'attempt_actionable',
+          ticketId: 'ticket_actionable',
+          attemptNumber: 1,
+          status: 'completed',
+          startedAt: new Date('2026-05-27T00:00:02.000Z'),
+          endedAt: new Date('2026-05-27T00:00:05.000Z'),
+          result: 'done',
+          artifacts: ['[admission_1] backend.ollama model=codellama'],
+        },
+      ]],
+      ['ticket_benchmark', [
+        {
+          id: 'attempt_benchmark',
+          ticketId: 'ticket_benchmark',
+          attemptNumber: 1,
+          status: 'blocked',
+          startedAt: new Date('2026-05-27T00:01:02.000Z'),
+          endedAt: new Date('2026-05-27T00:01:05.000Z'),
+          error: 'Synthetic blocked benchmark ticket',
+          artifacts: ['[admission_2] backend.ollama model=codellama'],
+        },
+      ]],
+    ]);
+
+    const metrics = computeOperationalSLOMetrics({
+      tickets,
+      attemptsByTicket,
+      includeTicket: (ticket) => ticket.id === 'ticket_actionable',
+    });
+
+    assert.equal(metrics.totalTickets, 1);
+    assert.equal(metrics.totalAttempts, 1);
+    assert.equal(metrics.completedTickets, 1);
+    assert.equal(metrics.blockedTickets, 0);
+    assert.equal(metrics.backendReliability.ollama?.totalAttempts, 1);
+  });
 });
