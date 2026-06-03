@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type {
   PlannedCommand,
   PlannedFileChange,
@@ -108,6 +110,36 @@ function assertNoPlaceholderPath(pathValue: string, field: string): string {
   }
 
   return pathValue;
+}
+
+function resolveRepositoryPath(targetProject: string, candidatePath: string, field: string): string {
+  const repositoryRoot = path.resolve(targetProject);
+  const resolvedPath = path.resolve(repositoryRoot, candidatePath);
+  const relativePath = path.relative(repositoryRoot, resolvedPath);
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    throw new Error(`Field "${field}" must stay within the target repository.`);
+  }
+
+  return resolvedPath;
+}
+
+function assertExistingRepositoryPath(
+  targetProject: string | undefined,
+  candidatePath: string,
+  field: string
+): string {
+  if (!targetProject) {
+    return candidatePath;
+  }
+
+  const resolvedPath = resolveRepositoryPath(targetProject, candidatePath, field);
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(
+      `Field "${field}" must reference an existing repository path for this operation.`
+    );
+  }
+
+  return candidatePath;
 }
 
 function requireStringFromKeys(
@@ -257,12 +289,16 @@ function requireStringArray(value: unknown, field: string, allowEmpty: boolean):
   return items;
 }
 
-function parsePlannedFileChange(value: unknown, index: number): PlannedFileChange {
+function parsePlannedFileChange(
+  value: unknown,
+  index: number,
+  targetProject?: string
+): PlannedFileChange {
   if (!isRecord(value)) {
     throw new Error(`intendedFiles[${index}] must be an object.`);
   }
 
-  const pathValue = assertNoPlaceholderPath(
+  let pathValue = assertNoPlaceholderPath(
     requireString(value.path, `intendedFiles[${index}].path`),
     `intendedFiles[${index}].path`
   );
@@ -271,6 +307,14 @@ function parsePlannedFileChange(value: unknown, index: number): PlannedFileChang
     requireStringFromKeys(value, ['changeType', 'type', 'action'], `intendedFiles[${index}].changeType`),
     `intendedFiles[${index}].changeType`
   );
+
+  if (changeType !== 'create') {
+    pathValue = assertExistingRepositoryPath(
+      targetProject,
+      pathValue,
+      `intendedFiles[${index}].path`
+    );
+  }
 
   let purpose = getDefaultFilePurpose(changeType, pathValue);
   try {
@@ -338,7 +382,7 @@ function parsePlannedCommand(value: unknown, index: number): PlannedCommand {
   };
 }
 
-function parseToolCall(value: unknown, index: number): ToolCall {
+function parseToolCall(value: unknown, index: number, targetProject?: string): ToolCall {
   if (!isRecord(value)) {
     throw new Error(`toolCalls[${index}] must be an object.`);
   }
@@ -361,6 +405,11 @@ function parseToolCall(value: unknown, index: number): ToolCall {
   if (finalName === 'file.read' && typeof argumentsValue.path === 'string') {
     argumentsValue.path = assertNoPlaceholderPath(
       requireString(argumentsValue.path, `toolCalls[${index}].arguments.path`),
+      `toolCalls[${index}].arguments.path`
+    );
+    argumentsValue.path = assertExistingRepositoryPath(
+      targetProject,
+      argumentsValue.path,
       `toolCalls[${index}].arguments.path`
     );
   }
@@ -423,7 +472,7 @@ export function buildStructuredPlanPrompt(task: Task, context: string | undefine
     `- ${supportedTaskEnvelopeSummary()}`,
     '- Return JSON only. Do not wrap it in markdown unless the client forces it.',
     '- Use relative file paths when possible.',
-    '- Never copy placeholder example paths; every path must name a real repository file relevant to the task.',
+    '- Never copy placeholder example paths; every non-create path must name a real repository file relevant to the task.',
     '- Keep commands limited to the smallest useful set.',
     '- Prefer command IDs from the command catalog when possible and include commandId with each command.',
     `- Command catalog IDs: ${commandCatalogSummary}.`,
@@ -450,11 +499,14 @@ export function getStructuredPlanSystemPrompt(): string {
   ].join(' ');
 }
 
-export function parseTaskPlan(rawContent: string): TaskPlan {
-  return parseStructuredExecutionResponse(rawContent).plan;
+export function parseTaskPlan(rawContent: string, targetProject?: string): TaskPlan {
+  return parseStructuredExecutionResponse(rawContent, targetProject).plan;
 }
 
-export function parseStructuredExecutionResponse(rawContent: string): {
+export function parseStructuredExecutionResponse(
+  rawContent: string,
+  targetProject?: string
+): {
   plan: TaskPlan;
   toolCalls: ToolCall[];
 } {
@@ -491,12 +543,12 @@ export function parseStructuredExecutionResponse(rawContent: string): {
   return {
     plan: {
       summary: requireString(parsed.summary, 'summary'),
-      intendedFiles: intendedFilesRaw.map((value, index) => parsePlannedFileChange(value, index)),
+      intendedFiles: intendedFilesRaw.map((value, index) => parsePlannedFileChange(value, index, targetProject)),
       commands: commandsRaw.map((value, index) => parsePlannedCommand(value, index)),
       verification: requireStringArray(verificationRaw, 'verification', false),
       risks: requireStringArray(risksRaw, 'risks', true),
     },
-    toolCalls: (toolCallsRaw ?? []).map((value, index) => parseToolCall(value, index)),
+    toolCalls: (toolCallsRaw ?? []).map((value, index) => parseToolCall(value, index, targetProject)),
   };
 }
 

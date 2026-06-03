@@ -42,7 +42,8 @@ export class AIExecutor {
     });
     this.promptPolicy =
       dependencies.promptPolicy ?? new StructuredPlanPolicy(this.runtimeConfig.targetProject);
-    this.responseParser = dependencies.responseParser ?? new StructuredPlanParser();
+    this.responseParser =
+      dependencies.responseParser ?? new StructuredPlanParser(this.runtimeConfig.targetProject);
 
     logger.info(`AIExecutor initialized with backend: ${this.backendClient.backend}`);
   }

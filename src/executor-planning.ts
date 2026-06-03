@@ -30,13 +30,15 @@ export class StructuredPlanPolicy implements StructuredPlanPromptPolicy {
 }
 
 export class StructuredPlanParser implements StructuredPlanResponseParser {
+  constructor(private readonly targetProject?: string) {}
+
   parse(response: AIResponse): AIResponse {
     if (!response.success) {
       return response;
     }
 
     try {
-      const parsed = parseStructuredExecutionResponse(response.content);
+      const parsed = parseStructuredExecutionResponse(response.content, this.targetProject);
 
       return {
         ...response,
