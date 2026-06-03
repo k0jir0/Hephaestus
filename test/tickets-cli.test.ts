@@ -70,6 +70,34 @@ async function createFixture(): Promise<{
   return { rootDir, ticketStoreFile, ticketId: ticket.id };
 }
 
+async function createBlockedFixture(): Promise<{
+  rootDir: string;
+  ticketStoreFile: string;
+  ticketId: string;
+}> {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-tickets-cli-'));
+  tempDirs.push(rootDir);
+  const ticketStoreFile = path.join(rootDir, '.hephaestus-tickets.db');
+
+  const repository = new TicketStoreRepository({
+    tasksFile: path.join(rootDir, 'TASKS.md'),
+    storeFile: ticketStoreFile,
+    importLegacyTaskBoardIfStoreEmpty: false,
+    projectionEnabled: false,
+  });
+
+  const ticket = await repository.createTicket('CLI manual completion coverage ticket');
+  await repository.markTaskInProgress(ticket);
+  await repository.markTaskBlocked({
+    ...ticket,
+    status: 'blocked',
+    error: 'Verified externally; awaiting operator completion.',
+  });
+  await repository.stop();
+
+  return { rootDir, ticketStoreFile, ticketId: ticket.id };
+}
+
 async function runTickets(args: string[], env: NodeJS.ProcessEnv): Promise<string> {
   return await new Promise<string>((resolve, reject) => {
     const child = spawn('node', [tsxCliPath, path.join(repoRoot, 'src', 'tickets.ts'), ...args], {
@@ -202,5 +230,32 @@ describe('tickets CLI', () => {
     assert.match(output, /completed/);
     assert.match(output, /requested=/);
     assert.match(output, /updated=/);
+  });
+
+  it('allows operator completion of a blocked ticket', async () => {
+    const fixture = await createBlockedFixture();
+    const output = await runTickets(
+      ['complete', fixture.ticketId, 'Verified', 'manually', 'after', 'external', 'completion.'],
+      {
+        TARGET_PROJECT: repoRoot,
+        TICKETS_DB_FILE: fixture.ticketStoreFile,
+        TASK_BOARD_PROJECTION_ENABLED: 'false',
+        ALLOW_MARKDOWN_TASK_FALLBACK: 'false',
+      }
+    );
+
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(fixture.rootDir, 'TASKS.md'),
+      storeFile: fixture.ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+    const ticket = await repository.getTicket(fixture.ticketId);
+    await repository.stop();
+
+    assert.match(output, /Completed ticket_[a-z0-9]+; new status: completed/i);
+    assert.match(output, /Result: Verified manually after external completion\./);
+    assert.equal(ticket?.status, 'completed');
+    assert.equal(ticket?.result, 'Verified manually after external completion.');
   });
 });

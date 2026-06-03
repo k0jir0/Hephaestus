@@ -37,6 +37,7 @@ Usage:
   npm run tickets -- list [--status <status>]
   npm run tickets -- show <ticket-id>
   npm run tickets -- retry <ticket-id> [--amend <description>]
+  npm run tickets -- complete <ticket-id> [result]
   npm run tickets -- autopilot [--include-cancelled] [--no-retry-quarantine] [--no-self-audit] [--self-audit-limit <count>] [--max-attempts <count>] [--wave-size <count>] [--max-active <count>] [--min-completion-rate <ratio>] [--max-superseded-rate <ratio>] [--max-blocked <count>] [--blocked-window-days <days>] [--max-allowlist-denial-rate <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>] [--enforce-d2] [--max-d2-count-mismatches <count>] [--max-d2-legacy-only <count>] [--max-d2-domain-only <count>] [--max-d2-domain-deficit <count>] [--max-d2-missing-legacy-link <count>] [--min-d2-replay-correlation-coverage <ratio>] [--dry-run]
   npm run tickets -- approve <ticket-id> <reviewer> [reason]
   npm run tickets -- reject <ticket-id> <reviewer> [reason]
@@ -456,6 +457,21 @@ async function main(): Promise<void> {
         console.log(`Retried ${ticket.id}; new status: ${ticket.status}`);
         if (amendedDescription) {
           console.log(`Amended description: ${ticket.description}`);
+        }
+        break;
+      }
+
+      case 'complete': {
+        const ticketId = args[0];
+        if (!ticketId) {
+          throw new Error('complete requires a ticket id.');
+        }
+
+        const result = args.slice(1).join(' ').trim() || undefined;
+        const ticket = await repository.completeTicket(ticketId, result);
+        console.log(`Completed ${ticket.id}; new status: ${ticket.status}`);
+        if (ticket.result) {
+          console.log(`Result: ${ticket.result}`);
         }
         break;
       }

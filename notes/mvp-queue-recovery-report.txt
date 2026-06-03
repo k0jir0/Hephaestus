@@ -34,3 +34,54 @@ Remaining Queue Recovery Gap
 - The queue is no longer gate-blocked, but it is still not draining.
 - No runnable tickets were available at the end of the final strict run.
 - Active inventory remains high at 83, which means the next recovery slice is about ticket turnover, retry-cap triage, and converting active work into completions.
+
+Continuation Update: Runtime Throughput Repair
+Date: 2026-06-03 (later session pass)
+- Added the missing test surface at test/tickets.test.ts with create-command coverage for broad-description rejection and bounded-description acceptance.
+- Confirmed the new tickets test file and the earlier plan-contract placeholder-path hardening together eliminate the immediate ENOENT path blockers that were repeatedly hitting src/example.ts and test/tickets.test.ts.
+- Hardened src/task-store.ts side-effect terminal writes so completed or failed outbox rows ignore later duplicate terminal updates instead of being overwritten.
+- Added stale-recovery edge coverage proving fresh active work is not recovered before the configured threshold and orphaned active-attempt metadata on terminal tickets is cleared without changing terminal ticket state.
+
+Validation Snapshot
+- Focused tests passed: node --test --import tsx test/tickets.test.ts test/plan-contract.test.ts
+- Focused tests passed: node --test --import tsx test/task-store.test.ts
+- Full build passed: npm run build
+- Full suite passed: npm test
+- Current suite size after the new regression coverage: 193 passing tests, 0 failures.
+
+Live Queue Effect
+- Retried ticket_6c5d6974134e after the test-file fix.
+- The ticket no longer re-blocked immediately on test/tickets.test.ts; it was claimed again into in_progress on attempt 5.
+- This confirms the queue-productivity blocker moved past the missing-file surface for that slice.
+
+Remaining Recovery Risk
+- One actionable board-rendering ticket still references src/task-writer.ts, while the current projection implementation lives in src/task-board.ts.
+- The remaining recovery work is now a mix of true code review tickets and broader planner/path-selection hardening for real-looking but non-owning file paths.
+
+Continuation Update: Operator Completion Path
+Date: 2026-06-03 (final pass in this session)
+- Added `tickets complete <ticket-id> [result]` as an explicit operator path for work that is already verified outside the current runtime attempt.
+- This preserves the governed mutation invariant for normal autonomous completion while giving the operator a safe, audited way to close backlog tickets that were manually satisfied during remediation.
+
+Validation Snapshot
+- Focused tests passed: node --test --import tsx test/task-store.test.ts test/tickets-cli.test.ts
+- Full build passed: npm run build
+- Full suite passed: npm test
+- Current suite size after operator-completion coverage: 195 passing tests, 0 failures.
+
+Live Queue Effect
+- Manually completed through the new operator path:
+	- ticket_6c5d6974134e (create rejection coverage in test/tickets.test.ts)
+	- ticket_31ff76245f39 (create acceptance coverage in test/tickets.test.ts)
+	- ticket_a8d3a54055c1 (stale-recovery guard coverage)
+	- ticket_c200fe3a9b2d (side-effect duplicate-write guards)
+- Cancelled duplicate probe ticket: ticket_38c4e96d0cb3
+- Live status distribution after these closures:
+	- completed: 87
+	- cancelled: 24
+	- superseded: 177
+	- blocked: 78
+	- stale: 1
+
+Remaining Known Actionable Slice
+- The next unresolved queue item in this recovery thread is ticket_41f8032599cd, a board-rendering/readability review ticket whose description points at non-owning path `src/task-writer.ts` while the live implementation surface is `src/task-board.ts`.

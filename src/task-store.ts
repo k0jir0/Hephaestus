@@ -1196,6 +1196,81 @@ export class TicketStoreRepository
     return updatedTicket;
   }
 
+  async completeTicket(ticketId: string, result = 'Completed by operator.'): Promise<TaskTicket> {
+    await this.ensureInitialized();
+
+    if (this.usingFallback) {
+      throw new Error(
+        'Ticket completion is unavailable in markdown fallback mode. Edit TASKS.md manually or enable SQLite.'
+      );
+    }
+
+    const ticket = await this.getTicket(ticketId);
+    if (!ticket) {
+      throw new Error(`Ticket not found: ${ticketId}`);
+    }
+
+    if (ticket.status === 'completed' || ticket.status === 'merged') {
+      return ticket;
+    }
+
+    if (ticket.status === 'cancelled' || ticket.status === 'superseded') {
+      throw new Error(`Ticket ${ticketId} is ${ticket.status} and cannot be completed by the operator.`);
+    }
+
+    const now = new Date().toISOString();
+    const row = this.findTicketForTask(ticket);
+    let finishedAttemptIds: string[] = [];
+    if (row?.current_attempt_id) {
+      this.finishCurrentAttempt(row, {
+        status: 'completed',
+        endedAt: now,
+        result,
+      });
+      finishedAttemptIds = [row.current_attempt_id];
+    } else {
+      finishedAttemptIds = this.closeOpenAttemptsForTicket(ticketId, now, 'completed', result);
+    }
+
+    this.getDatabase()
+      .prepare(
+        `update tickets
+         set status = 'completed',
+             updated_at = ?,
+             completed_at = ?,
+             result = ?,
+             error = null,
+             current_attempt_id = null
+         where id = ?`
+      )
+      .run(now, now, result, ticketId);
+
+    this.recordEvent({
+      ticketId,
+      type: 'completed',
+      createdAt: new Date(now),
+      details: result,
+    });
+
+    for (const attemptId of finishedAttemptIds) {
+      this.recordEvent({
+        ticketId,
+        type: 'attempt-finished',
+        createdAt: new Date(now),
+        details: attemptId,
+      });
+    }
+
+    await this.writeProjectionSafely();
+
+    const updatedTicket = await this.getTicket(ticketId);
+    if (!updatedTicket) {
+      throw new Error(`Completed ticket ${ticketId} could not be loaded.`);
+    }
+
+    return updatedTicket;
+  }
+
   async cancelTicket(ticketId: string, reason = 'Cancelled by operator.'): Promise<TaskTicket> {
     await this.ensureInitialized();
 

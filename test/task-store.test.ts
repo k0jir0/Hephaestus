@@ -788,6 +788,46 @@ describe('TicketStoreRepository', () => {
     await secondRepository.stop();
   });
 
+  it('allows operator completion of blocked tickets that were satisfied outside the current attempt', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(rootDir, 'TASKS.md'),
+      storeFile: path.join(rootDir, '.hephaestus-tickets.db'),
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await repository.createTicket('Allow manual completion after external verification');
+    await repository.markTaskInProgress(ticket);
+    await repository.markTaskBlocked({
+      ...ticket,
+      status: 'blocked',
+      error: 'Waiting on operator verification.',
+    });
+
+    const completed = await repository.completeTicket(
+      ticket.id,
+      'Verified manually after the guarded fix landed.'
+    );
+    const attempts = await repository.listAttempts(ticket.id);
+    const events = await repository.listEvents(ticket.id);
+
+    assert.equal(completed.status, 'completed');
+    assert.equal(completed.result, 'Verified manually after the guarded fix landed.');
+    assert.equal(completed.error, undefined);
+    assert.equal(attempts.length, 1);
+    assert.equal(attempts[0]?.status, 'blocked');
+    assert.ok(
+      events.some(
+        (event) => event.type === 'completed' && event.details === 'Verified manually after the guarded fix landed.'
+      )
+    );
+
+    await repository.stop();
+  });
+
   it('rediscovers a pending ticket after the redispatch interval when admission leaves it queued', async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
     tempDirs.push(rootDir);
