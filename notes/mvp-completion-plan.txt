@@ -1,0 +1,224 @@
+Hephaestus MVP Completion Plan (Source-Driven Upgrade)
+Date: 2026-06-03
+
+Goal
+Complete Hephaestus as an operational MVP whose autonomous behavior is both performant and source-grounded. The target is not only feature coverage, but verifiable execution quality tied to the research system implemented under sources/.
+
+Source Baseline Inputs This Plan Uses
+- sources/research-library.md
+- sources/library-catalog.md
+- sources/acquisition-manifest.md
+- sources/research-validity-audit.md
+- sources/sources.txt
+
+Current State Summary
+- D1-D6 control-plane and policy infrastructure exist.
+- Source-grounding policy is active and D2+ pathways already reference source notes.
+- Research library is implemented with broad note coverage and many lawful local copies.
+- Bibliographic validity audit is clean (verified catalog entries, zero quarantined).
+- Main MVP gaps are operational: low efficiency score, stale/blocked queue behavior, low completion throughput, and inconsistent coupling between source evidence and runtime outcomes.
+
+Definition of Done for MVP
+MVP is complete only when all gate families pass for 7 consecutive daily runs.
+
+1) Throughput and Completion
+- Completed tickets per 24h >= 10 (or agreed baseline target).
+- Completion ratio >= 0.65.
+
+2) Blockers and Recovery
+- Blocked ratio <= 0.20.
+- Stale tickets recovered within one scheduler cycle.
+
+3) Latency and Stability
+- P95 admission-to-complete <= 2.5h.
+- Daemon uptime >= 99% in the daily window.
+
+4) Source and Evidence Integrity
+- Zero source-grounding violations on completed D2+ tickets.
+- Zero missing evidence links for completion-gated tickets.
+- 100% of completed D2+ tickets contain:
+   a) at least one source key from active catalog
+   b) one implementation-impact sentence describing what changed because of that source
+
+5) Research Library Health
+- Active catalog entries in sources/library-catalog.md remain bibliographically valid.
+- Acquisition manifest stays consistent with on-disk notes and papers.
+- Note-only entries that are marked acquisition targets have explicit next actions and owners.
+
+6) Operator Readiness
+- start_all and stop_all are deterministic on Windows.
+- Cockpit and CLI expose timeline, evidence, and gate summaries for any sampled ticket.
+
+Execution Plan
+
+Phase 1: Source-Backed Baseline Freeze (Day 1)
+Objectives
+- Freeze one strict and one lean baseline run.
+- Capture current source-library state as part of MVP baseline.
+
+Actions
+- Generate and archive:
+   - docs/metrics/efficiency-latest.json
+   - docs/metrics/efficiency-weekly-report.md
+   - docs/metrics/d2-closure-latest.json
+   - strict source evidence audit output
+- Create notes/mvp-baseline-snapshot.txt with:
+   - throughput, blocked ratio, stale count, P95 latency, denial rate
+   - source-grounding violation count
+   - missing evidence count
+   - library coverage summary from acquisition-manifest and catalog
+
+Exit Criteria
+- Metrics are reproducible and present.
+- Baseline includes both runtime and research-library state.
+
+Phase 2: Source Library Operational Hardening (Days 1-2)
+Objectives
+- Make research artifacts reliable infrastructure, not passive references.
+
+Actions
+- Reconcile sources/library-catalog.md and sources/acquisition-manifest.md against on-disk files.
+- Close high-priority note-only acquisition gaps (licensed/open path only):
+   - Helland2015
+   - Endsley1995
+   - LeeSee2004
+   - Woods1996 (publisher-page + note remains acceptable if copy unavailable)
+- Ensure every active source note includes:
+   - citation
+   - stable URL or DOI
+   - 3-7 bullet summary
+   - D-phase mapping
+   - implementation consequence statement
+- Replace or justify placeholder entries in the new-research set where relevance is weak.
+
+Exit Criteria
+- No unresolved mismatch between catalog, manifest, and filesystem.
+- Every active source has a complete note and explicit phase linkage.
+
+Phase 3: Queue Flow and Recovery Stabilization (Days 2-3)
+Objectives
+- Remove stale/blocked pathologies that suppress throughput.
+
+Actions
+- Validate dispatch cadence and stale recovery thresholds.
+- Enforce single-daemon behavior unless scaled intentionally.
+- Prevent duplicate in_progress transitions.
+- Enforce deterministic side-effect projection order.
+
+Exit Criteria
+- No ticket stale beyond one scheduler cycle in controlled runs.
+- in_progress concurrency equals configured worker count.
+
+Phase 4: Runtime Efficiency Hardening (Days 3-5)
+Objectives
+- Raise efficiency from degraded baseline into acceptable MVP band.
+
+Actions
+- Reduce runtime context overhead:
+   - cache context/file index with TTL + invalidation
+   - cache git-status probes per cycle
+- Reduce avoidable retries and denials:
+   - align allowlist with planned verification commands
+   - emit and reuse command-repair artifacts
+- Optimize autopilot loop:
+   - only actionable requeues
+   - self-audit seeding only when queue idle
+
+Exit Criteria
+- Efficiency score >= 45 by end of phase.
+- Allowlist denial rate reduced >= 40% from baseline.
+
+Phase 5: D2+ Source-Evidence Enforcement Closure (Days 5-6)
+Objectives
+- Ensure source grounding affects implementation decisions and auditability.
+
+Actions
+- Enforce D2+ ticket policy checks before completion:
+   - source key present and active
+   - implementation-impact sentence present
+   - linked event evidence present
+- Run strict source-evidence and D2 replay audits before queue priming.
+- Validate gate summaries in CLI and UI for completed ticket samples.
+
+Exit Criteria
+- Zero missing evidence on completed strict-run tickets.
+- D2 replay hash, link integrity, and correlation checks pass.
+
+Phase 6: Operator Workflow and Runbook Closure (Day 7)
+Objectives
+- Demonstrate predictable operation and diagnosability.
+
+Actions
+- Validate start_all -> autopilot -> monitor -> inspect -> stop_all flow.
+- Verify cockpit token roles and health endpoints.
+- Update runbook with top 5 failure modes and source-driven debugging steps.
+
+Exit Criteria
+- 3 clean start/stop cycles with no orphaned processes.
+- One seeded failure fully diagnosed from timeline, evidence, and source links.
+
+Daily Validation Matrix (Completion Week)
+1) npm test
+2) npm run lint
+3) npm run build
+4) npm run metrics:efficiency
+5) npm run metrics:efficiency:weekly
+6) npm run metrics:source-grounding:audit
+7) npm run metrics:d2:closure
+8) npm run autopilot -- --dry-run
+9) npm run start:once (or daemon smoke cycle)
+10) catalog-manifest consistency check for sources/
+
+Weekly Research-Library Validation Loop
+- Re-run bibliographic validity spot-check for active catalog.
+- Review note quality and stale notes older than 30 days.
+- Demote sources that no longer inform active phases.
+- Promote backlog candidates only with explicit D-phase justification.
+
+Risk Register and Mitigation
+1) Risk: False green from gate-only success while throughput remains poor.
+    Mitigation: throughput and completion thresholds are mandatory MVP gates.
+
+2) Risk: Source grounding becomes decorative (cited but not decision-impacting).
+    Mitigation: require implementation-impact sentence per completed D2+ ticket.
+
+3) Risk: Catalog and manifest drift from actual disk state.
+    Mitigation: add daily consistency check and weekly reconciliation owner.
+
+4) Risk: Windows process orphaning skews runtime metrics.
+    Mitigation: enforce stop_all preflight and daemon count verification.
+
+5) Risk: Bibliographically invalid or weak placeholder sources degrade policy quality.
+    Mitigation: maintain validity audit and replace weak placeholders with stronger entries.
+
+Ownership
+- Runtime owner: queue dispatch, retries, context caching, tool outcomes.
+- Store/Data owner: stale recovery, projection ordering, evidence integrity.
+- Research owner: library-catalog, acquisition-manifest, note quality, validity checks.
+- Operator owner: startup scripts, cockpit health, runbook quality.
+- QA owner: daily matrix execution and strict gate reporting.
+
+Final MVP Sign-Off Checklist
+All items must be Yes:
+- Efficiency and throughput gates pass for 7 consecutive days.
+- Zero critical policy and evidence violations on completed work.
+- No persistent stale queue artifacts.
+- Source-driven D2+ completion rule is enforced in practice, not only in policy text.
+- Catalog, manifest, and filesystem are reconciled with no unresolved gaps.
+- Operator workflow proven in repeated start/stop and recovery drills.
+- Final summary report includes baseline vs final runtime metrics and source-library quality metrics.
+
+Deliverables
+When all gates pass, publish:
+- notes/mvp-completion-report.txt
+- notes/mvp-source-library-report.txt
+
+Required sections in mvp-completion-report.txt
+- Baseline vs final metrics table.
+- Subsystem changes and impact.
+- Residual risks and post-MVP roadmap.
+
+Required sections in mvp-source-library-report.txt
+- Active catalog health and validity status.
+- Acquisition progress and remaining lawful gaps.
+- Source-impact examples from completed D2+ tickets.
