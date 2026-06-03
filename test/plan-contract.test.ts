@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   buildStructuredPlanPrompt,
   formatTaskPlanSummary,
   parseStructuredExecutionResponse,
   parseTaskPlan,
 } from '../src/plan-contract.js';
+
+const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 describe('parseTaskPlan', () => {
   it('parses a valid JSON plan payload', () => {
@@ -222,6 +226,54 @@ describe('parseTaskPlan', () => {
     );
   });
 
+  it('rejects nonexistent repository paths for non-create file targets and file-read tool calls', () => {
+    assert.throws(
+      () =>
+        parseStructuredExecutionResponse(
+          `{
+            "summary": "Avoid nonexistent repository paths.",
+            "intendedFiles": [
+              { "path": "src/task-writer.ts", "changeType": "update", "purpose": "stale path" },
+              { "path": "src/generated-task-writer.ts", "changeType": "create", "purpose": "new file" }
+            ],
+            "commands": [],
+            "toolCalls": [
+              {
+                "name": "file.read",
+                "arguments": {
+                  "path": "src/task-writer.ts",
+                  "startLine": 1,
+                  "endLine": 40
+                }
+              }
+            ],
+            "verification": ["Use real repository files only"],
+            "risks": []
+          }`,
+          repoRoot
+        ),
+      /existing repository path/
+    );
+  });
+
+  it('allows create targets to point at new repository files when the target project is known', () => {
+    const plan = parseTaskPlan(
+      `{
+        "summary": "Create a new local helper file.",
+        "intendedFiles": [
+          { "path": "src/generated-task-writer.ts", "changeType": "create", "purpose": "new file" }
+        ],
+        "commands": [],
+        "verification": ["Review the create target"],
+        "risks": []
+      }`,
+      repoRoot
+    );
+
+    assert.equal(plan.intendedFiles[0]?.path, 'src/generated-task-writer.ts');
+    assert.equal(plan.intendedFiles[0]?.changeType, 'create');
+  });
+
   it('normalizes tool names and arguments aliases', () => {
     const parsed = parseStructuredExecutionResponse(`{
       "summary": "Read a focused file slice.",
@@ -304,6 +356,7 @@ describe('buildStructuredPlanPrompt', () => {
     assert.match(prompt, /Prefer command IDs from the command catalog/);
     assert.match(prompt, /npm\.run\.build => npm run build/);
     assert.match(prompt, /Never copy placeholder example paths/);
+    assert.match(prompt, /every non-create path must name a real repository file/i);
     assert.doesNotMatch(prompt, /src\/example\.ts/);
   });
 });

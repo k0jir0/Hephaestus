@@ -1,47 +1,47 @@
 {
-  "timestamp": "2026-06-03T16:49:19.845Z",
+  "timestamp": "2026-06-03T19:16:02.887Z",
   "totals": {
-    "tickets": 366,
-    "attempts": 318,
-    "completed": 83,
-    "blocked": 82,
+    "tickets": 367,
+    "attempts": 322,
+    "completed": 88,
+    "blocked": 77,
     "awaitingApproval": 0,
     "pending": 0,
     "inProgress": 0,
-    "cancelled": 23
+    "cancelled": 24
   },
   "throughput": {
-    "completedLast24h": 0,
-    "completedPerDay": 0
+    "completedLast24h": 5,
+    "completedPerDay": 5
   },
   "latencyMs": {
     "admissionToStart": {
       "p50": 465446,
       "p95": 3568419,
       "p99": 10039387,
-      "average": 1799728.005,
-      "sampleCount": 200
+      "average": 1790789.199,
+      "sampleCount": 201
     },
     "startToComplete": {
-      "p50": 19981,
-      "p95": 4190341,
-      "p99": 7292965,
-      "average": 419919.2,
-      "sampleCount": 70
+      "p50": 23200,
+      "p95": 477822762,
+      "p99": 483846983,
+      "average": 32332080.24,
+      "sampleCount": 75
     },
     "admissionToComplete": {
-      "p50": 468009,
-      "p95": 5508794,
-      "p99": 104750292,
-      "average": 2252265.286,
-      "sampleCount": 70
+      "p50": 504881,
+      "p95": 478420793,
+      "p99": 484203194,
+      "average": 34074318.72,
+      "sampleCount": 75
     }
   },
   "quality": {
     "retryRate": 0.172,
-    "blockRate": 0.224,
+    "blockRate": 0.21,
     "approvalRate": 0,
-    "completionRate": 0.227
+    "completionRate": 0.24
   },
   "policy": {
     "allowlistDenialCount": 0,
@@ -49,13 +49,13 @@
     "allowlistDenialTaxonomyTop": []
   },
   "efficiencyIndex": {
-    "score": 24.25,
+    "score": 24.148,
     "targetScore": 70,
     "status": "below-target",
     "components": {
-      "throughputScore": 0,
-      "latencyScore": 0.327,
-      "completionScore": 0.227,
+      "throughputScore": 0.313,
+      "latencyScore": 0.004,
+      "completionScore": 0.24,
       "retryPenaltyScore": 0.828
     },
     "attribution": {
@@ -102,11 +102,11 @@
     "sampleCount": 21,
     "alerts": [],
     "deltas": {
-      "completedPerDayDelta": 0,
-      "p95AdmissionToCompleteDeltaMs": 0,
-      "completionRateDelta": 0,
+      "completedPerDayDelta": 5,
+      "p95AdmissionToCompleteDeltaMs": 472911999,
+      "completionRateDelta": 0.013,
       "retryRateDelta": 0,
-      "efficiencyScoreDelta": 0
+      "efficiencyScoreDelta": -0.102
     }
   }
 }

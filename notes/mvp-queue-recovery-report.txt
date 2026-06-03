@@ -85,3 +85,28 @@ Live Queue Effect
 
 Remaining Known Actionable Slice
 - The next unresolved queue item in this recovery thread is ticket_41f8032599cd, a board-rendering/readability review ticket whose description points at non-owning path `src/task-writer.ts` while the live implementation surface is `src/task-board.ts`.
+
+Continuation Update: Path Hardening and Board Slice
+Date: 2026-06-03 (implementation start)
+- Hardened `src/plan-contract.ts` so structured plans now reject nonexistent repository paths for non-create `intendedFiles` entries and `file.read` tool calls when the target project is known.
+- Threaded target-project validation through `src/executor-planning.ts` and `src/executor.ts` so runtime plan parsing enforces the same repository-path rule used by the prompt contract.
+- Updated `src/task-board.ts` with clearer board section labels and queue guidance, then added focused rendering coverage in `test/task-board.test.ts`.
+
+Validation Snapshot
+- Focused tests passed: `node --test --import tsx test/plan-contract.test.ts`
+- Focused tests passed: `node --test --import tsx test/task-board.test.ts test/reliability.property.test.ts`
+- Combined focused tests passed: `node --test --import tsx test/plan-contract.test.ts test/task-board.test.ts test/reliability.property.test.ts`
+- Build passed: `npm run build`
+- Full suite passed: `npm test` (198 tests)
+
+Live Queue Effect
+- Closed ticket_41f8032599cd through the operator completion path after manually implementing and validating the board readability change.
+- Updated live status distribution after this closure:
+	- completed: 88
+	- cancelled: 24
+	- superseded: 177
+	- blocked: 77
+	- stale: 1
+
+Remaining Recovery Direction
+- The remaining queue-recovery work is now less about placeholder or missing-file defects and more about throughput restoration, retry/quarantine flow, and any remaining planner tickets that reference plausible-but-wrong owning paths.

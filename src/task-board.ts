@@ -19,23 +19,23 @@ const sectionMetadata: Record<
 > = {
   Queue: {
     status: 'pending',
-    placeholderComment: '<!-- Tasks are processed top-to-bottom. Add new tasks at the bottom. -->',
+    placeholderComment: '<!-- Pending tickets run top-to-bottom. Add new work at the end of this section. -->',
   },
   'In Progress': {
     status: 'in_progress',
-    placeholderComment: '<!-- Currently working on these tasks -->',
+    placeholderComment: '<!-- Tickets currently being executed, applied, or verified. -->',
   },
   Completed: {
     status: 'completed',
-    placeholderComment: '<!-- Finished tasks will be moved here -->',
+    placeholderComment: '<!-- Tickets that finished successfully appear here. -->',
   },
   Blocked: {
     status: 'blocked',
-    placeholderComment: '<!-- Tasks that need operator attention before they should be retried -->',
+    placeholderComment: '<!-- Tickets waiting on operator action or follow-up fixes before retry. -->',
   },
   Cancelled: {
     status: 'cancelled',
-    placeholderComment: '<!-- Tasks that were superseded, repeated, or explicitly cancelled -->',
+    placeholderComment: '<!-- Tickets intentionally stopped, superseded, or no longer needed. -->',
   },
 };
 
@@ -150,12 +150,12 @@ export function renderTaskBoard(tasks: ReadonlyArray<Pick<TaskTicket, 'id' | 'de
   return [
     '# Hephaestus Task Queue',
     '',
-    'Add tasks below. The agent processes the Queue section top-to-bottom.',
+    'Add tasks below. Hephaestus processes pending work from the Queue section top-to-bottom.',
     '',
     ...sections,
     '---',
     '',
-    '**Tip**: Use `- [ ]` for pending tasks. Hephaestus moves tasks between sections as it works.',
+    '**Tip**: Keep new work as `- [ ]` items in Queue. Hephaestus moves tickets between sections automatically.',
     '',
   ].join('\n');
 }

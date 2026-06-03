@@ -1,20 +1,20 @@
 # Hephaestus Task Queue
 
-Add tasks below. The agent processes the Queue section top-to-bottom.
+Add tasks below. Hephaestus processes pending work from the Queue section top-to-bottom.
 
 ## Queue
 
-<!-- Tasks are processed top-to-bottom. Add new tasks at the bottom. -->
+<!-- Pending tickets run top-to-bottom. Add new work at the end of this section. -->
 - (empty)
 
 ## In Progress
 
-<!-- Currently working on these tasks -->
+<!-- Tickets currently being executed, applied, or verified. -->
 - (empty)
 
 ## Completed
 
-<!-- Finished tasks will be moved here -->
+<!-- Tickets that finished successfully appear here. -->
 - [x] Add a ticket event query layer and markdown projection audit so operators can inspect per-ticket history and detect projection drift <!-- hephaestus-ticket:ticket_d57492f1f778 -->
 - [x] Implement stale ticket recovery with lease timestamps or heartbeats so abandoned in-progress work can be re-queued safely <!-- hephaestus-ticket:ticket_b2874842bbd5 -->
 - [x] Extend the structured plan contract with explicit edit operations, command risk levels, and approval requirements in a machine-runnable schema <!-- hephaestus-ticket:ticket_7c243c5d94ac -->
@@ -102,10 +102,11 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [x] Review side-effect outbox functionality in src/task-store.ts for idempotency guarantees, add duplicate-write guards, and verify with npm test with expected signal: side-effect persistence tests pass. <!-- hephaestus-ticket:ticket_c200fe3a9b2d -->
 - [x] Implement test in test/tickets.test.ts for create acceptance on bounded descriptions with verification signals and verify with npm test with expected signal: template acceptance asserted. <!-- hephaestus-ticket:ticket_31ff76245f39 -->
 - [x] Implement test in test/tickets.test.ts for create template rejection on broad descriptions and verify with npm test with expected signal: rejection messaging asserted. <!-- hephaestus-ticket:ticket_6c5d6974134e -->
+- [x] Review board rendering design in src/task-writer.ts for section readability, update formatting labels only, and verify with npm test with expected signal: board projection tests still pass. <!-- hephaestus-ticket:ticket_41f8032599cd -->
 
 ## Blocked
 
-<!-- Tasks that need operator attention before they should be retried -->
+<!-- Tickets waiting on operator action or follow-up fixes before retry. -->
 - [ ] Optimize board projection writes in src/task-store.ts to avoid unnecessary file writes when unchanged, then verify with npm test with expected signal: projection tests pass. <!-- hephaestus-ticket:ticket_e246f90912ad -->
 - [ ] Optimize markdown report writing in src/efficiency-weekly-report.ts with buffered assembly, then verify with npm test with expected signal: weekly report tests pass. <!-- hephaestus-ticket:ticket_7654eba5413a -->
 - [ ] Refine src/tickets.ts by removing dead helper logic no longer used by command paths, then verify with npm test with expected signal: tickets tests pass. <!-- hephaestus-ticket:ticket_2ef4e46451f0 -->
@@ -125,7 +126,6 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [ ] Edit src/runtime.ts to improve undeclared-file plan-binding error text by appending a short declared-files preview and actionable next step; verify with npm test -- test/runtime.test.ts; expected signal: tests pass and error message includes declared plan files. <!-- hephaestus-ticket:ticket_ca81ce8e9292 -->
 - [ ] Edit src/tool-runtime.ts to improve allowlist denial diagnostics by including normalized command-shape hint text in the denial message; verify with npm test -- test/runtime.test.ts; expected signal: tests pass and denial text contains normalized hint. <!-- hephaestus-ticket:ticket_34ce62898a97 -->
 - [ ] Review telemetry generation boundary in src/efficiency-metrics.ts and src/upgrade-telemetry.ts, align metric ownership comments, and verify with npm test with expected signal: telemetry tests remain green. <!-- hephaestus-ticket:ticket_d9d4d61b1ec3 -->
-- [ ] Review board rendering design in src/task-writer.ts for section readability, update formatting labels only, and verify with npm test with expected signal: board projection tests still pass. <!-- hephaestus-ticket:ticket_41f8032599cd -->
 - [ ] Review approval lifecycle wording in src/runtime.ts artifacts for operator readability, refine message templates, and verify with npm test with expected signal: approval flow tests pass unchanged. <!-- hephaestus-ticket:ticket_a4fdef5963e0 -->
 - [ ] Review telemetry report structure in src/upgrade-telemetry.ts for decision-first narrative order, adjust report section ordering, and verify with npm test with expected signal: telemetry snapshot tests pass. <!-- hephaestus-ticket:ticket_b2e057f90509 -->
 - [ ] Review retry admission functionality in src/runtime.ts for bounded retry escalation behavior, tighten conditions, and verify with npm test with expected signal: retry tests pass without increased flakiness. <!-- hephaestus-ticket:ticket_ee70ac7779b8 -->
@@ -188,7 +188,7 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 
 ## Cancelled
 
-<!-- Tasks that were superseded, repeated, or explicitly cancelled -->
+<!-- Tickets intentionally stopped, superseded, or no longer needed. -->
 - [x] retry ticket_bce8692f7c69 <!-- hephaestus-ticket:ticket_9dc3e4b392da -->
 - [x] Self-audit: Analyze repository and generate prioritized improvement tickets. For each low-risk item (<=1 file, <=20 lines changed), implement the change, run tests, and verify. For higher-risk changes request approval. Commit each change separately and update TASKS.md with ticket references. Continue iteratively until no more low-risk improvements remain. <!-- hephaestus-ticket:ticket_927126d736f1 -->
 - [x] Self-audit [medium/tooling]: Add a stop_all script that terminates daemon and UI processes from PID files <!-- hephaestus-ticket:ticket_8652a997cf85 -->
@@ -393,4 +393,4 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 
 ---
 
-**Tip**: Use `- [ ]` for pending tasks. Hephaestus moves tasks between sections as it works.
+**Tip**: Keep new work as `- [ ]` items in Queue. Hephaestus moves tickets between sections automatically.

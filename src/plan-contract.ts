@@ -403,15 +403,15 @@ function parseToolCall(value: unknown, index: number, targetProject?: string): T
   }
 
   if (finalName === 'file.read' && typeof argumentsValue.path === 'string') {
-    argumentsValue.path = assertNoPlaceholderPath(
+    const validatedPath = assertExistingRepositoryPath(
+      targetProject,
+      assertNoPlaceholderPath(
       requireString(argumentsValue.path, `toolCalls[${index}].arguments.path`),
       `toolCalls[${index}].arguments.path`
-    );
-    argumentsValue.path = assertExistingRepositoryPath(
-      targetProject,
-      argumentsValue.path,
+      ),
       `toolCalls[${index}].arguments.path`
     );
+    argumentsValue.path = validatedPath;
   }
 
   return {

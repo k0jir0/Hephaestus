@@ -12,8 +12,8 @@ This file stores the agent's long-term context and memory.
 ## Current State
 
 - **Status**: Blocked
-- **Current Task**: Implement test in test/tickets.test.ts for create template rejection on broad descriptions and verify with npm test with expected signal: rejection messaging asserted.
-- **Last Activity**: 2026-06-03T17:04:55.537Z
+- **Current Task**: Review board rendering design in src/task-writer.ts for section readability, update formatting labels only, and verify with npm test with expected signal: board projection tests still pass.
+- **Last Activity**: 2026-06-03T18:53:48.612Z
 
 ## Working Context
 
@@ -3495,6 +3495,7 @@ ok 21 - TaskWatcher
 | 2026-06-03 | Implement test in test/tickets.test.ts for create template rejection on broad descriptions and verify with npm test with expected signal: rejection messaging asserted. | file.read failed.: ENOENT: no such file or directory, open 'C:\Users\ryanv\Desktop\MCGILL\McGillSoftware\Hephaestus\test\tickets.test.ts' |
 | 2026-06-03 | Implement bounded create-command test in test/tickets.test.ts and verify with npm test with expected signal: create test exits 0. | No governed mutation evidence was recorded for mutable intended files (test/tickets.test.ts). Completion requires at least one applied mutation in declared targets. |
 | 2026-06-03 | Implement test in test/tickets.test.ts for create template rejection on broad descriptions and verify with npm test with expected signal: rejection messaging asserted. | No governed mutation evidence was recorded for mutable intended files (test/tickets.test.ts). Completion requires at least one applied mutation in declared targets. |
+| 2026-06-03 | Review board rendering design in src/task-writer.ts for section readability, update formatting labels only, and verify with npm test with expected signal: board projection tests still pass. | No governed mutation evidence was recorded for mutable intended files (src/task-board.ts). Completion requires at least one applied mutation in declared targets. |
 
 ## Preferences
 
@@ -3968,6 +3969,7 @@ ok 21 - TaskWatcher
 - [2026-06-03T17:00:33.826Z] Blocked: Implement bounded create-command test in test/tickets.test.ts and verify with npm test with expected signal: create test exits 0.
 - [2026-06-03T17:04:17.198Z] Single-pass run found no pending tasks
 - [2026-06-03T17:04:55.523Z] Blocked: Implement test in test/tickets.test.ts for create template rejection on broad descriptions and verify with npm test with expected signal: rejection messaging asserted.
+- [2026-06-03T18:53:48.572Z] Blocked: Review board rendering design in src/task-writer.ts for section readability, update formatting labels only, and verify with npm test with expected signal: board projection tests still pass.
 
 ---
 
