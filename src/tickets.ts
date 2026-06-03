@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import { TicketStoreRepository } from './task-store.js';
 import { SelfAuditSeeder } from './self-audit.js';
-import { computeOperationalSLOMetrics, formatOperationalSLOMetrics } from './slo-metrics.js';
+import { computeBackendReliabilityMetrics, computeOperationalSLOMetrics, formatOperationalSLOMetrics } from './slo-metrics.js';
 import { runTicketAutopilot } from './ticket-autopilot.js';
 import { getTicketAutopilotRetryQuarantineReason } from './domain/scheduling/ticket-autopilot-policy.js';
 import { exportPatchBundle } from './delivery.js';
@@ -37,7 +37,7 @@ Usage:
   npm run tickets -- list [--status <status>]
   npm run tickets -- show <ticket-id>
   npm run tickets -- retry <ticket-id> [--amend <description>]
-  npm run tickets -- autopilot [--include-cancelled] [--no-retry-quarantine] [--no-self-audit] [--self-audit-limit <count>] [--max-attempts <count>] [--wave-size <count>] [--max-active <count>] [--min-completion-rate <ratio>] [--max-superseded-rate <ratio>] [--max-blocked <count>] [--max-allowlist-denial-rate <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>] [--enforce-d2] [--max-d2-count-mismatches <count>] [--max-d2-legacy-only <count>] [--max-d2-domain-only <count>] [--max-d2-domain-deficit <count>] [--max-d2-missing-legacy-link <count>] [--min-d2-replay-correlation-coverage <ratio>] [--dry-run]
+  npm run tickets -- autopilot [--include-cancelled] [--no-retry-quarantine] [--no-self-audit] [--self-audit-limit <count>] [--max-attempts <count>] [--wave-size <count>] [--max-active <count>] [--min-completion-rate <ratio>] [--max-superseded-rate <ratio>] [--max-blocked <count>] [--blocked-window-days <days>] [--max-allowlist-denial-rate <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>] [--enforce-d2] [--max-d2-count-mismatches <count>] [--max-d2-legacy-only <count>] [--max-d2-domain-only <count>] [--max-d2-domain-deficit <count>] [--max-d2-missing-legacy-link <count>] [--min-d2-replay-correlation-coverage <ratio>] [--dry-run]
   npm run tickets -- approve <ticket-id> <reviewer> [reason]
   npm run tickets -- reject <ticket-id> <reviewer> [reason]
   npm run tickets -- resume <ticket-id>
@@ -55,7 +55,7 @@ Usage:
   npm run tickets -- metrics [--source-grounding]
   npm run tickets -- audit-source-evidence [--max-drifted <count>] [--max-missing-evidence <count>]
   npm run tickets -- verify-d2 [--max-count-mismatches <count>] [--max-legacy-only <count>] [--max-domain-only <count>] [--max-domain-deficit <count>] [--max-missing-legacy-link <count>] [--min-replay-correlation-coverage <ratio>]
-  npm run tickets -- review-wave [--min-efficiency-score <score>] [--max-blocked <count>] [--max-p95-ms <milliseconds>] [--max-allowlist-denial-rate <ratio>] [--min-backend-success-ratio <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>] [--enforce-d2] [--max-d2-count-mismatches <count>] [--max-d2-legacy-only <count>] [--max-d2-domain-only <count>] [--max-d2-domain-deficit <count>] [--max-d2-missing-legacy-link <count>] [--min-d2-replay-correlation-coverage <ratio>]
+  npm run tickets -- review-wave [--min-efficiency-score <score>] [--max-blocked <count>] [--blocked-window-days <days>] [--max-p95-ms <milliseconds>] [--max-allowlist-denial-rate <ratio>] [--min-backend-success-ratio <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>] [--enforce-d2] [--max-d2-count-mismatches <count>] [--max-d2-legacy-only <count>] [--max-d2-domain-only <count>] [--max-d2-domain-deficit <count>] [--max-d2-missing-legacy-link <count>] [--min-d2-replay-correlation-coverage <ratio>]
   npm run tickets -- render-board
   npm run tickets -- sync-board
 
@@ -1251,9 +1251,6 @@ async function main(): Promise<void> {
 
         const tickets = await repository.listTickets('all');
         const attemptsByTicket = await repository.listAttemptsForTickets(tickets.map((ticket) => ticket.id));
-        const lastBoardSyncAt = await repository.getLatestEventTimestamp('board-synced');
-        const sloMetrics = computeOperationalSLOMetrics({ tickets, attemptsByTicket, lastBoardSyncAt });
-
         const failures: string[] = [];
 
         const efficiencyScore = Number(efficiency.efficiencyIndex?.score ?? 0);
@@ -1264,6 +1261,10 @@ async function main(): Promise<void> {
         const blockedWindowMs = blockedWindowDays ? blockedWindowDays * 24 * 60 * 60 * 1000 : undefined;
         const blockedCount = tickets.filter((ticket) => {
           if (ticket.status !== 'blocked') {
+            return false;
+          }
+
+          if (getTicketAutopilotRetryQuarantineReason(ticket) !== undefined) {
             return false;
           }
 
@@ -1324,8 +1325,14 @@ async function main(): Promise<void> {
           );
         }
 
-        const backendReliabilityEntries = Object.entries(sloMetrics.backendReliability);
-        for (const [backend, metrics] of backendReliabilityEntries) {
+        const actionableBackendReliabilityEntries = Object.entries(
+          computeBackendReliabilityMetrics({
+            tickets,
+            attemptsByTicket,
+            includeTicket: (ticket) => getTicketAutopilotRetryQuarantineReason(ticket) === undefined,
+          })
+        );
+        for (const [backend, metrics] of actionableBackendReliabilityEntries) {
           if (metrics.totalAttempts < 10) {
             continue;
           }
@@ -1392,11 +1399,11 @@ async function main(): Promise<void> {
             `D2 missing legacy link rows: ${d2Evaluation.missingLegacyLink} (threshold ${maxD2MissingLegacyLink})`
           );
         }
-        if (backendReliabilityEntries.length === 0) {
+        if (actionableBackendReliabilityEntries.length === 0) {
           console.log('Backend reliability: unavailable (no attributed attempts)');
         } else {
           console.log(
-            `Backend reliability: ${backendReliabilityEntries
+            `Backend reliability: ${actionableBackendReliabilityEntries
               .map(([backend, metrics]) => `${backend}=${metrics.completedAttempts}/${metrics.totalAttempts} (${metrics.successRatio.toFixed(2)})`)
               .join(', ')}`
           );

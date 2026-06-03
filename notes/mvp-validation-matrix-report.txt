@@ -1,0 +1,45 @@
+Hephaestus MVP Validation Matrix Report
+Date: 2026-06-03
+
+Runtime and Build Validation
+- npm run validate:config -> PASS earlier in session
+- npm run preflight -> PASS earlier in session
+- npm run build -> PASS
+
+Focused Regression Validation
+- node --test --import tsx test/task-store.test.ts -> PASS (20 tests)
+- node --test --import tsx test/slo-metrics.test.ts test/ticket-autopilot-policy.test.ts -> PASS (13 tests)
+
+Full Regression Validation
+- npm test -> PASS
+- Result: 187 tests, 0 failures
+
+Metrics and Integrity Validation
+- npm run metrics:efficiency -> PASS
+- npm run metrics:efficiency:weekly -> PASS
+- npm run metrics:source-grounding:audit -> PASS
+- npm run metrics:d2:closure -> PASS
+- Source grounding coverage: 1.0
+- D2 replay correlation coverage: 0.247214
+
+Operational Wave Validation
+- Stage A lean pilot -> GO earlier in session
+- Stage B strict run stage-b-checkpoint-2026-06-03T123600 -> FAIL
+  Reason: blocked-count-high 82>40 plus review-wave NO-GO
+- Stage B strict run stage-b-checkpoint-2026-06-03T123719 -> FAIL
+  Reason: review-wave NO-GO due backend reliability 0.33<0.45
+- Stage B strict run stage-b-checkpoint-2026-06-03T124145 -> PASS window
+  Result: review-wave GO, autopilot pausedByGates=false, hardFail.pass=true, consecutivePassWindows=1/2
+- Stage B strict run stage-b-checkpoint-2026-06-03T124918 -> PASS window
+  Result: review-wave GO, autopilot pausedByGates=false, hardFail.pass=true, consecutivePassWindows=2/2, promotionReady=true
+
+Current Verified Threshold State
+- Blocked tickets within 7d: 5 (threshold 40)
+- Backend reliability: ollama=55/95 (0.58), threshold 0.45
+- Admission-to-complete p95: 5508794 ms, threshold 6000000
+- Allowlist denial rate: 0.0, threshold 0.08
+- D2 replay correlation coverage: 0.247, threshold 0.2
+
+Outstanding Validation Debt
+- Stage B promotion-ready condition is now satisfied.
+- The broader MVP plan still requires sustained daily validation and materially better throughput/completion metrics than the current snapshot provides.

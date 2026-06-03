@@ -79,6 +79,15 @@ const normalizedToolNameAliases = new Map<string, EngineeringToolName>(
   Object.entries(toolNameAliases).map(([key, value]) => [normalizeLookupKey(key), value])
 );
 
+const placeholderPathPatterns: readonly RegExp[] = [
+  /^src\/example\.[A-Za-z0-9]+$/i,
+  /(?:^|\/)example\.[A-Za-z0-9]+$/i,
+  /^<.+>$/,
+  /replace[_-]?with/i,
+  /path\/from\/task-context/i,
+  /relative file path from the task context/i,
+];
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -89,6 +98,16 @@ function requireString(value: unknown, field: string): string {
   }
 
   return value.trim();
+}
+
+function assertNoPlaceholderPath(pathValue: string, field: string): string {
+  if (placeholderPathPatterns.some((pattern) => pattern.test(pathValue))) {
+    throw new Error(
+      `Field "${field}" must reference a real repository path, not a placeholder example value.`
+    );
+  }
+
+  return pathValue;
 }
 
 function requireStringFromKeys(
@@ -243,7 +262,10 @@ function parsePlannedFileChange(value: unknown, index: number): PlannedFileChang
     throw new Error(`intendedFiles[${index}] must be an object.`);
   }
 
-  const pathValue = requireString(value.path, `intendedFiles[${index}].path`);
+  const pathValue = assertNoPlaceholderPath(
+    requireString(value.path, `intendedFiles[${index}].path`),
+    `intendedFiles[${index}].path`
+  );
 
   const changeType = normalizeChangeType(
     requireStringFromKeys(value, ['changeType', 'type', 'action'], `intendedFiles[${index}].changeType`),
@@ -336,6 +358,13 @@ function parseToolCall(value: unknown, index: number): ToolCall {
     throw new Error(`toolCalls[${index}].arguments must be an object.`);
   }
 
+  if (finalName === 'file.read' && typeof argumentsValue.path === 'string') {
+    argumentsValue.path = assertNoPlaceholderPath(
+      requireString(argumentsValue.path, `toolCalls[${index}].arguments.path`),
+      `toolCalls[${index}].arguments.path`
+    );
+  }
+
   return {
     name: finalName,
     arguments: argumentsValue,
@@ -378,13 +407,13 @@ export function buildStructuredPlanPrompt(task: Task, context: string | undefine
     '{',
     '  "summary": "one-sentence summary of the planned work",',
     '  "intendedFiles": [',
-    '    { "path": "src/example.ts", "changeType": "update", "purpose": "why this file matters" }',
+    '    { "path": "<relative file path from the task context>", "changeType": "update", "purpose": "why this file matters" }',
     '  ],',
     '  "commands": [',
     '    { "commandId": "npm.test", "command": "npm test", "purpose": "what this command validates", "expectedOutcome": "what success looks like" }',
     '  ],',
     '  "toolCalls": [',
-    '    { "name": "file.read", "arguments": { "path": "src/example.ts", "startLine": 1, "endLine": 40 } }',
+    '    { "name": "file.read", "arguments": { "path": "<relative file path from the task context>", "startLine": 1, "endLine": 40 } }',
     '  ],',
     '  "verification": ["at least one verification step"],',
     '  "risks": ["optional risk or dependency notes"]',
@@ -394,6 +423,7 @@ export function buildStructuredPlanPrompt(task: Task, context: string | undefine
     `- ${supportedTaskEnvelopeSummary()}`,
     '- Return JSON only. Do not wrap it in markdown unless the client forces it.',
     '- Use relative file paths when possible.',
+    '- Never copy placeholder example paths; every path must name a real repository file relevant to the task.',
     '- Keep commands limited to the smallest useful set.',
     '- Prefer command IDs from the command catalog when possible and include commandId with each command.',
     `- Command catalog IDs: ${commandCatalogSummary}.`,

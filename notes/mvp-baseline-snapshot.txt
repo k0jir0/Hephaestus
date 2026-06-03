@@ -1,0 +1,58 @@
+Hephaestus MVP Baseline Snapshot
+Date: 2026-06-03
+
+Initial Strict Stage B Snapshot Before Remediation
+Run ID: stage-b-checkpoint-2026-06-03T123600
+- Review-wave decision: NO-GO
+- Autopilot gate failures: blocked-count-high 82>40
+- Hard-fail reasons: review-wave-NO-GO, autopilot-gate-blocked-count-high:82>40
+- Efficiency score: 24.25
+- Throughput/day: 0
+- Completion rate: 0.227
+- Retry rate: 0.172
+- Admission-to-complete p95: 5508794 ms
+- Source grounding coverage: 1.0
+- D2 closure: PASS earlier in session
+
+Intermediate Strict Snapshot After Blocked-Gate Remediation
+Run ID: stage-b-checkpoint-2026-06-03T123719
+- Review-wave decision: NO-GO
+- Autopilot paused by gates: false
+- Remaining hard-fail reason: review-wave-NO-GO
+- Backend reliability at this point still used full attributed attempt history: ollama=55/167 (0.33)
+
+Current Strict Snapshot After Review-Wave Backend Reliability Remediation
+Run ID: stage-b-checkpoint-2026-06-03T124145
+- Review-wave decision: GO
+- Autopilot paused by gates: false
+- Hard-fail pass: true
+- Consecutive pass windows: 1/2
+- Promotion ready: false
+- Blocked tickets within 7d, actionable only: 5
+- Backend reliability on actionable attempts: ollama=55/95 (0.58)
+- Efficiency score: 24.25
+- Throughput/day: 0
+- Completion rate: 0.227
+- Admission-to-complete p95: 5508794 ms
+- Source grounding coverage: 1.0
+- D2 replay correlation coverage: 0.247
+
+Interpretation
+- Strict gate restoration was achieved by correcting health accounting, not by restoring throughput.
+- The queue is no longer blocked by lifetime quarantined backlog or policy-boundary attempts.
+- MVP completion is still blocked on sustained pass windows and materially better throughput/completion results.
+
+Latest Strict Promotion Snapshot
+Run ID: stage-b-checkpoint-2026-06-03T124918
+- Review-wave decision: GO
+- Autopilot paused by gates: false
+- Hard-fail pass: true
+- Consecutive pass windows: 2/2
+- Promotion ready: true
+- Backend reliability on actionable attempts: ollama=55/95 (0.58)
+- Efficiency score: 24.25
+- Throughput/day: 0
+
+Updated Interpretation
+- Strict Stage B promotion readiness is now achieved.
+- Overall MVP completion is still blocked by low throughput and low completion rate rather than by strict control-plane gate accounting.

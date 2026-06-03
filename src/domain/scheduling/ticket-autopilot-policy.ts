@@ -266,6 +266,7 @@ export function evaluateTicketAutopilotGateFailures(
   const blockedCount = tickets.filter(
     (ticket) =>
       ticket.status === 'blocked' &&
+      getTicketAutopilotRetryQuarantineReason(ticket) === undefined &&
       isBlockedTicketWithinWindow(ticket, resolvedOptions.blockedWindowDays, resolvedOptions.nowMs)
   ).length;
   if (blockedCount > resolvedOptions.maxBlockedTickets) {

@@ -2038,16 +2038,25 @@ export class TicketStoreRepository
       throw new Error(`Side effect not found: ${id}`);
     }
 
+    if (row.status !== 'pending') {
+      return;
+    }
+
     const processedAt = new Date().toISOString();
-    this.getDatabase()
+    const result = this.getDatabase()
       .prepare(
         `update task_side_effects
          set status = 'completed',
              processed_at = ?,
              last_error = null
-         where id = ?`
+         where id = ?
+           and status = 'pending'`
       )
-      .run(processedAt, id);
+      .run(processedAt, id) as { changes?: number };
+    if ((result.changes ?? 0) === 0) {
+      return;
+    }
+
     this.recordEvent({
       ticketId: row.ticket_id,
       type: 'side-effect-completed',
@@ -2076,16 +2085,25 @@ export class TicketStoreRepository
       throw new Error(`Side effect not found: ${id}`);
     }
 
+    if (row.status !== 'pending') {
+      return;
+    }
+
     const processedAt = new Date().toISOString();
-    this.getDatabase()
+    const result = this.getDatabase()
       .prepare(
         `update task_side_effects
          set status = 'failed',
              processed_at = ?,
              last_error = ?
-         where id = ?`
+         where id = ?
+           and status = 'pending'`
       )
-      .run(processedAt, error, id);
+      .run(processedAt, error, id) as { changes?: number };
+    if ((result.changes ?? 0) === 0) {
+      return;
+    }
+
     this.recordEvent({
       ticketId: row.ticket_id,
       type: 'side-effect-failed',

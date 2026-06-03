@@ -196,6 +196,32 @@ describe('parseTaskPlan', () => {
     assert.equal(typeof parsed.toolCalls[0]?.arguments.patch, 'string');
   });
 
+  it('rejects placeholder example paths in intended files and file-read tool calls', () => {
+    assert.throws(
+      () =>
+        parseStructuredExecutionResponse(`{
+          "summary": "Avoid placeholder file paths.",
+          "intendedFiles": [
+            { "path": "src/example.ts", "changeType": "update", "purpose": "placeholder" }
+          ],
+          "commands": [],
+          "toolCalls": [
+            {
+              "name": "file.read",
+              "arguments": {
+                "path": "src/example.ts",
+                "startLine": 1,
+                "endLine": 40
+              }
+            }
+          ],
+          "verification": ["Use real repository files only"],
+          "risks": []
+        }`),
+      /real repository path/
+    );
+  });
+
   it('normalizes tool names and arguments aliases', () => {
     const parsed = parseStructuredExecutionResponse(`{
       "summary": "Read a focused file slice.",
@@ -277,5 +303,7 @@ describe('buildStructuredPlanPrompt', () => {
     assert.match(prompt, /Use command.run only for safe verification commands/);
     assert.match(prompt, /Prefer command IDs from the command catalog/);
     assert.match(prompt, /npm\.run\.build => npm run build/);
+    assert.match(prompt, /Never copy placeholder example paths/);
+    assert.doesNotMatch(prompt, /src\/example\.ts/);
   });
 });

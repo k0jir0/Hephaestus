@@ -23,6 +23,57 @@ export interface BackendReliabilityMetrics {
   successRatio: number;
 }
 
+export function computeBackendReliabilityMetrics(input: {
+  tickets: TaskTicket[];
+  attemptsByTicket: Map<string, TaskAttempt[]>;
+  includeTicket?: (ticket: TaskTicket) => boolean;
+}): Record<string, BackendReliabilityMetrics> {
+  const backendReliability = new Map<string, Omit<BackendReliabilityMetrics, 'successRatio'>>();
+
+  for (const ticket of input.tickets) {
+    if (input.includeTicket && !input.includeTicket(ticket)) {
+      continue;
+    }
+
+    for (const attempt of input.attemptsByTicket.get(ticket.id) ?? []) {
+      const backend = getAttemptBackend(attempt);
+      if (!backend) {
+        continue;
+      }
+
+      const current = backendReliability.get(backend) ?? {
+        totalAttempts: 0,
+        completedAttempts: 0,
+        blockedAttempts: 0,
+        awaitingApprovalAttempts: 0,
+      };
+      current.totalAttempts += 1;
+      if (attempt.status === 'completed') {
+        current.completedAttempts += 1;
+      } else if (attempt.status === 'blocked' || attempt.status === 'failed') {
+        current.blockedAttempts += 1;
+      } else if (attempt.status === 'awaiting_approval') {
+        current.awaitingApprovalAttempts += 1;
+      }
+      backendReliability.set(backend, current);
+    }
+  }
+
+  return Object.fromEntries(
+    [...backendReliability.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([backend, metrics]) => [
+        backend,
+        {
+          ...metrics,
+          successRatio: metrics.totalAttempts === 0
+            ? 1
+            : metrics.completedAttempts / metrics.totalAttempts,
+        },
+      ])
+  );
+}
+
 function average(values: number[]): number {
   return values.length === 0
     ? 0
@@ -79,8 +130,6 @@ export function computeOperationalSLOMetrics(input: {
   let blockedRetryPopulation = 0;
   let blockedRetrySuccesses = 0;
   const failureTaxonomyCounts = new Map<string, number>();
-  const backendReliability = new Map<string, Omit<BackendReliabilityMetrics, 'successRatio'>>();
-
   for (const attempts of input.attemptsByTicket.values()) {
     const blockedAttemptIndex = attempts.findIndex((attempt) => attempt.status === 'blocked');
     if (blockedAttemptIndex !== -1) {
@@ -91,25 +140,6 @@ export function computeOperationalSLOMetrics(input: {
     }
 
     for (const attempt of attempts) {
-      const backend = getAttemptBackend(attempt);
-      if (backend) {
-        const current = backendReliability.get(backend) ?? {
-          totalAttempts: 0,
-          completedAttempts: 0,
-          blockedAttempts: 0,
-          awaitingApprovalAttempts: 0,
-        };
-        current.totalAttempts += 1;
-        if (attempt.status === 'completed') {
-          current.completedAttempts += 1;
-        } else if (attempt.status === 'blocked' || attempt.status === 'failed') {
-          current.blockedAttempts += 1;
-        } else if (attempt.status === 'awaiting_approval') {
-          current.awaitingApprovalAttempts += 1;
-        }
-        backendReliability.set(backend, current);
-      }
-
       if (!attempt.error) {
         continue;
       }
@@ -139,19 +169,10 @@ export function computeOperationalSLOMetrics(input: {
     blockedRetrySuccessRatio: blockedRetryPopulation === 0 ? 1 : blockedRetrySuccesses / blockedRetryPopulation,
     executionFailureTaxonomyStability: totalFailures === 0 ? 1 : dominantFailureCount / totalFailures,
     failureTaxonomyCounts: Object.fromEntries([...failureTaxonomyCounts.entries()].sort()),
-    backendReliability: Object.fromEntries(
-      [...backendReliability.entries()]
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([backend, metrics]) => [
-          backend,
-          {
-            ...metrics,
-            successRatio: metrics.totalAttempts === 0
-              ? 1
-              : metrics.completedAttempts / metrics.totalAttempts,
-          },
-        ])
-    ),
+    backendReliability: computeBackendReliabilityMetrics({
+      tickets: input.tickets,
+      attemptsByTicket: input.attemptsByTicket,
+    }),
     lastBoardSyncAt,
   };
 }

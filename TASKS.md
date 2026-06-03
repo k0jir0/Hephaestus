@@ -129,7 +129,6 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [ ] Review policy denial functionality in src/runtime.ts reasonCode mapping, ensure actionable diagnostics are emitted, and verify with npm test with expected signal: denial taxonomy tests pass. <!-- hephaestus-ticket:ticket_3c85e93f8fa6 -->
 - [ ] Review side-effect outbox functionality in src/task-store.ts for idempotency guarantees, add duplicate-write guards, and verify with npm test with expected signal: side-effect persistence tests pass. <!-- hephaestus-ticket:ticket_c200fe3a9b2d -->
 - [ ] Review autopilot queue functionality in src/ticket-autopilot.ts for idle seeding gates, refine guard clauses, and verify with npm test with expected signal: autopilot tests pass. <!-- hephaestus-ticket:ticket_3a0def8bbbc9 -->
-- [ ] Implement test in test/tickets.test.ts for create template rejection on broad descriptions and verify with npm test with expected signal: rejection messaging asserted. <!-- hephaestus-ticket:ticket_6c5d6974134e -->
 - [ ] Implement test in test/tickets.test.ts for create acceptance on bounded descriptions with verification signals and verify with npm test with expected signal: template acceptance asserted. <!-- hephaestus-ticket:ticket_31ff76245f39 -->
 - [ ] Review src/task-store.ts for repeated timestamp formatting logic, extract shared helper in local module scope, and verify with npm test with expected signal: repository tests pass. <!-- hephaestus-ticket:ticket_d6335457f892 -->
 - [ ] Review src/task-lifecycle.ts for unreachable branch patterns, remove dead branch and verify with npm test with expected signal: lifecycle tests stay green. <!-- hephaestus-ticket:ticket_9ed4bbcb571f -->
@@ -185,6 +184,8 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-048 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_03cab159bde5 -->
 - [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-049 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_c88af06c23eb -->
 - [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-050 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_83c993d036f6 -->
+- [ ] Implement bounded create-command test in test/tickets.test.ts and verify with npm test with expected signal: create test exits 0. <!-- hephaestus-ticket:ticket_38c4e96d0cb3 -->
+- [ ] Implement test in test/tickets.test.ts for create template rejection on broad descriptions and verify with npm test with expected signal: rejection messaging asserted. <!-- hephaestus-ticket:ticket_6c5d6974134e -->
 
 ## Cancelled
 

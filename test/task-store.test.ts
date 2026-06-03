@@ -685,6 +685,109 @@ describe('TicketStoreRepository', () => {
     await secondRepository.stop();
   });
 
+  it('does not recover fresh active tickets before the stale recovery threshold elapses', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const tasksFile = path.join(rootDir, 'TASKS.md');
+    const ticketStoreFile = path.join(rootDir, '.hephaestus-tickets.db');
+    const firstRepository = new TicketStoreRepository({
+      tasksFile,
+      storeFile: ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+      staleRecoveryMinAgeMs: 60_000,
+    });
+
+    const ticket = await firstRepository.createTicket('Leave fresh active work alone');
+    await firstRepository.markTaskInProgress(ticket);
+    await firstRepository.stop();
+
+    const secondRepository = new TicketStoreRepository({
+      tasksFile,
+      storeFile: ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+      staleRecoveryMinAgeMs: 60_000,
+    });
+
+    const preserved = await secondRepository.getTicket(ticket.id);
+    const attempts = await secondRepository.listAttempts(ticket.id);
+    const events = await secondRepository.listEvents(ticket.id);
+
+    assert.equal(preserved?.status, 'in_progress');
+    assert.ok(preserved?.currentAttemptId);
+    assert.equal(attempts.length, 1);
+    assert.equal(attempts[0]?.status, 'in_progress');
+    assert.equal(events.some((event) => event.type === 'stale-recovered'), false);
+
+    await secondRepository.stop();
+  });
+
+  it('clears orphaned active attempt metadata on terminal tickets without changing terminal status', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const tasksFile = path.join(rootDir, 'TASKS.md');
+    const ticketStoreFile = path.join(rootDir, '.hephaestus-tickets.db');
+    const firstRepository = new TicketStoreRepository({
+      tasksFile,
+      storeFile: ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+      staleRecoveryMinAgeMs: 0,
+    });
+
+    const ticket = await firstRepository.createTicket('Recover orphaned terminal attempt metadata');
+    await firstRepository.markTaskInProgress(ticket);
+    const attemptId = (await firstRepository.listAttempts(ticket.id))[0]?.id;
+    assert.ok(attemptId);
+
+    const database = (firstRepository as unknown as { getDatabase(): any }).getDatabase();
+    const terminalTimestamp = '2026-05-27T00:00:00.000Z';
+    database
+      .prepare(
+        `update tickets
+         set status = 'completed',
+             updated_at = ?,
+             completed_at = ?,
+             current_attempt_id = ?,
+             error = null
+         where id = ?`
+      )
+      .run(terminalTimestamp, terminalTimestamp, attemptId, ticket.id);
+    await firstRepository.stop();
+
+    const secondRepository = new TicketStoreRepository({
+      tasksFile,
+      storeFile: ticketStoreFile,
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+      staleRecoveryMinAgeMs: 0,
+    });
+
+    const recovered = await secondRepository.getTicket(ticket.id);
+    const attempts = await secondRepository.listAttempts(ticket.id);
+    const events = await secondRepository.listEvents(ticket.id);
+
+    assert.equal(recovered?.status, 'completed');
+    assert.equal(recovered?.currentAttemptId, undefined);
+    assert.equal(attempts.length, 1);
+    assert.equal(attempts[0]?.status, 'stale');
+    assert.ok(attempts[0]?.endedAt instanceof Date);
+    assert.ok(
+      events.some(
+        (event) =>
+          event.type === 'stale-recovered' &&
+          /Cleared orphaned active attempt metadata without changing terminal ticket status\./.test(
+            event.details ?? ''
+          )
+      )
+    );
+
+    await secondRepository.stop();
+  });
+
   it('rediscovers a pending ticket after the redispatch interval when admission leaves it queued', async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
     tempDirs.push(rootDir);
@@ -876,6 +979,53 @@ describe('TicketStoreRepository', () => {
     assert.equal(completedEvent?.evidence?.status, 'completed');
     assert.equal(failedEvent?.evidence?.status, 'failed');
     assert.equal(failedEvent?.evidence?.error, 'disk full');
+
+    await repository.stop();
+  });
+
+  it('ignores duplicate terminal writes for already settled side effects', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'Hephaestus-task-store-'));
+    tempDirs.push(rootDir);
+
+    const repository = new TicketStoreRepository({
+      tasksFile: path.join(rootDir, 'TASKS.md'),
+      storeFile: path.join(rootDir, '.hephaestus-tickets.db'),
+      importLegacyTaskBoardIfStoreEmpty: false,
+      projectionEnabled: false,
+    });
+
+    const ticket = await repository.createTicket('Guard settled side effects from duplicate writes');
+    const sideEffects = await repository.enqueueTaskSideEffects(ticket.id, [
+      {
+        type: 'memory.record-task-completion',
+        payload: { result: 'Plan ready' },
+        idempotencyKey: 'effect-key-3',
+        correlationId: 'corr_duplicate_guard',
+      },
+      {
+        type: 'memory.add-session-summary',
+        payload: { summary: 'Done' },
+        idempotencyKey: 'effect-key-4',
+        correlationId: 'corr_duplicate_guard',
+      },
+    ]);
+
+    await repository.markTaskSideEffectProcessed(sideEffects[0]!.id);
+    await repository.markTaskSideEffectFailed(sideEffects[0]!.id, 'late failure');
+    await repository.markTaskSideEffectFailed(sideEffects[1]!.id, 'disk full');
+    await repository.markTaskSideEffectProcessed(sideEffects[1]!.id);
+
+    const persisted = await repository.listTaskSideEffects(ticket.id);
+    const persistedByKey = new Map(persisted.map((sideEffect) => [sideEffect.idempotencyKey, sideEffect]));
+    const events = await repository.listEvents(ticket.id);
+
+    assert.equal(persisted.length, 2);
+    assert.equal(persistedByKey.get('effect-key-3')?.status, 'completed');
+    assert.equal(persistedByKey.get('effect-key-3')?.lastError ?? null, null);
+    assert.equal(persistedByKey.get('effect-key-4')?.status, 'failed');
+    assert.equal(persistedByKey.get('effect-key-4')?.lastError, 'disk full');
+    assert.equal(events.filter((event) => event.type === 'side-effect-completed').length, 1);
+    assert.equal(events.filter((event) => event.type === 'side-effect-failed').length, 1);
 
     await repository.stop();
   });

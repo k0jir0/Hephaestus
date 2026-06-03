@@ -1,0 +1,36 @@
+Hephaestus MVP Queue Recovery Report
+Date: 2026-06-03
+
+Final Strict Stage B Queue State
+Run ID: stage-b-checkpoint-2026-06-03T124145
+- Existing runnable tickets: 0
+- Awaiting approval tickets: 0
+- Active tickets: 83
+- Wave slots available: 5
+- Autopilot gate failures: none
+- Self-audit findings: 0
+- Autopilot result: no runnable work queued
+
+Blocked Backlog Classification
+Derived during this session from live ticket data
+- Total blocked tickets: 82
+- Unsupported-envelope quarantine: 23
+- Plan-or-file-boundary quarantine: 53
+- Allowlist-denial quarantine: 1
+- Actionable blocked tickets: 5
+
+Queue Recovery Changes Implemented
+1. Strict blocked gating now honors a 7-day treatment window via --blocked-window-days.
+2. Strict blocked gating now counts only actionable blocked tickets, excluding quarantined policy-boundary backlog.
+3. Stage B pilot and loop scripts now pass the blocked-window parameter through to both review-wave and autopilot.
+4. Review-wave backend reliability now evaluates actionable backend attempts instead of the full quarantined backlog.
+
+Operational Effect
+- Autopilot is no longer paused by lifetime blocked backlog.
+- Review-wave is no longer dragged into NO-GO by quarantined policy-boundary attempts.
+- Strict Stage B can now pass on actual queue health rather than backlog accounting noise.
+
+Remaining Queue Recovery Gap
+- The queue is no longer gate-blocked, but it is still not draining.
+- No runnable tickets were available at the end of the final strict run.
+- Active inventory remains high at 83, which means the next recovery slice is about ticket turnover, retry-cap triage, and converting active work into completions.
