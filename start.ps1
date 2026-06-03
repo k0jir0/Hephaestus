@@ -10,7 +10,13 @@ try {
         $npm = Get-Command npm -ErrorAction Stop
     }
 
-    & $npm.Source run cli @args
+    $npmArgs = @('run', 'cli')
+    if ($args.Count -gt 0) {
+        $npmArgs += '--'
+        $npmArgs += $args
+    }
+
+    & $npm.Source @npmArgs
 }
 finally {
     Pop-Location

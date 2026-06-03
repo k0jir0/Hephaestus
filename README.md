@@ -76,8 +76,19 @@ npm run tickets -- create "Inspect the runtime flow"
 # Start the numbered operator CLI from the project folder
 .\start.ps1
 
+# Or start the daemon + UI stack directly and wait for the local health check
+.\start_all.ps1
+
+# Stop the stack and clear tracked PID files
+.\stop_all.ps1
+
 # Or run it directly through npm if you prefer
 npm run cli
+
+# Non-interactive stack lifecycle entrypoints are also exposed through npm
+npm run start:all
+npm run status:all
+npm run stop:all
 
 # Run one bounded demo pass
 npm run start:once

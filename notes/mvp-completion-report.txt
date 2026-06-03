@@ -11,6 +11,7 @@ What Was Completed Today
 - Cancelled stale synthetic/reporting backlog and unsupported broad optimization/review tickets so the live queue now reflects only real MVP work.
 - Improved undeclared file-read denial guidance with an actionable next step and verified it with focused policy and runtime tests.
 - Completed the remaining real operational backlog tickets that were already satisfied by current code and focused validation.
+- Added non-interactive operator lifecycle commands plus `start_all` / `stop_all` Windows wrappers, then validated 3 clean start/status/stop cycles with orphan cleanup and strict daemon/UI health checks.
 
 Current Operational State
 - Live queue counts: completed 90, cancelled 100, superseded 177, blocked 0, stale 0.
@@ -21,6 +22,7 @@ Current Operational State
 - P95 admission-to-complete: 478437554ms.
 - Build: PASS.
 - Full test suite: PASS (203/203).
+- Windows operator lifecycle: PASS for startup/shutdown determinism (3 clean `start_all -> strict status -> stop_all` cycles).
 
 Why MVP Is Not Yet Complete
 - The source-driven MVP plan requires 7 consecutive daily pass windows; that requirement cannot be satisfied inside a single remediation session.
@@ -30,6 +32,7 @@ Why MVP Is Not Yet Complete
 
 Assessment
 - The queue-recovery phase is no longer blocked by synthetic benchmark cohorts or unsupported optimization/review backlog.
+- The Windows operator-readiness gap for deterministic startup/shutdown is now closed; the wrappers clean stale tracked PIDs and repo-owned orphaned daemon/UI processes before startup.
 - The remaining MVP gap is now sustained daily throughput and latency on fresh real work, not missing queue-control code.
 
 Recommended Next Execution Slice

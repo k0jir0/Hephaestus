@@ -16,6 +16,7 @@ Current State Summary
 - Source-grounding policy is active and D2+ pathways already reference source notes.
 - Research library is implemented with broad note coverage and many lawful local copies.
 - Bibliographic validity audit is clean (verified catalog entries, zero quarantined).
+- Windows operator lifecycle wrappers now exist at `start_all.ps1` / `stop_all.ps1` with non-interactive CLI commands, orphan cleanup, and 3 clean `start_all -> strict status -> stop_all` validation cycles on 2026-06-03.
 - Main MVP gaps are now time-window operational metrics rather than live queue blockers: efficiency is still below target, throughput/day is 7, completion rate is 0.29, and the recent latency cohort is still dominated by tickets created on 2026-05-29 and only closed on 2026-06-03.
 - The live queue has been cleaned to 0 operational blocked/stale tickets after removing synthetic H50J3 and qwen-wave reporting artifacts plus unsupported broad optimization/review backlog.
 
@@ -154,6 +155,12 @@ Actions
 - Verify cockpit token roles and health endpoints.
 - Update runbook with top 5 failure modes and source-driven debugging steps.
 
+Progress on 2026-06-03
+- `start_all.ps1`, `stop_all.ps1`, `start_all.bat`, and `stop_all.bat` are implemented.
+- The operator CLI now exposes non-interactive `start`, `stop`, `restart`, and `status` commands for wrapper-driven lifecycle control.
+- Windows validation completed 3 clean `start_all -> strict status -> stop_all` cycles with tracked PID shutdown and repo-owned orphan cleanup.
+- Remaining operator-workflow work is the full `autopilot -> monitor -> inspect` proof and runbook/failure-mode write-up, not startup/shutdown determinism.
+
 Exit Criteria
 - 3 clean start/stop cycles with no orphaned processes.
 - One seeded failure fully diagnosed from timeline, evidence, and source links.
@@ -187,7 +194,7 @@ Risk Register and Mitigation
     Mitigation: add daily consistency check and weekly reconciliation owner.
 
 4) Risk: Windows process orphaning skews runtime metrics.
-    Mitigation: enforce stop_all preflight and daemon count verification.
+   Mitigation: enforce stop_all preflight, repo-owned orphan cleanup, and daemon/UI strict-status verification in `start_all.ps1`.
 
 5) Risk: Bibliographically invalid or weak placeholder sources degrade policy quality.
     Mitigation: maintain validity audit and replace weak placeholders with stronger entries.

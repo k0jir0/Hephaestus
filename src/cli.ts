@@ -66,10 +66,6 @@ function removePidFile(pidFile: string): void {
   }
 }
 
-function quoteForCmd(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
 function stopByPidFile(label: string, pidFile: string): void {
   const pid = readPid(pidFile);
   if (pid === null) {
@@ -114,22 +110,18 @@ function spawnManagedProcess(
 
   removePidFile(pidFile);
 
-  const commandLine = `${quoteForCmd(command)} ${args.map(quoteForCmd).join(' ')} >> ${quoteForCmd(outLog)} 2>> ${quoteForCmd(errLog)}`;
-  const child =
-    process.platform === 'win32'
-      ? spawn('cmd.exe', ['/c', commandLine], {
-          cwd: ROOT,
-          env: process.env,
-          detached: true,
-          stdio: 'ignore',
-          windowsHide: true,
-        })
-      : spawn(command, args, {
-          cwd: ROOT,
-          env: process.env,
-          detached: true,
-          stdio: 'ignore',
-        });
+  const outHandle = fs.openSync(outLog, 'a');
+  const errHandle = fs.openSync(errLog, 'a');
+  const child = spawn(command, args, {
+    cwd: ROOT,
+    env: process.env,
+    detached: true,
+    stdio: ['ignore', outHandle, errHandle],
+    windowsHide: true,
+  });
+
+  fs.closeSync(outHandle);
+  fs.closeSync(errHandle);
 
   child.unref();
   fs.writeFileSync(pidFile, String(child.pid), 'utf-8');
@@ -137,11 +129,18 @@ function spawnManagedProcess(
 }
 
 function runNpm(args: string[]): number {
-  const result = spawnSync(npmExecutable(), args, {
+  const result = spawnSync(process.platform === 'win32' ? 'npm' : npmExecutable(), args, {
     cwd: ROOT,
     env: process.env,
     stdio: 'inherit',
+    shell: process.platform === 'win32',
+    windowsHide: true,
   });
+
+  if (result.error) {
+    throw result.error;
+  }
+
   return result.status ?? 1;
 }
 
@@ -244,11 +243,16 @@ async function pause(rl: readline.Interface): Promise<void> {
 
 function startStack(): void {
   ensureDirs();
+  const buildExitCode = runNpm(['run', 'build']);
+  if (buildExitCode !== 0) {
+    throw new Error(`Build failed with exit code ${buildExitCode}.`);
+  }
+
   spawnManagedProcess(
     'daemon',
     PID_FILES.daemon,
-    npmExecutable(),
-    ['run', 'start:daemon'],
+    process.execPath,
+    [path.join(ROOT, 'dist', 'agent.js'), '--daemon'],
     LOG_FILES.daemonOut,
     LOG_FILES.daemonErr
   );
@@ -256,8 +260,8 @@ function startStack(): void {
   spawnManagedProcess(
     'ui',
     PID_FILES.ui,
-    npmExecutable(),
-    ['run', 'ui'],
+    process.execPath,
+    [path.join(ROOT, 'dist', 'ui-server.js')],
     LOG_FILES.uiOut,
     LOG_FILES.uiErr
   );
@@ -276,25 +280,115 @@ function restartStack(): void {
   startStack();
 }
 
-async function showStatus(uiPort: string, aiBackend: string): Promise<void> {
+interface StackStatus {
+  daemonPid: number | null;
+  uiPid: number | null;
+  daemonRunning: boolean;
+  uiRunning: boolean;
+  uiHealthy: boolean;
+  ollamaHealthy: boolean | null;
+}
+
+async function getStackStatus(uiPort: string, aiBackend: string): Promise<StackStatus> {
   const daemonPid = readPid(PID_FILES.daemon);
   const uiPid = readPid(PID_FILES.ui);
 
-  const daemonRunning = daemonPid !== null && isProcessRunning(daemonPid);
-  const uiRunning = uiPid !== null && isProcessRunning(uiPid);
-  const uiHealthy = await testHttpHealth(`http://127.0.0.1:${uiPort}/health`);
-  const ollamaHealthy =
-    aiBackend === 'ollama' ? await testHttpHealth('http://127.0.0.1:11434/api/tags') : null;
+  return {
+    daemonPid,
+    uiPid,
+    daemonRunning: daemonPid !== null && isProcessRunning(daemonPid),
+    uiRunning: uiPid !== null && isProcessRunning(uiPid),
+    uiHealthy: await testHttpHealth(`http://127.0.0.1:${uiPort}/health`),
+    ollamaHealthy:
+      aiBackend === 'ollama' ? await testHttpHealth('http://127.0.0.1:11434/api/tags') : null,
+  };
+}
+
+async function showStatus(uiPort: string, aiBackend: string): Promise<void> {
+  const status = await getStackStatus(uiPort, aiBackend);
 
   printHeader('Hephaestus Stack Status');
   console.log(`Root:           ${ROOT}`);
   console.log(`UI port:        ${uiPort}`);
   console.log(`AI backend:     ${aiBackend}`);
-  console.log(`Daemon:         ${daemonRunning ? `running (${daemonPid})` : 'not running'}`);
-  console.log(`UI server:      ${uiRunning ? `running (${uiPid})` : 'not running'}`);
-  console.log(`UI health:      ${uiHealthy ? 'OK' : 'DOWN'}`);
-  if (ollamaHealthy !== null) {
-    console.log(`Ollama health:  ${ollamaHealthy ? 'OK' : 'DOWN'}`);
+  console.log(`Daemon:         ${status.daemonRunning ? `running (${status.daemonPid})` : 'not running'}`);
+  console.log(`UI server:      ${status.uiRunning ? `running (${status.uiPid})` : 'not running'}`);
+  console.log(`UI health:      ${status.uiHealthy ? 'OK' : 'DOWN'}`);
+  if (status.ollamaHealthy !== null) {
+    console.log(`Ollama health:  ${status.ollamaHealthy ? 'OK' : 'DOWN'}`);
+  }
+}
+
+async function runDirectCommand(args: string[]): Promise<boolean> {
+  const [rawCommand, ...options] = args;
+  if (!rawCommand) {
+    return false;
+  }
+
+  const command = rawCommand.toLowerCase();
+  const optionSet = new Set(options.map((option) => option.toLowerCase()));
+  const uiPort = process.env.UI_PORT?.trim() || '4180';
+  const aiBackend = process.env.AI_BACKEND?.trim() || 'ollama';
+
+  switch (command) {
+    case 'start': {
+      startStack();
+
+      if (optionSet.has('--wait')) {
+        const uiReady = await ensureUiReady(uiPort);
+        const status = await getStackStatus(uiPort, aiBackend);
+        await showStatus(uiPort, aiBackend);
+
+        if (!uiReady && (await uiPortConflictDetected(uiPort))) {
+          console.log(`Port ${uiPort} is already in use by another process.`);
+          console.log('Stop the conflicting process or set a different UI_PORT, then retry.');
+        }
+
+        if (!status.daemonRunning || !status.uiRunning || !uiReady) {
+          process.exitCode = 1;
+        }
+      }
+
+      return true;
+    }
+    case 'stop':
+      stopStack();
+      return true;
+    case 'restart': {
+      restartStack();
+
+      if (optionSet.has('--wait')) {
+        const uiReady = await ensureUiReady(uiPort);
+        const status = await getStackStatus(uiPort, aiBackend);
+        await showStatus(uiPort, aiBackend);
+
+        if (!uiReady && (await uiPortConflictDetected(uiPort))) {
+          console.log(`Port ${uiPort} is already in use by another process.`);
+          console.log('Stop the conflicting process or set a different UI_PORT, then retry.');
+        }
+
+        if (!status.daemonRunning || !status.uiRunning || !uiReady) {
+          process.exitCode = 1;
+        }
+      }
+
+      return true;
+    }
+    case 'status': {
+      const status = await getStackStatus(uiPort, aiBackend);
+      await showStatus(uiPort, aiBackend);
+
+      if (
+        optionSet.has('--strict') &&
+        (!status.daemonRunning || !status.uiRunning || !status.uiHealthy || status.ollamaHealthy === false)
+      ) {
+        process.exitCode = 1;
+      }
+
+      return true;
+    }
+    default:
+      throw new Error(`Unknown CLI command: ${rawCommand}. Supported commands: start, stop, restart, status.`);
   }
 }
 
@@ -480,6 +574,10 @@ async function logsMenu(rl: readline.Interface): Promise<void> {
 async function main(): Promise<void> {
   dotenv.config({ path: path.join(ROOT, '.env') });
   ensureDirs();
+
+  if (await runDirectCommand(process.argv.slice(2))) {
+    return;
+  }
 
   const rl = readline.createInterface({ input: stdin, output: stdout });
   const uiPort = process.env.UI_PORT?.trim() || '4180';
