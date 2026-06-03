@@ -1,0 +1,437 @@
+Code Review: Data Structures and Algorithms in Hephaestus
+Date: 2026-06-03
+
+Scope note
+----------
+
+This review focuses on algorithmic efficiency, processing structure, and whether
+new data structures would materially improve Hephaestus. The local command
+runner refused to spawn PowerShell or cmd during this review, so I inspected the
+available GitHub-connected repository snapshot for k0jir0/hephaestus, which
+appears to match the requested Hephaestus project. If the local
+McGillSoftware/Hephaestus checkout differs from that snapshot, re-run this
+review against the local files once the shell is available.
+
+Executive summary
+-----------------
+
+Hephaestus is not using "the most efficient" data structures and algorithms in
+every path, but its foundational choices are good for a local-first control
+plane. The move from a markdown board to a SQLite ticket store is the right
+major data-structure decision. The code also uses Set and Map appropriately in
+several places: pending dispatch tracking, deduplication, attempt grouping,
+source-grounding evidence maps, and routing or metric computations.
+
+The biggest opportunities are not exotic algorithms. They are better use of the
+SQLite data model, fewer whole-table reads, more structured evidence storage,
+and replacing repeated repository scans with an indexed or tool-backed search
+strategy. These changes would reduce CPU, memory, and latency as ticket,
+attempt, event, artifact, and worker-version history grows.
+
+Primary findings
+----------------
+
+1. UI ticket detail and timeline paths load all worker versions and promotions,
+then filter them in memory.
+
+Location:
+- src/ui-server.ts, buildTicketDetailResponse
+- src/ui-server.ts, buildTicketTimelineResponse
+- src/task-store.ts, listWorkerVersions
+- src/task-store.ts, listPromotionRecords
+
+Observed behavior:
+The UI first loads the target ticket's attempts, builds a Set of attempt IDs,
+then calls listWorkerVersions() with no attempt filter. That returns every
+worker version in the database. The UI then filters by attempt ID in memory.
+It does the same pattern for promotion records: load every promotion record,
+then keep only those whose workerVersionId appears in a local Set.
+
+Complexity:
+- Current detail/timeline behavior is O(A + W + P) per ticket detail request,
+  where A is attempts for the ticket, W is all worker versions in the store,
+  and P is all promotion records in the store.
+- The intended query shape should be O(A + Wt + Pt), where Wt and Pt are only
+  rows related to the ticket.
+
+Why it matters:
+The UI detail view is a repeated interactive path. As the store accumulates
+many tickets and promotions, opening one ticket should not scan unrelated
+promotion history.
+
+Recommended change:
+Add repository methods that query by a set of IDs, chunked the same way
+listAttemptsForTickets already chunks large IN lists:
+
+- listWorkerVersionsForAttempts(attemptIds: string[])
+- listPromotionRecordsForWorkerVersions(workerVersionIds: string[])
+
+Alternatively, add a single detail-query method that joins
+tickets -> ticket_attempts -> worker_versions -> promotion_records and returns
+the ticket detail shape. The existing indexes
+idx_worker_versions_attempt_created and idx_promotion_records_worker_requested
+already support this direction.
+
+2. UI list and overview endpoints pull full ticket sets, sort and filter in
+memory, and parse all ticket JSON fields.
+
+Location:
+- src/ui-server.ts, loadStoreSnapshot
+- src/ui-server.ts, buildOverviewResponse
+- src/ui-server.ts, buildTicketListResponse
+- src/task-store.ts, listTickets/listAllTasks/listTasksByStatus/mapRowToTask
+
+Observed behavior:
+The overview path loads all tickets and all attempts for those tickets, then
+computes metrics and slices a recent-ticket list. The ticket list endpoint loads
+all matching tickets, filters by query in memory, sorts by updatedAt in memory,
+and slices to the requested limit.
+
+Complexity:
+- Current ticket list is O(N log N) for sorting plus O(N) filtering and JSON
+  parsing, even when the API only returns 200 rows.
+- For status-specific lists, SQLite can do O(log N + K) with the right index,
+  where K is the requested page size.
+
+Why it matters:
+Interactive UI paths should avoid converting the entire store into JavaScript
+objects. mapRowToTask parses plan_json, tool_calls_json, and approval_json for
+every row, even when the list view may only need id, description, status,
+attemptCount, and timestamps.
+
+Recommended change:
+Add a lightweight query layer for UI list rows:
+
+- listTicketSummaries({ status, query, limit, offset, orderBy: 'updated_at' })
+- listRecentTicketSummaries(limit)
+- countTicketsByStatus()
+
+Add indexes:
+
+- create index idx_tickets_updated_at on tickets(updated_at desc)
+- create index idx_tickets_status_updated on tickets(status, updated_at desc)
+
+For query search, the simplest step is a SQL WHERE over id/description with a
+limit. The better long-term structure is an SQLite FTS5 virtual table for ticket
+descriptions if free-text search becomes common.
+
+3. Attempt artifacts are stored as a growing JSON array on the attempt row.
+
+Location:
+- src/task-store.ts, appendTaskAttemptArtifacts
+- src/ui-server.ts, extractPolicySnapshots/extractPatchDeltas/flattenArtifacts
+- src/tickets.ts, extractPolicySnapshots/extractPatchDeltas
+
+Observed behavior:
+Each append reads artifacts_json from the current attempt, JSON.parse's the
+entire array, concatenates the new artifacts, JSON.stringify's the whole array,
+and writes it back to ticket_attempts. UI and CLI views later parse the same
+artifact strings with regexes to recover policy snapshots, patch deltas, backend
+evidence, and command telemetry.
+
+Complexity:
+- Appending one artifact is O(A), where A is artifacts already on the attempt.
+- Repeated appends over one attempt trend toward O(A^2) total serialization
+  work.
+- Derived views repeatedly regex-scan O(A) strings per request.
+
+Why it matters:
+Artifacts are evidence, not just display text. They are likely to grow with
+tool execution, command telemetry, approvals, and promotion flow. Keeping them
+inside one JSON array makes appends and targeted queries increasingly expensive.
+
+Recommended change:
+Introduce an attempt_artifacts table:
+
+  id integer primary key autoincrement
+  attempt_id text not null
+  ticket_id text not null
+  sequence integer not null
+  kind text not null
+  artifact_text text not null
+  artifact_json text
+  correlation_id text
+  created_at text not null
+
+Indexes:
+
+- idx_attempt_artifacts_attempt_sequence(attempt_id, sequence)
+- idx_attempt_artifacts_ticket_created(ticket_id, created_at)
+- idx_attempt_artifacts_kind_ticket(kind, ticket_id)
+- optional idx_attempt_artifacts_correlation(correlation_id)
+
+Then write typed rows directly for policy.snapshot, patch.delta,
+backend.evidence, command.telemetry, and plain text artifacts. Keep the legacy
+artifacts_json field temporarily for migration compatibility, but stop making it
+the primary evidence store.
+
+4. Repository search performs a full recursive walk and reads file content on
+every query.
+
+Location:
+- src/tool-runtime.ts, searchRepo
+- src/tool-runtime.ts, walkFiles
+- src/tool-runtime.ts, readTextWithinLimit
+
+Observed behavior:
+repo.search walks the workspace recursively, skips a few ignored directories,
+opens each candidate file, reads up to maxReadBytes, splits into lines, and
+performs line.includes(query). It stops once maxResults is reached.
+
+Complexity:
+- Each search is O(F + bytes_read + lines_scanned), where F is the number of
+  files visited.
+- Repeating multiple searches repeats the same directory traversal and file
+  reads.
+
+Why it matters:
+repo.search is a core agent tool. It should feel cheap enough to use often.
+The current implementation is fine for small projects, but it will be slow on
+large repos, monorepos, generated-source trees, or repositories with many
+medium-sized text files.
+
+Recommended change:
+Prefer ripgrep when available:
+
+- Spawn rg with --line-number, --fixed-strings for literal queries, --glob
+  exclusions, and a max result cap.
+- Keep the current TypeScript scanner as a fallback for environments without rg.
+
+If a pure in-process approach is required, build a bounded repository search
+index:
+
+- file metadata cache: path, mtimeMs, size, text/binary flag
+- token/trigram inverted index for selected text files
+- incremental refresh based on mtime/size
+
+For most local-first usage, rg is the highest-return implementation. It is
+already a proven indexed-ish search tool in practice because it aggressively
+optimizes directory walking, ignore handling, binary detection, and matching.
+
+5. Projection rendering repeatedly scans and sorts the full task list by
+section.
+
+Location:
+- src/task-board.ts, renderTaskBoard
+- src/task-store.ts, writeProjectionSafely
+- src/task-store.ts, renderTaskBoardProjection
+
+Observed behavior:
+renderTaskBoard iterates over each board section. For each section, it filters
+the entire task array, sorts that section's tasks by sourceOrder, and formats
+lines. The ticket store calls renderTaskBoard(this.listAllTasks()) after many
+state transitions, and the default projectionMinWriteIntervalMs is 0.
+
+Complexity:
+- Current render is O(S*N + sum(section sort costs)), where S is five sections.
+- Each projection write also serializes the whole board and writes TASKS.md.
+
+Why it matters:
+For today's scale this is acceptable. It becomes expensive if the markdown
+projection remains enabled while the store grows to thousands of tickets or
+state transitions arrive in bursts.
+
+Recommended change:
+Use a single-pass bucket Map<TaskSection, TaskTicket[]> and append tasks to
+their section as they are seen. If listAllTasks already returns source_order
+ascending, the per-section sort can often be skipped. If defensive sorting is
+kept, only sort when an out-of-order sourceOrder is detected.
+
+Also consider setting a nonzero default projectionMinWriteIntervalMs, such as
+250 to 1000 ms, so bursts of state changes coalesce into one markdown write.
+The code already has the queued-write machinery; the default just leaves the
+coalescing benefit off.
+
+6. Revision polling uses aggregate scans instead of an explicit revision clock.
+
+Location:
+- src/ui-server.ts, pollForStoreChanges/computeRevisionStamp
+- src/task-store.ts, getRevisionStamp
+
+Observed behavior:
+The UI polls getRevisionStamp. The store computes the revision from ticket
+count, max ticket updated_at, ticket_events count, and max ticket_events
+created_at.
+
+Complexity:
+- count(*) and max(created_at) can be cheap in SQLite with the right indexes,
+  but max(created_at) on ticket_events does not obviously have a single-column
+  created_at index. The existing event index is ticket_id, created_at.
+- The stamp is also coupled to ticket_events, while the code increasingly treats
+  domain_events as the canonical event stream.
+
+Why it matters:
+SSE polling happens repeatedly. A revision check should be O(1) and should not
+miss domain-event-only changes if the event model evolves.
+
+Recommended change:
+Create a store_revision table with one row:
+
+  id integer primary key check (id = 1)
+  revision integer not null
+  updated_at text not null
+
+Increment it inside the same transaction as ticket, attempt, event, side-effect,
+worker-version, and promotion mutations. Then getRevisionStamp becomes a single
+row read. This is simpler and more robust than recomputing a stamp from several
+tables.
+
+7. Some membership checks use arrays where Sets would be cleaner and asymptotically
+better.
+
+Location:
+- src/ui-server.ts, buildTicketGatesResponse
+- src/task-board.ts, formatTaskLine
+- similar small membership checks elsewhere
+
+Observed behavior:
+buildTicketGatesResponse deduplicates observedMutations with
+observedMutations.includes(pathValue), then later tests candidate membership
+with normalizedObserved.includes(candidate). formatTaskLine uses an array
+literal and includes to test terminal statuses.
+
+Complexity:
+- These are O(N^2) or O(K) membership checks in small collections.
+
+Why it matters:
+This is not currently a serious hot path, but it is a good example of places
+where Set communicates intent and avoids accidental scaling cliffs.
+
+Recommended change:
+Use Set for deduped observed mutations and normalized membership:
+
+- const observedMutationSet = new Set<string>()
+- const normalizedObserved = new Set([...])
+- const terminalStatuses = new Set<TaskStatus>(...)
+
+This is a small cleanup, not a major architecture project.
+
+8. Multi-statement state transitions and event writes should use SQLite
+transactions.
+
+Location:
+- src/task-store.ts, markTaskInProgress/markTaskCompleted/markTaskBlocked/etc.
+- src/task-store.ts, recordEvent
+- src/task-store.ts, createWorkerVersion/createPromotionRecord/updatePromotionStatus
+
+Observed behavior:
+Many state changes update tickets, update attempts, insert legacy events, insert
+domain events, insert event evidence rows, and write projections as separate
+operations. recordEvent itself writes two event tables and then N event evidence
+rows.
+
+Complexity and correctness:
+Transactions are not only a correctness improvement. They also reduce SQLite
+lock churn and make groups of writes cheaper under WAL. They prevent partially
+recorded state when a process crashes between related statements.
+
+Recommended change:
+Wrap each durable state transition in a transaction. A typical mutation should:
+
+1. Update ticket/attempt rows.
+2. Insert all related domain/legacy/evidence events.
+3. Increment store_revision.
+4. Commit.
+5. Schedule/coalesce projection write after commit.
+
+This also makes it easier to prepare and reuse statements for hot operations.
+
+Existing strengths
+------------------
+
+The project already makes several efficient choices:
+
+- SQLite is the right canonical store for local-first ticket, attempt, event,
+  and promotion state.
+- WAL mode and busy_timeout are enabled.
+- Key lookup indexes already exist for ticket status/source order, description
+  key, ticket attempts by ticket/attempt number, worker versions by attempt,
+  promotions by worker version, side effects by ticket/status, and domain events
+  by ticket/type.
+- listAttemptsForTickets uses chunked IN queries instead of issuing one query
+  per ticket.
+- Pending dispatch uses Sets and Maps for known pending tickets, in-flight
+  tickets, redispatch times, and redispatch backoff.
+- Source-grounding and D2 audit logic use Maps/Sets sensibly to compare evidence
+  and group event counts.
+- Context ranking is deliberately bounded by fileIndex limits; its O(F*T) scan
+  is acceptable because F is capped.
+
+Prioritized implementation plan
+-------------------------------
+
+Phase 1: SQL-backed UI narrowing
+
+- Add summary/list query methods for recent tickets and paginated ticket lists.
+- Add multi-ID repository methods for worker versions and promotion records.
+- Update UI ticket detail, timeline, overview, and list endpoints to use those
+  methods.
+- Add indexes for updated_at-based UI ordering.
+
+Expected result:
+Interactive UI requests stop scaling with unrelated ticket, worker-version, and
+promotion history.
+
+Phase 2: Structured artifact storage
+
+- Add attempt_artifacts table and indexes.
+- Write new artifacts as rows, with kind/correlation metadata.
+- Migrate existing artifacts_json lazily or through a one-time migration.
+- Update UI/CLI evidence views to query typed artifacts rather than regex-scan
+  every artifact string.
+
+Expected result:
+Append cost becomes O(1) per artifact, evidence queries become targeted, and
+the code stops treating durable evidence as opaque log strings.
+
+Phase 3: Search runtime upgrade
+
+- Use rg for repo.search when available.
+- Preserve current recursive scanner as fallback.
+- Add tests for ignored directories, max results, protected paths, and binary or
+  large-file behavior.
+
+Expected result:
+Search speed improves substantially on real repositories, while policy behavior
+stays bounded.
+
+Phase 4: Revision and transaction hardening
+
+- Add store_revision and increment it inside mutation transactions.
+- Wrap ticket/attempt/event/promotion/side-effect mutations in transactions.
+- Point SSE revision polling at the explicit revision row.
+
+Expected result:
+Polling becomes O(1), event consistency improves, and write paths become easier
+to reason about.
+
+Phase 5: Projection and small Set cleanups
+
+- Rewrite renderTaskBoard as a single-pass bucketing algorithm.
+- Turn small repeated membership checks into Sets where readability improves.
+- Enable modest projection write coalescing by default.
+
+Expected result:
+Board rendering and markdown projection remain cheap even as the store grows.
+
+Answer to the review question
+-----------------------------
+
+No, not everything is using the most efficient available data structure or
+algorithm. The current system is reasonable and likely performs well at small to
+moderate local scale, but it leaves clear scaling wins on the table.
+
+The best new data structures to implement are:
+
+- SQL query methods that return already-filtered, already-sorted, lightweight
+  rows instead of full object graphs.
+- A normalized attempt_artifacts table for append-only evidence.
+- An explicit store_revision row for O(1) change detection.
+- A repository search backend based on rg, or an incremental inverted index if
+  in-process search is required.
+- Set-backed membership and single-pass bucketing in smaller hot loops.
+
+The best algorithmic shift is to push filtering, ordering, limiting, grouping,
+and joining down into SQLite wherever the data already lives there. The current
+TypeScript Maps and Sets are helpful at the edges, but the durable store should
+carry more of the workload.

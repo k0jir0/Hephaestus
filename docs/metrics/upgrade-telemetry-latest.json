@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-30T00:28:43.166Z",
+  "timestamp": "2026-06-03T13:45:02.363Z",
   "queue": {
     "total": 316,
     "pending": 0,
@@ -21,11 +21,11 @@
     "sampleCount": 0
   },
   "execution": {
-    "attempts": 208,
-    "attemptsPerTicket": 0.658,
-    "retryRate": 0.082,
-    "startedLast24h": 117,
-    "completedLast24h": 49,
+    "attempts": 268,
+    "attemptsPerTicket": 0.848,
+    "retryRate": 0.199,
+    "startedLast24h": 60,
+    "completedLast24h": 0,
     "admissionToStartMs": {
       "p50": 483140,
       "p95": 3715731,
@@ -41,23 +41,36 @@
     "supersededToCompletedRatio": 2.133
   },
   "policy": {
-    "allowlistDenialCount": 45,
-    "allowlistDenialRate": 0.216,
-    "commandCallCount": 156,
-    "commandIdCallCount": 0,
+    "allowlistDenialCount": 46,
+    "allowlistDenialRate": 0.172,
+    "commandCallCount": 174,
+    "commandIdCallCount": 18,
     "rawCommandCallCount": 156,
-    "commandIdUsageRate": 0,
+    "commandIdUsageRate": 0.103,
     "allowlistCommandDenialCount": 42,
-    "allowlistCommandDenialRate": 0.269,
-    "topCommandIds": [],
+    "allowlistCommandDenialRate": 0.241,
+    "topCommandIds": [
+      {
+        "commandId": "npm.test",
+        "count": 10
+      },
+      {
+        "commandId": "npm.run.build",
+        "count": 8
+      }
+    ],
     "topFailureBuckets": [
+      {
+        "bucket": "unsupported task envelope",
+        "count": 72
+      },
       {
         "bucket": "command is not allowlisted",
         "count": 37
       },
       {
-        "bucket": "unsupported task envelope",
-        "count": 33
+        "bucket": "file",
+        "count": 18
       },
       {
         "bucket": "structured plan validation failed",
@@ -65,19 +78,15 @@
       },
       {
         "bucket": "recovered stale active ticket after a previous daemon exited before fini",
-        "count": 11
-      },
-      {
-        "bucket": "file",
-        "count": 11
+        "count": 14
       },
       {
         "bucket": "command failed",
         "count": 9
       },
       {
-        "bucket": "recovered orphaned active attempt before starting a new attempt",
-        "count": 5
+        "bucket": "no governed mutation evidence was recorded for mutable intended files (s",
+        "count": 6
       }
     ]
   },
@@ -93,7 +102,7 @@
       },
       {
         "bucket": "file read target docs/metrics/qwen-wave/w1-ticket-03-allowlist-command-s",
-        "count": 1
+        "count": 2
       }
     ],
     "topSupersedeReasons": [
@@ -112,16 +121,16 @@
     ],
     "topRetryReasons": [
       {
+        "bucket": "unsupported task envelope",
+        "count": 23
+      },
+      {
+        "bucket": "file",
+        "count": 5
+      },
+      {
         "bucket": "deferred in remediation-first wave",
         "count": 3
-      },
-      {
-        "bucket": "implemented by stop_all",
-        "count": 2
-      },
-      {
-        "bucket": "testing ticket from cli planned files",
-        "count": 1
       }
     ]
   },
@@ -133,6 +142,7 @@
   },
   "alerts": [
     "superseded-rate-high:0.639",
-    "allowlist-denial-rate-high:0.216"
+    "allowlist-denial-rate-high:0.172",
+    "no-completions-last-24h"
   ]
 }

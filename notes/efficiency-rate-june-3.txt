@@ -1,0 +1,98 @@
+Efficiency Rate Analysis - June 3, 2026
+
+Author: GitHub Copilot (GPT-5.3-Codex)
+Date: 2026-06-03
+Project: Hephaestus
+
+Abstract
+This paper summarizes the observed efficiency regression in Hephaestus from the 40-60 range down to approximately 25 on June 2-3, 2026. The analysis uses repository telemetry artifacts and run outputs to identify proximate causes, root causes, and practical recovery actions. The central finding is that the dominant score loss came from a throughput-window collapse (completed work in the last 24 hours dropping from 55 to 0), with secondary erosion from retry growth.
+
+Scope And Data Sources
+1. docs/metrics/efficiency-history.jsonl
+2. docs/metrics/efficiency-latest.json
+3. docs/metrics/upgrade-telemetry-history.jsonl
+4. docs/metrics/upgrade-telemetry-report.md
+5. notes/stage-a-findings-2026-06-02.txt
+6. Live daemon observation and metrics commands run on 2026-06-03
+
+Method
+1. Compare high-efficiency snapshots (40-60 band) against low-efficiency snapshots (~25 band).
+2. Decompose score changes by efficiencyIndex components:
+   - throughputScore
+   - latencyScore
+   - completionScore
+   - retryPenaltyScore
+3. Cross-check queue and failure taxonomies in upgrade telemetry to identify operational drivers.
+4. Validate against Stage A gate findings.
+
+Observed Efficiency Trajectory
+Phase A: Recovery into upper band
+- 2026-05-29 03:14: score 49.973
+- 2026-05-29 03:35: score 53.375
+- 2026-05-29 05:59: score 61.101
+- 2026-05-29 13:09: score 60.867
+
+Phase B: Abrupt drop
+- 2026-06-02 15:46: score 25.867
+- 2026-06-03 14:03: score 24.696
+
+Primary Quantitative Findings
+1. Throughput collapse explains most of the drop.
+   - High band snapshot (2026-05-29 13:09): completedLast24h=55, throughputScore=1
+   - Low band snapshot (2026-06-02 15:46): completedLast24h=0, throughputScore=0
+   - Latency and completion components remained near-constant across the drop.
+
+2. Retry growth explains the additional decline from 25.867 to 24.696.
+   - 2026-06-02 15:46: retryRate=0.082, retryPenaltyScore=0.918
+   - 2026-06-03 14:03: retryRate=0.199, retryPenaltyScore=0.801
+
+3. Latency was not the dominant cause of this specific regression.
+   - p95 admission->complete remained effectively unchanged in the low-band period.
+
+Operational Root Cause Signals
+From upgrade telemetry and Stage A findings:
+1. No completions in last 24h (explicit alert).
+2. Retry pressure increased while completion count remained flat.
+3. Persistent high-failure buckets include:
+   - unsupported task envelope
+   - command is not allowlisted
+   - file scope/plan boundary violations
+   - stale recovery after interrupted attempts
+4. Stage A baseline had NO-GO gate result due to:
+   - low efficiency score
+   - high blocked ticket count
+   - backend reliability below threshold
+
+Interpretation
+The system did not lose efficiency because of a sudden latency explosion. It lost efficiency because completed work exited the 24-hour window and was not replenished. Once throughputScore fell from 1 to 0, the overall index dropped by roughly 35 points. After that, rising retry pressure reduced the score further.
+
+What Restores The 40-60 Band
+Near-term target conditions (inferred from historical snapshots):
+1. completedLast24h >= 9 tends to re-enter ~40 band.
+2. completedLast24h >= 11 tends to re-enter ~50 band.
+3. retryRate <= 0.10 stabilizes upward movement.
+4. maintain single-daemon continuity to reduce stale-recovery churn.
+
+Recommended Recovery Sequence
+1. Stabilize execution:
+   - ensure exactly one daemon process remains running.
+   - avoid restart churn during active waves.
+2. Prioritize high-yield ticket cohorts:
+   - run low-risk FIX/UPDATE/BUILD style tickets first.
+3. Quarantine high-failure cohorts temporarily:
+   - unsupported envelope and repeated file-boundary violators.
+4. Reduce retry inflation:
+   - pause auto-retry for chronic offenders until constraints are corrected.
+5. Improve backend reliability:
+   - treat model/backend reliability as an efficiency prerequisite.
+6. Measure every 60-90 minutes:
+   - metrics:efficiency and tickets metrics
+   - verify completedLast24h rises and retryRate trends down.
+
+Risk Notes
+1. Lean gating can allow operations to continue while strict performance gates remain unmet.
+2. If throughput remains at 0, score cannot recover meaningfully regardless of minor quality improvements.
+3. If retries continue rising above ~0.15, score recovery will stall even if some throughput returns.
+
+Conclusion
+The June 3 efficiency state (~24.7) is primarily a throughput-window starvation condition with secondary retry drag. The fastest path back to 40-60 is to restore consistent 24-hour completions and suppress retry-heavy failure classes. This is operationally achievable without major architectural change, provided queue hygiene and daemon continuity are enforced.
