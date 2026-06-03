@@ -135,6 +135,28 @@ describe('ticket autopilot policy', () => {
     assert.ok(failures.some((failure) => failure.startsWith('allowlist-denial-rate-high:')));
   });
 
+  it('counts only recent blocked tickets when a blocked window is configured', () => {
+    const nowMs = Date.parse('2026-06-03T12:00:00.000Z');
+    const staleBlocked = {
+      ...makeTicket('blk_old', 'blocked'),
+      blockedAt: new Date('2026-05-20T12:00:00.000Z'),
+      updatedAt: new Date('2026-05-20T12:00:00.000Z'),
+    };
+    const recentBlocked = {
+      ...makeTicket('blk_recent', 'blocked'),
+      blockedAt: new Date('2026-06-02T12:00:00.000Z'),
+      updatedAt: new Date('2026-06-02T12:00:00.000Z'),
+    };
+
+    const failures = evaluateTicketAutopilotGateFailures([staleBlocked, recentBlocked], {
+      maxBlockedTickets: 0,
+      blockedWindowDays: 7,
+      nowMs,
+    });
+
+    assert.ok(failures.includes('blocked-count-high:1>0'));
+  });
+
   it('reports source-grounding and source-evidence gate failures when thresholds are violated', () => {
     const failures = evaluateTicketAutopilotGateFailures(
       [

@@ -1,0 +1,51 @@
+﻿{
+    "runId":  "stage-a-baseline-2026-06-03T122417",
+    "mode":  "baseline",
+    "gateProfile":  "lean",
+    "timestamp":  "2026-06-03T12:25:34.6139405-04:00",
+    "applyAutopilot":  true,
+    "parameters":  {
+                       "cohortSize":  50,
+                       "treatmentWindowDays":  7,
+                       "maxAttempts":  3,
+                       "maxActive":  20,
+                       "waveSize":  5
+                   },
+    "deferredHardGates":  [
+                              "efficiency-score",
+                              "blocked-count",
+                              "admission-to-complete-p95",
+                              "backend-success-ratio"
+                          ],
+    "reviewWave":  {
+                       "decision":  "GO",
+                       "logPath":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-03T122417\\tickets-review-wave.log"
+                   },
+    "autopilot":  {
+                      "logPath":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-03T122417\\autopilot-stage-a.log",
+                      "pausedByGates":  false
+                  },
+    "efficiency":  {
+                       "completionRate":  0.227,
+                       "targetScore":  70,
+                       "p95AdmissionToCompleteMs":  5508794,
+                       "throughputPerDay":  0,
+                       "status":  "below-target",
+                       "allowlistDenialRate":  0,
+                       "retryRate":  0.172,
+                       "score":  24.25
+                   },
+    "sourceGrounding":  {
+                            "eventEvidenceCoverage":  1,
+                            "driftedTickets":  0,
+                            "coverage":  1
+                        },
+    "logs":  {
+                 "reviewWave":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-03T122417\\tickets-review-wave.log",
+                 "ticketsMetrics":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-03T122417\\tickets-metrics-source-grounding.log",
+                 "autopilot":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-03T122417\\autopilot-stage-a.log",
+                 "metricsEfficiency":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-03T122417\\metrics-efficiency.log",
+                 "metricsSourceGrounding":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-03T122417\\metrics-source-grounding.log",
+                 "metricsEfficiencyWeekly":  "C:\\Users\\ryanv\\Desktop\\MCGILL\\McGillSoftware\\Hephaestus\\docs\\metrics\\stage-a\\stage-a-baseline-2026-06-03T122417\\metrics-efficiency-weekly.log"
+             }
+}

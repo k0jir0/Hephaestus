@@ -1,17 +1,17 @@
 {
-  "timestamp": "2026-06-03T13:45:02.363Z",
+  "timestamp": "2026-06-03T16:23:52.584Z",
   "queue": {
-    "total": 316,
+    "total": 366,
     "pending": 0,
     "inProgress": 0,
     "awaitingApproval": 0,
-    "blocked": 38,
+    "blocked": 82,
     "failed": 0,
     "stale": 1,
     "completed": 83,
     "superseded": 177,
-    "cancelled": 17,
-    "queuePressureIndex": 0.099
+    "cancelled": 23,
+    "queuePressureIndex": 0.181
   },
   "pendingAgeHours": {
     "p50": 0,
@@ -21,42 +21,42 @@
     "sampleCount": 0
   },
   "execution": {
-    "attempts": 268,
-    "attemptsPerTicket": 0.848,
-    "retryRate": 0.199,
-    "startedLast24h": 60,
+    "attempts": 318,
+    "attemptsPerTicket": 0.869,
+    "retryRate": 0.172,
+    "startedLast24h": 99,
     "completedLast24h": 0,
     "admissionToStartMs": {
-      "p50": 483140,
-      "p95": 3715731,
+      "p50": 465446,
+      "p95": 3568419,
       "max": 101983060,
-      "average": 2260559.22,
-      "sampleCount": 150
+      "average": 1799728.005,
+      "sampleCount": 200
     }
   },
   "churn": {
-    "terminalCount": 277,
-    "supersededRate": 0.639,
-    "cancelledRate": 0.061,
+    "terminalCount": 283,
+    "supersededRate": 0.625,
+    "cancelledRate": 0.081,
     "supersededToCompletedRatio": 2.133
   },
   "policy": {
     "allowlistDenialCount": 46,
-    "allowlistDenialRate": 0.172,
-    "commandCallCount": 174,
-    "commandIdCallCount": 18,
+    "allowlistDenialRate": 0.145,
+    "commandCallCount": 224,
+    "commandIdCallCount": 68,
     "rawCommandCallCount": 156,
-    "commandIdUsageRate": 0.103,
+    "commandIdUsageRate": 0.304,
     "allowlistCommandDenialCount": 42,
-    "allowlistCommandDenialRate": 0.241,
+    "allowlistCommandDenialRate": 0.188,
     "topCommandIds": [
+      {
+        "commandId": "npm.run.build",
+        "count": 58
+      },
       {
         "commandId": "npm.test",
         "count": 10
-      },
-      {
-        "commandId": "npm.run.build",
-        "count": 8
       }
     ],
     "topFailureBuckets": [
@@ -65,12 +65,16 @@
         "count": 72
       },
       {
+        "bucket": "no governed mutation evidence was recorded for mutable intended files (d",
+        "count": 49
+      },
+      {
         "bucket": "command is not allowlisted",
         "count": 37
       },
       {
         "bucket": "file",
-        "count": 18
+        "count": 20
       },
       {
         "bucket": "structured plan validation failed",
@@ -83,10 +87,6 @@
       {
         "bucket": "command failed",
         "count": 9
-      },
-      {
-        "bucket": "no governed mutation evidence was recorded for mutable intended files (s",
-        "count": 6
       }
     ]
   },
@@ -141,8 +141,8 @@
     "queuePressureIndexMax": 0.65
   },
   "alerts": [
-    "superseded-rate-high:0.639",
-    "allowlist-denial-rate-high:0.172",
+    "superseded-rate-high:0.625",
+    "allowlist-denial-rate-high:0.145",
     "no-completions-last-24h"
   ]
 }

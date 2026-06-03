@@ -1,24 +1,24 @@
 # Hephaestus Weekly Efficiency Report
 
-Generated: 2026-06-03T15:17:22.667Z
+Generated: 2026-06-03T16:36:02.890Z
 
 ## Current 7-Day Window
 
-- Samples: 34
-- Average efficiency score: 34.769
-- Average throughput/day: 11.412
-- Average p95 admission->complete (ms): 14422911.324
-- Average completion rate: 0.304
-- Average retry rate: 0.144
+- Samples: 38
+- Average efficiency score: 33.662
+- Average throughput/day: 10.211
+- Average p95 admission->complete (ms): 13484583.184
+- Average completion rate: 0.296
+- Average retry rate: 0.147
 - Average allowlist denial rate: 0.005
 
 ## Week-over-Week Delta
 
-- Efficiency score delta: 34.769
-- Throughput/day delta: 11.412
-- p95 admission->complete delta (ms): 14422911.324
-- Completion rate delta: 0.304
-- Retry rate delta: 0.144
+- Efficiency score delta: 33.662
+- Throughput/day delta: 10.211
+- p95 admission->complete delta (ms): 13484583.184
+- Completion rate delta: 0.296
+- Retry rate delta: 0.147
 - Allowlist denial rate delta: 0.005
 
 ## Denial Taxonomy (Latest Snapshot)
@@ -61,4 +61,7 @@ Generated: 2026-06-03T15:17:22.667Z
 - completion-rate variance alert z=-648518346341350.5
 - efficiency-score variance alert z=-2.025
 - completion-rate variance alert z=-4.359
+- completion-rate variance alert z=-3
+- completion-rate variance alert z=-2.38
+- completion-rate variance alert z=-2
 

@@ -7,6 +7,7 @@ param(
     [int]$MaxAttempts = 3,
     [double]$MinEfficiencyScore = 24.0,
     [int]$MaxBlocked = 40,
+    [int]$BlockedWindowDays = 7,
     [double]$MaxP95Ms = 6000000,
     [double]$MaxAllowlistDenialRate = 0.08,
     [double]$MinBackendSuccessRatio = 0.45,
@@ -137,6 +138,7 @@ try {
         'run', 'tickets', '--', 'review-wave',
         '--min-efficiency-score', (To-InvariantString -Value $MinEfficiencyScore),
         '--max-blocked', [string]$MaxBlocked,
+        '--blocked-window-days', [string]$BlockedWindowDays,
         '--max-p95-ms', (To-InvariantString -Value $MaxP95Ms),
         '--max-allowlist-denial-rate', (To-InvariantString -Value $MaxAllowlistDenialRate),
         '--min-backend-success-ratio', (To-InvariantString -Value $MinBackendSuccessRatio),
@@ -161,6 +163,7 @@ try {
         '--max-active', [string]$MaxActive,
         '--max-attempts', [string]$MaxAttempts,
         '--max-blocked', [string]$MaxBlocked,
+        '--blocked-window-days', [string]$BlockedWindowDays,
         '--min-completion-rate', (To-InvariantString -Value $MinCompletionRate),
         '--max-superseded-rate', (To-InvariantString -Value $MaxSupersededRate),
         '--max-allowlist-denial-rate', (To-InvariantString -Value $MaxAllowlistDenialRate),
@@ -239,6 +242,7 @@ try {
         thresholds = @{
             minEfficiencyScore = $MinEfficiencyScore
             maxBlocked = $MaxBlocked
+            blockedWindowDays = $BlockedWindowDays
             maxP95Ms = $MaxP95Ms
             maxAllowlistDenialRate = $MaxAllowlistDenialRate
             minBackendSuccessRatio = $MinBackendSuccessRatio

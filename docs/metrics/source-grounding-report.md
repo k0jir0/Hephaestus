@@ -1,9 +1,9 @@
 # Source Grounding Report
 
-Generated: 2026-06-02T16:59:21.035Z
+Generated: 2026-06-03T16:36:04.168Z
 
 ## Coverage
-- Total tickets: 316
+- Total tickets: 366
 - Blueprint/D2+ tickets requiring grounding: 0
 - Grounded tickets: 0
 - Coverage: 100.0%

@@ -279,17 +279,19 @@ export class TicketStoreRepository
     this.importLegacyTaskBoardIfStoreEmpty =
       options.importLegacyTaskBoardIfStoreEmpty ?? true;
     this.projectionEnabled = options.projectionEnabled ?? true;
-    this.pollingIntervalMs = Math.max(
-      100,
-      options.pollingIntervalMs ?? Number.parseInt(process.env.TICKET_POLLING_INTERVAL_MS ?? '500', 10)
-    );
-    this.redispatchPendingAfterMs = Math.max(
-      1_000,
-      options.redispatchPendingAfterMs ?? Number.parseInt(process.env.REDISPATCH_PENDING_AFTER_MS ?? '15000', 10)
-    );
+    this.pollingIntervalMs =
+      options.pollingIntervalMs !== undefined
+        ? Math.max(1, options.pollingIntervalMs)
+        : Math.max(100, Number.parseInt(process.env.TICKET_POLLING_INTERVAL_MS ?? '500', 10));
+    this.redispatchPendingAfterMs =
+      options.redispatchPendingAfterMs !== undefined
+        ? Math.max(1, options.redispatchPendingAfterMs)
+        : Math.max(1_000, Number.parseInt(process.env.REDISPATCH_PENDING_AFTER_MS ?? '15000', 10));
     this.redispatchPendingMaxAfterMs = Math.max(
       this.redispatchPendingAfterMs,
-      options.redispatchPendingMaxAfterMs ?? Number.parseInt(process.env.REDISPATCH_PENDING_MAX_AFTER_MS ?? '120000', 10)
+      options.redispatchPendingMaxAfterMs !== undefined
+        ? Math.max(1, options.redispatchPendingMaxAfterMs)
+        : Number.parseInt(process.env.REDISPATCH_PENDING_MAX_AFTER_MS ?? '120000', 10)
     );
     this.redispatchBackoffMultiplier = Math.max(
       1,

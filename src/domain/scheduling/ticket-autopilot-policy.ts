@@ -65,6 +65,7 @@ export interface TicketAutopilotGateOptions {
   minCompletionRate?: number;
   maxSupersededRate?: number;
   maxBlockedTickets?: number;
+  blockedWindowDays?: number;
   maxAllowlistDenialRate?: number;
   minSourceGroundingCoverage?: number;
   minSourceEvidenceCoverage?: number;
@@ -88,6 +89,7 @@ interface ResolvedTicketAutopilotGateOptions {
   minCompletionRate: number;
   maxSupersededRate: number;
   maxBlockedTickets: number;
+  blockedWindowDays?: number;
   maxAllowlistDenialRate: number;
   minSourceGroundingCoverage: number;
   minSourceEvidenceCoverage: number;
@@ -136,6 +138,8 @@ function resolveGateOptions(
     minCompletionRate: options.minCompletionRate ?? 0.7,
     maxSupersededRate: options.maxSupersededRate ?? 0.2,
     maxBlockedTickets: options.maxBlockedTickets ?? 5,
+    blockedWindowDays:
+      options.blockedWindowDays !== undefined ? Math.max(1, options.blockedWindowDays) : undefined,
     maxAllowlistDenialRate: options.maxAllowlistDenialRate ?? 0.08,
     minSourceGroundingCoverage: options.minSourceGroundingCoverage ?? 0.9,
     minSourceEvidenceCoverage: options.minSourceEvidenceCoverage ?? 0.95,
@@ -223,6 +227,19 @@ function compareRetryRecoveryPriority(left: TaskTicket, right: TaskTicket): numb
   return left.createdAt.getTime() - right.createdAt.getTime();
 }
 
+function isBlockedTicketWithinWindow(
+  ticket: TaskTicket,
+  blockedWindowDays: number | undefined,
+  nowMs: number
+): boolean {
+  if (blockedWindowDays === undefined) {
+    return true;
+  }
+
+  const referenceAt = ticket.blockedAt ?? ticket.updatedAt ?? ticket.createdAt;
+  return nowMs - referenceAt.getTime() <= blockedWindowDays * 24 * 60 * 60 * 1000;
+}
+
 export function evaluateTicketAutopilotGateFailures(
   tickets: TaskTicket[],
   options: TicketAutopilotGateOptions = {}
@@ -246,7 +263,11 @@ export function evaluateTicketAutopilotGateFailures(
     }
   }
 
-  const blockedCount = tickets.filter((ticket) => ticket.status === 'blocked').length;
+  const blockedCount = tickets.filter(
+    (ticket) =>
+      ticket.status === 'blocked' &&
+      isBlockedTicketWithinWindow(ticket, resolvedOptions.blockedWindowDays, resolvedOptions.nowMs)
+  ).length;
   if (blockedCount > resolvedOptions.maxBlockedTickets) {
     failures.push(`blocked-count-high:${blockedCount}>${resolvedOptions.maxBlockedTickets}`);
   }

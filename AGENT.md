@@ -11,9 +11,9 @@ This file stores the agent's long-term context and memory.
 
 ## Current State
 
-- **Status**: Blocked
-- **Current Task**: Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-050 checkpoint entry, verify with npm run build, expected signal: build exits 0.
-- **Last Activity**: 2026-06-03T15:10:54.437Z
+- **Status**: Shutdown
+- **Current Task**: None
+- **Last Activity**: 2026-06-03T16:21:39.229Z
 
 ## Working Context
 
@@ -3958,6 +3958,8 @@ ok 21 - TaskWatcher
 - [2026-06-03T15:10:18.638Z] Blocked: Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-048 checkpoint entry, verify with npm run build, expected signal: build exits 0.
 - [2026-06-03T15:10:36.186Z] Blocked: Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-049 checkpoint entry, verify with npm run build, expected signal: build exits 0.
 - [2026-06-03T15:10:54.422Z] Blocked: Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-050 checkpoint entry, verify with npm run build, expected signal: build exits 0.
+- [2026-06-03T16:20:32.175Z] Startup preflight passed
+- [2026-06-03T16:21:39.216Z] Agent shutdown: fatal
 
 ---
 

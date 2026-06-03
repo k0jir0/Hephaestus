@@ -473,6 +473,10 @@ async function main(): Promise<void> {
         const waveSize = parsePositiveInteger(parseOption(args, '--wave-size'), '--wave-size');
         const maxActiveTickets = parsePositiveInteger(parseOption(args, '--max-active'), '--max-active');
         const maxBlockedTickets = parsePositiveInteger(parseOption(args, '--max-blocked'), '--max-blocked');
+        const blockedWindowDays = parsePositiveInteger(
+          parseOption(args, '--blocked-window-days'),
+          '--blocked-window-days'
+        );
         const minCompletionRate = parseRatioOption(parseOption(args, '--min-completion-rate'), '--min-completion-rate');
         const maxSupersededRate = parseRatioOption(parseOption(args, '--max-superseded-rate'), '--max-superseded-rate');
         const maxAllowlistDenialRate = parseRatioOption(parseOption(args, '--max-allowlist-denial-rate'), '--max-allowlist-denial-rate');
@@ -558,6 +562,7 @@ async function main(): Promise<void> {
             waveSize,
             maxActiveTickets,
             maxBlockedTickets,
+            blockedWindowDays,
             minCompletionRate,
             maxSupersededRate,
             maxAllowlistDenialRate,
@@ -1190,6 +1195,10 @@ async function main(): Promise<void> {
       case 'review-wave': {
         const minEfficiencyScore = parseNumberOption(parseOption(args, '--min-efficiency-score'), '--min-efficiency-score') ?? 70;
         const maxBlockedTickets = parsePositiveInteger(parseOption(args, '--max-blocked'), '--max-blocked') ?? 20;
+        const blockedWindowDays = parsePositiveInteger(
+          parseOption(args, '--blocked-window-days'),
+          '--blocked-window-days'
+        );
         const maxP95AdmissionToCompleteMs = parseNumberOption(parseOption(args, '--max-p95-ms'), '--max-p95-ms') ?? 5_500_000;
         const maxAllowlistDenialRate = parseRatioOption(parseOption(args, '--max-allowlist-denial-rate'), '--max-allowlist-denial-rate') ?? 0.08;
         const minBackendSuccessRatio = parseRatioOption(parseOption(args, '--min-backend-success-ratio'), '--min-backend-success-ratio') ?? 0.7;
@@ -1252,7 +1261,19 @@ async function main(): Promise<void> {
           failures.push(`efficiency-score-low:${efficiencyScore.toFixed(3)}<${minEfficiencyScore}`);
         }
 
-        const blockedCount = Number(efficiency.totals?.blocked ?? 0);
+        const blockedWindowMs = blockedWindowDays ? blockedWindowDays * 24 * 60 * 60 * 1000 : undefined;
+        const blockedCount = tickets.filter((ticket) => {
+          if (ticket.status !== 'blocked') {
+            return false;
+          }
+
+          if (blockedWindowMs === undefined) {
+            return true;
+          }
+
+          const referenceAt = ticket.blockedAt ?? ticket.updatedAt ?? ticket.createdAt;
+          return Date.now() - referenceAt.getTime() <= blockedWindowMs;
+        }).length;
         if (blockedCount > maxBlockedTickets) {
           failures.push(`blocked-count-high:${blockedCount}>${maxBlockedTickets}`);
         }
@@ -1332,7 +1353,8 @@ async function main(): Promise<void> {
         console.log('Hephaestus wave review');
         console.log(`Decision: ${failures.length === 0 ? 'GO' : 'NO-GO'}`);
         console.log(`Efficiency score: ${efficiencyScore.toFixed(3)} (threshold ${minEfficiencyScore})`);
-        console.log(`Blocked tickets: ${blockedCount} (threshold ${maxBlockedTickets})`);
+        const blockedWindowLabel = blockedWindowDays ? ` within ${blockedWindowDays}d` : '';
+        console.log(`Blocked tickets${blockedWindowLabel}: ${blockedCount} (threshold ${maxBlockedTickets})`);
         console.log(`Admission->complete p95 (ms): ${p95AdmissionToCompleteMs} (threshold ${maxP95AdmissionToCompleteMs})`);
         console.log(`Allowlist denial rate: ${allowlistDenialRate.toFixed(3)} (threshold ${maxAllowlistDenialRate})`);
         console.log(

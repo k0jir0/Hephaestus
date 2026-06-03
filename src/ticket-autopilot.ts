@@ -28,6 +28,7 @@ export interface TicketAutopilotOptions {
   minCompletionRate?: number;
   maxSupersededRate?: number;
   maxBlockedTickets?: number;
+  blockedWindowDays?: number;
   maxAllowlistDenialRate?: number;
   minSourceGroundingCoverage?: number;
   minSourceEvidenceCoverage?: number;
