@@ -18,6 +18,7 @@ export interface TicketAutopilotSeeder {
 
 export interface TicketAutopilotOptions {
   includeCancelled?: boolean;
+  disableRetryQuarantine?: boolean;
   dryRun?: boolean;
   seedSelfAuditWhenIdle?: boolean;
   selfAuditLimit?: number;
@@ -53,6 +54,7 @@ export interface TicketAutopilotResult {
   resumed: TaskTicket[];
   requeued: TaskTicket[];
   skippedRetryCap: TaskTicket[];
+  quarantinedRetryTickets: TaskTicket[];
   blockedByGates: boolean;
   gateFailures: string[];
   selfAudit: SelfAuditSeedResult | null;
@@ -90,6 +92,7 @@ export async function runTicketAutopilot(
     gateFailures,
     resumableTickets,
     retryableTickets,
+    quarantinedRetryTickets,
     skippedRetryCap,
   } = schedule;
 
@@ -140,6 +143,7 @@ export async function runTicketAutopilot(
     resumed,
     requeued,
     skippedRetryCap,
+    quarantinedRetryTickets,
     blockedByGates,
     gateFailures,
     selfAudit,

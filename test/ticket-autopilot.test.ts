@@ -116,6 +116,43 @@ describe('runTicketAutopilot', () => {
     assert.equal(result.queueReady, true);
   });
 
+  it('quarantines chronic policy failures from automatic retry', async () => {
+    const calls = {
+      retried: [] as string[],
+    };
+
+    const result = await runTicketAutopilot(
+      {
+        repository: {
+          async listTickets() {
+            return [
+              {
+                ...makeTicket('ticket_allowlist', 'blocked'),
+                error: 'Command is not allowlisted: npm run strange-test',
+              },
+              {
+                ...makeTicket('ticket_transient', 'failed'),
+                error: 'backend unavailable during warmup',
+              },
+            ];
+          },
+          async retryTicket(ticketId: string) {
+            calls.retried.push(ticketId);
+            return makeTicket(ticketId, 'pending');
+          },
+          async resumeApprovedTicket() {
+            throw new Error('resumeApprovedTicket should not be called in this test');
+          },
+        },
+      },
+      { maxAttempts: 3 }
+    );
+
+    assert.deepEqual(calls.retried, ['ticket_transient']);
+    assert.deepEqual(result.quarantinedRetryTickets.map((ticket) => ticket.id), ['ticket_allowlist']);
+    assert.equal(result.requeued.length, 1);
+  });
+
   it('seeds self-audit when the queue is idle after automation prep', async () => {
     let receivedLimit: number | undefined;
     let receivedDryRun = false;
@@ -232,9 +269,9 @@ describe('runTicketAutopilot', () => {
       }
     );
 
-    assert.deepEqual(calls.retried, ['blocked_1']);
-    assert.equal(result.availableWaveSlots, 1);
-    assert.equal(result.requeued.length, 1);
+    assert.deepEqual(calls.retried, ['blocked_1', 'blocked_2']);
+    assert.equal(result.availableWaveSlots, 2);
+    assert.equal(result.requeued.length, 2);
     assert.equal(result.blockedByGates, false);
   });
 

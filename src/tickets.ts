@@ -3,6 +3,7 @@ import { TicketStoreRepository } from './task-store.js';
 import { SelfAuditSeeder } from './self-audit.js';
 import { computeOperationalSLOMetrics, formatOperationalSLOMetrics } from './slo-metrics.js';
 import { runTicketAutopilot } from './ticket-autopilot.js';
+import { getTicketAutopilotRetryQuarantineReason } from './domain/scheduling/ticket-autopilot-policy.js';
 import { exportPatchBundle } from './delivery.js';
 import { exportCodexHandoffBundles } from './codex-handoff.js';
 import { parseOption, parsePositiveInteger } from './cli-utils.js';
@@ -36,7 +37,7 @@ Usage:
   npm run tickets -- list [--status <status>]
   npm run tickets -- show <ticket-id>
   npm run tickets -- retry <ticket-id> [--amend <description>]
-  npm run tickets -- autopilot [--include-cancelled] [--no-self-audit] [--self-audit-limit <count>] [--max-attempts <count>] [--wave-size <count>] [--max-active <count>] [--min-completion-rate <ratio>] [--max-superseded-rate <ratio>] [--max-blocked <count>] [--max-allowlist-denial-rate <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>] [--enforce-d2] [--max-d2-count-mismatches <count>] [--max-d2-legacy-only <count>] [--max-d2-domain-only <count>] [--max-d2-domain-deficit <count>] [--max-d2-missing-legacy-link <count>] [--min-d2-replay-correlation-coverage <ratio>] [--dry-run]
+  npm run tickets -- autopilot [--include-cancelled] [--no-retry-quarantine] [--no-self-audit] [--self-audit-limit <count>] [--max-attempts <count>] [--wave-size <count>] [--max-active <count>] [--min-completion-rate <ratio>] [--max-superseded-rate <ratio>] [--max-blocked <count>] [--max-allowlist-denial-rate <ratio>] [--min-source-grounding-coverage <ratio>] [--min-source-evidence-coverage <ratio>] [--max-source-drifted <count>] [--max-source-snapshot-age-hours <hours>] [--enforce-d2] [--max-d2-count-mismatches <count>] [--max-d2-legacy-only <count>] [--max-d2-domain-only <count>] [--max-d2-domain-deficit <count>] [--max-d2-missing-legacy-link <count>] [--min-d2-replay-correlation-coverage <ratio>] [--dry-run]
   npm run tickets -- approve <ticket-id> <reviewer> [reason]
   npm run tickets -- reject <ticket-id> <reviewer> [reason]
   npm run tickets -- resume <ticket-id>
@@ -461,6 +462,7 @@ async function main(): Promise<void> {
 
       case 'autopilot': {
         const includeCancelled = args.includes('--include-cancelled');
+        const disableRetryQuarantine = args.includes('--no-retry-quarantine');
         const seedSelfAuditWhenIdle = !args.includes('--no-self-audit');
         const dryRun = args.includes('--dry-run');
         const selfAuditLimit = parsePositiveInteger(
@@ -548,6 +550,7 @@ async function main(): Promise<void> {
           },
           {
             includeCancelled,
+            disableRetryQuarantine,
             dryRun,
             seedSelfAuditWhenIdle,
             selfAuditLimit,
@@ -600,6 +603,13 @@ async function main(): Promise<void> {
 
         for (const ticket of result.requeued) {
           console.log(`${dryRun ? 'Would requeue' : 'Requeued'} ${ticket.id} ${ticket.description}`);
+        }
+
+        for (const ticket of result.quarantinedRetryTickets) {
+          const reason = getTicketAutopilotRetryQuarantineReason(ticket) ?? 'unknown';
+          console.log(
+            `Quarantined retry ${ticket.id} reason=${reason} attempts=${ticket.attemptCount} ${ticket.description}`
+          );
         }
 
         for (const ticket of result.skippedRetryCap) {

@@ -1,4 +1,8 @@
 import type { TaskStatus, TaskTicket } from '../../types.js';
+import {
+  globalErrorBudgetExclusionPatterns,
+  hardBlockFailurePatterns,
+} from '../tickets/failure-policy.js';
 
 const runnableStatuses = new Set<TaskStatus>([
   'pending',
@@ -20,7 +24,42 @@ const activeStatuses = new Set<TaskStatus>([
   'failed',
   'stale',
 ]);
+const admittedStatuses = new Set<TaskStatus>([
+  'pending',
+  'in_progress',
+  'planned',
+  'applying',
+  'verifying',
+  'awaiting_approval',
+]);
 const terminalStatuses = new Set<TaskStatus>(['completed', 'superseded', 'cancelled']);
+
+const recoveryFirstDescriptionPatterns: readonly RegExp[] = [
+  /\bfix\b/i,
+  /\bupdate\b/i,
+  /\bbuild\b/i,
+  /\brepair\b/i,
+  /\brestore\b/i,
+];
+
+const staleRecoveryQuarantinePatterns: readonly RegExp[] = [
+  /previous daemon exited before finishing/i,
+  /stale[-\s]+recovery/i,
+  /stale active ticket/i,
+];
+
+const unsupportedEnvelopeQuarantinePatterns: readonly RegExp[] = [
+  /unsupported task envelope/i,
+  /governed runtime does not yet bind/i,
+  /tool call .* is not yet supported/i,
+];
+
+const retryQuarantineFailurePatterns: readonly RegExp[] = [
+  ...hardBlockFailurePatterns,
+  ...globalErrorBudgetExclusionPatterns,
+  ...unsupportedEnvelopeQuarantinePatterns,
+  ...staleRecoveryQuarantinePatterns,
+];
 
 export interface TicketAutopilotGateOptions {
   minCompletionRate?: number;
@@ -62,6 +101,7 @@ interface ResolvedTicketAutopilotGateOptions {
 
 export interface TicketAutopilotSchedulingOptions extends TicketAutopilotGateOptions {
   includeCancelled?: boolean;
+  disableRetryQuarantine?: boolean;
   maxAttempts?: number;
   waveSize?: number;
   maxActiveTickets?: number;
@@ -76,6 +116,7 @@ export interface TicketAutopilotSchedule {
   gateFailures: string[];
   resumableTickets: TaskTicket[];
   retryableTickets: TaskTicket[];
+  quarantinedRetryTickets: TaskTicket[];
   skippedRetryCap: TaskTicket[];
 }
 
@@ -129,6 +170,57 @@ export function isApprovedAwaitingApproval(ticket: TaskTicket): boolean {
 
 export function isPendingOperatorApproval(ticket: TaskTicket): boolean {
   return ticket.status === 'awaiting_approval' && ticket.approval?.status !== 'approved';
+}
+
+export function getTicketAutopilotRetryQuarantineReason(ticket: TaskTicket): string | undefined {
+  const reason = ticket.error?.trim();
+  if (!reason) {
+    return undefined;
+  }
+
+  if (unsupportedEnvelopeQuarantinePatterns.some((pattern) => pattern.test(reason))) {
+    return 'unsupported-envelope';
+  }
+
+  if (staleRecoveryQuarantinePatterns.some((pattern) => pattern.test(reason))) {
+    return 'stale-recovery';
+  }
+
+  if (/allowlist|allowlisted/i.test(reason)) {
+    return 'allowlist-denial';
+  }
+
+  if (globalErrorBudgetExclusionPatterns.some((pattern) => pattern.test(reason))) {
+    return 'plan-or-file-boundary';
+  }
+
+  if (retryQuarantineFailurePatterns.some((pattern) => pattern.test(reason))) {
+    return 'policy-hard-block';
+  }
+
+  return undefined;
+}
+
+function hasRecoveryFirstDescription(ticket: TaskTicket): boolean {
+  return recoveryFirstDescriptionPatterns.some((pattern) => pattern.test(ticket.description));
+}
+
+function compareRetryRecoveryPriority(left: TaskTicket, right: TaskTicket): number {
+  const leftRecoveryFirst = hasRecoveryFirstDescription(left) ? 0 : 1;
+  const rightRecoveryFirst = hasRecoveryFirstDescription(right) ? 0 : 1;
+  if (leftRecoveryFirst !== rightRecoveryFirst) {
+    return leftRecoveryFirst - rightRecoveryFirst;
+  }
+
+  if (left.attemptCount !== right.attemptCount) {
+    return left.attemptCount - right.attemptCount;
+  }
+
+  if (left.sourceOrder !== right.sourceOrder) {
+    return left.sourceOrder - right.sourceOrder;
+  }
+
+  return left.createdAt.getTime() - right.createdAt.getTime();
 }
 
 export function evaluateTicketAutopilotGateFailures(
@@ -239,12 +331,18 @@ export function planTicketAutopilotSchedule(
   const runnableTicketCount = tickets.filter(isRunnableTicket).length;
   const awaitingApprovalCount = tickets.filter(isPendingOperatorApproval).length;
   const activeTicketCount = tickets.filter((ticket) => activeStatuses.has(ticket.status)).length;
-  const queueCapacity = Math.max(0, maxActiveTickets - activeTicketCount);
+  const admittedTicketCount = tickets.filter((ticket) => admittedStatuses.has(ticket.status)).length;
+  const queueCapacity = Math.max(0, maxActiveTickets - admittedTicketCount);
   const availableWaveSlots = blockedByGates ? 0 : Math.min(waveSize, queueCapacity);
   const retryAttemptLimit = resolveTicketAutopilotRetryAttemptLimit(options.maxAttempts);
   const retryCandidates = tickets.filter(
     (ticket) => retryableStatuses.has(ticket.status) || (options.includeCancelled && ticket.status === 'cancelled')
   );
+  const retryCandidatesUnderCap = retryCandidates.filter((ticket) => ticket.attemptCount < retryAttemptLimit);
+  const quarantinedRetryTickets = options.disableRetryQuarantine
+    ? []
+    : retryCandidatesUnderCap.filter((ticket) => getTicketAutopilotRetryQuarantineReason(ticket) !== undefined);
+  const quarantinedRetryTicketIds = new Set(quarantinedRetryTickets.map((ticket) => ticket.id));
 
   return {
     runnableTicketCount,
@@ -254,7 +352,10 @@ export function planTicketAutopilotSchedule(
     blockedByGates,
     gateFailures,
     resumableTickets: tickets.filter(isApprovedAwaitingApproval),
-    retryableTickets: retryCandidates.filter((ticket) => ticket.attemptCount < retryAttemptLimit),
+    retryableTickets: retryCandidatesUnderCap
+      .filter((ticket) => !quarantinedRetryTicketIds.has(ticket.id))
+      .sort(compareRetryRecoveryPriority),
+    quarantinedRetryTickets,
     skippedRetryCap: retryCandidates.filter((ticket) => ticket.attemptCount >= retryAttemptLimit),
   };
 }

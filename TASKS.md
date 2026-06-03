@@ -5,12 +5,42 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 ## Queue
 
 <!-- Tasks are processed top-to-bottom. Add new tasks at the bottom. -->
-- (empty)
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-026 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_cd96ff32483f -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-027 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_b07f89542396 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-028 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_6669bc011df8 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-029 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_6b78956e4626 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-030 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_d51e00d34091 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-031 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_c462a82b08c7 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-032 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_962f9bc24498 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-033 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_a2136b7f0f0f -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-034 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_07b66d650e17 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-035 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_8212dd1d5cc1 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-036 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_83296ad1753d -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-037 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_818607483ae0 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-038 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_e06b93ad0830 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-039 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_aad5fdf39f40 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-040 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_9d8780b456b2 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-041 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_60fdd073306a -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-042 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_8f14596c3fd4 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-043 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_a5da94fd20d5 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-044 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_14b92ab8a70d -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-045 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_d4f255d1c9b5 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-046 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_ad60997ebae3 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-047 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_a7d2da837f72 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-048 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_03cab159bde5 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-049 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_c88af06c23eb -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-050 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_83c993d036f6 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-001 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_03e76b0f8ed5 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-002 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_15dd5d4ee8d9 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-003 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_d4dbabab792c -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-004 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_02e127c0ca30 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-005 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_82f04d08bc4e -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-006 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_b50011b61ba5 -->
 
 ## In Progress
 
 <!-- Currently working on these tasks -->
-- (empty)
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-025 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_546fbb209969 -->
 
 ## Completed
 
@@ -141,6 +171,24 @@ Add tasks below. The agent processes the Queue section top-to-bottom.
 - [ ] Optimize queue polling cadence in src/task-store.ts for active versus idle windows, then verify with npm test with expected signal: adaptive dispatch tests pass. <!-- hephaestus-ticket:ticket_05fa73182b51 -->
 - [ ] Optimize telemetry aggregation loops in src/upgrade-telemetry.ts for single-pass counting, then verify with npm test with expected signal: telemetry tests pass with identical outputs. <!-- hephaestus-ticket:ticket_65f3be7545e2 -->
 - [ ] Optimize efficiency index calculations in src/efficiency-metrics.ts by reducing repeated derived math, then verify with npm test with expected signal: metric result snapshots unchanged. <!-- hephaestus-ticket:ticket_b1a91c281605 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-007 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_2984d2d2b45d -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-008 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_2f33b8ecb6bc -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-009 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_d10a70052e42 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-010 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_bfb5e27b4276 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-011 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_6f18133542e2 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-012 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_81d3810f808f -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-013 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_e4e7ca401cde -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-014 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_79e80ba139ee -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-015 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_f463bd1d35d5 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-016 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_aec24b975401 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-017 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_0b744255faaf -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-018 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_c0ad3ec96911 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-019 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_5680c03e739e -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-020 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_b2eb85a9ffff -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-021 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_f3222b7aecb0 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-022 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_7e92dc720145 -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-023 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_2b6558de4b0a -->
+- [ ] Update docs/metrics/hephaestus-50-ticket-test.md with H50J3-024 checkpoint entry, verify with npm run build, expected signal: build exits 0. <!-- hephaestus-ticket:ticket_c7bcb90456f3 -->
 
 ## Cancelled
 

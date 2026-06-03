@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   evaluateTicketAutopilotGateFailures,
+  getTicketAutopilotRetryQuarantineReason,
   planTicketAutopilotSchedule,
   resolveSelfAuditSeedLimit,
   shouldSeedSelfAuditFromAutopilot,
@@ -21,7 +22,8 @@ function makeTicket(
   id: string,
   status: TaskTicket['status'],
   approval?: TaskApprovalState,
-  attemptCount = 0
+  attemptCount = 0,
+  sourceOrder = 1
 ): TaskTicket {
   return {
     id,
@@ -30,7 +32,7 @@ function makeTicket(
     createdAt: new Date(),
     updatedAt: new Date(),
     attemptCount,
-    sourceOrder: 1,
+    sourceOrder,
     approval,
   };
 }
@@ -60,7 +62,44 @@ describe('ticket autopilot policy', () => {
     assert.equal(schedule.availableWaveSlots, 3);
     assert.deepEqual(schedule.resumableTickets.map((ticket) => ticket.id), ['resume_1']);
     assert.deepEqual(schedule.retryableTickets.map((ticket) => ticket.id), ['blocked_1', 'cancelled_retry']);
+    assert.deepEqual(schedule.quarantinedRetryTickets.map((ticket) => ticket.id), []);
     assert.deepEqual(schedule.skippedRetryCap.map((ticket) => ticket.id), ['failed_exhausted']);
+  });
+
+  it('quarantines chronic retry cohorts and prioritizes recovery-first tickets', () => {
+    const allowlistDenied = {
+      ...makeTicket('blocked_allowlist', 'blocked', undefined, 0, 1),
+      error: 'Command is not allowlisted: npm run strange-test',
+    };
+    const fileBoundaryDenied = {
+      ...makeTicket('blocked_boundary', 'failed', undefined, 0, 2),
+      error: 'patch touches src/agent.ts not declared in the validated plan',
+    };
+    const genericRetry = {
+      ...makeTicket('generic_retry', 'blocked', undefined, 0, 3),
+      description: 'Inspect exploratory docs cleanup',
+    };
+    const recoveryFirstRetry = {
+      ...makeTicket('fix_retry', 'blocked', undefined, 0, 4),
+      description: 'FIX telemetry writer guard',
+    };
+
+    const schedule = planTicketAutopilotSchedule(
+      [allowlistDenied, fileBoundaryDenied, genericRetry, recoveryFirstRetry],
+      {
+        maxAttempts: 3,
+        waveSize: 4,
+        maxActiveTickets: 4,
+      }
+    );
+
+    assert.equal(getTicketAutopilotRetryQuarantineReason(allowlistDenied), 'allowlist-denial');
+    assert.equal(getTicketAutopilotRetryQuarantineReason(fileBoundaryDenied), 'plan-or-file-boundary');
+    assert.deepEqual(schedule.quarantinedRetryTickets.map((ticket) => ticket.id), [
+      'blocked_allowlist',
+      'blocked_boundary',
+    ]);
+    assert.deepEqual(schedule.retryableTickets.map((ticket) => ticket.id), ['fix_retry', 'generic_retry']);
   });
 
   it('reports efficiency gate failures as stable policy reasons', () => {
