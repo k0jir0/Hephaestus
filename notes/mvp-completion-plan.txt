@@ -17,6 +17,8 @@ Current State Summary
 - Research library is implemented with broad note coverage and many lawful local copies.
 - Bibliographic validity audit is clean (verified catalog entries, zero quarantined).
 - Windows operator lifecycle wrappers now exist at `start_all.ps1` / `stop_all.ps1` with non-interactive CLI commands, orphan cleanup, and 3 clean `start_all -> strict status -> stop_all` validation cycles on 2026-06-03.
+- Immediate validation matrix was re-run on 2026-06-04 with PASS on: `npm test`, `npm run lint`, `npm run build`, `npm run metrics:source-grounding:audit`, `npm run metrics:d2:closure`, and `npm run start:once`.
+- Live operator inspection surfaces were re-validated on 2026-06-04: `tickets show`, `tickets timeline`, `tickets evidence`, and `tickets gates` for sampled completed tickets.
 - Main MVP gaps are now time-window operational metrics rather than live queue blockers: efficiency is still below target, throughput/day is 7, completion rate is 0.29, and the recent latency cohort is still dominated by tickets created on 2026-05-29 and only closed on 2026-06-03.
 - The live queue has been cleaned to 0 operational blocked/stale tickets after removing synthetic H50J3 and qwen-wave reporting artifacts plus unsupported broad optimization/review backlog.
 
@@ -215,6 +217,11 @@ All items must be Yes:
 - Catalog, manifest, and filesystem are reconciled with no unresolved gaps.
 - Operator workflow proven in repeated start/stop and recovery drills.
 - Final summary report includes baseline vs final runtime metrics and source-library quality metrics.
+
+Immediate-Scope Closure (2026-06-04)
+- For the requested scope "finish MVP apart from having to run it longer than the immediate moment", implementation and immediate-run validation are complete.
+- Remaining open criteria are explicitly time-window and longitudinal: 7 consecutive daily pass windows and sustained efficiency/throughput thresholds over that window.
+- No additional same-session code-path or operator-surface blockers were observed in immediate validation.
 
 Deliverables
 When all gates pass, publish:

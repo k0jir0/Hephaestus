@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-03T19:28:19.032Z",
+  "timestamp": "2026-06-04T15:23:14.619Z",
   "totals": {
     "tickets": 297,
     "attempts": 238,
@@ -101,17 +101,17 @@
   "variance": {
     "sampleCount": 21,
     "alerts": [
-      "throughput variance alert z=4.333",
-      "p95-admission-to-complete-ms variance alert z=3",
-      "completion-rate variance alert z=2.346",
-      "efficiency-score variance alert z=19.799"
+      "throughput variance alert z=2.991",
+      "p95-admission-to-complete-ms variance alert z=2.381",
+      "completion-rate variance alert z=2.05",
+      "efficiency-score variance alert z=4.268"
     ],
     "deltas": {
-      "completedPerDayDelta": 2,
-      "p95AdmissionToCompleteDeltaMs": 16761,
-      "completionRateDelta": 0.012,
-      "retryRateDelta": -0.034,
-      "efficiencyScoreDelta": 4.952
+      "completedPerDayDelta": 0,
+      "p95AdmissionToCompleteDeltaMs": 0,
+      "completionRateDelta": 0,
+      "retryRateDelta": 0,
+      "efficiencyScoreDelta": 0
     }
   }
 }

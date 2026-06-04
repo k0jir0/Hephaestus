@@ -1,6 +1,6 @@
 # D2 Closure Report
 
-Generated: 2026-06-03T16:23:51.077Z
+Generated: 2026-06-04T15:23:18.626Z
 Decision: PASS
 
 ## Strict Thresholds
@@ -12,26 +12,26 @@ Decision: PASS
 - minReplayCorrelationCoverage: 0.2
 
 ## Event Spine
-- Legacy events: 5744
-- Domain events: 5744
+- Legacy events: 6035
+- Domain events: 6035
 - Domain deficit: 0
-- Domain events with legacy link: 5744
+- Domain events with legacy link: 6035
 - Missing legacy link rows: 0
-- Event evidence rows: 1744
+- Event evidence rows: 1808
 - Tickets with count mismatch: 0
 - Tickets with legacy-only events: 0
 - Tickets with domain-only events: 0
 
 ## Replay
-- Replay tickets: 367
-- Replay total events: 5744
-- Replay correlation coverage: 0.247
-- Replay hash: 9b0cf7e60393ac42e6fdb152ee84b7c8eb3258839f11473df08475e25fb71546
+- Replay tickets: 368
+- Replay total events: 6035
+- Replay correlation coverage: 0.238
+- Replay hash: bb9de750af4f1866b14de8e3ed6937c19f80ed7e6065404f5d4268deb63fb915
 - Replay hash stable across immediate rerun: yes
 
 ## Source Grounding Context
-- Snapshot timestamp: 2026-06-02T16:59:21.035Z
-- Snapshot age (hours): 23.408
+- Snapshot timestamp: 2026-06-03T16:49:22.233Z
+- Snapshot age (hours): 22.566
 - Grounding coverage: 1.000
 - Grounded/required tickets: 0/0
 - Event evidence coverage: 1.000

@@ -2,7 +2,7 @@ Hephaestus MVP Completion Report
 Date: 2026-06-03
 
 Status
-Not yet complete. The operational queue and code-path blockers were materially reduced in this pass, but the MVP is still gated by time-window efficiency targets and the 7-day validation requirement.
+Immediate-scope complete as of 2026-06-04 for all non-longitudinal actions. Full formal MVP sign-off remains gated by time-window efficiency targets and the 7-day validation requirement.
 
 What Was Completed Today
 - Hardened structured-plan path validation so nonexistent repository paths are rejected before execution for non-create file targets and `file.read` calls.
@@ -12,6 +12,15 @@ What Was Completed Today
 - Improved undeclared file-read denial guidance with an actionable next step and verified it with focused policy and runtime tests.
 - Completed the remaining real operational backlog tickets that were already satisfied by current code and focused validation.
 - Added non-interactive operator lifecycle commands plus `start_all` / `stop_all` Windows wrappers, then validated 3 clean start/status/stop cycles with orphan cleanup and strict daemon/UI health checks.
+- Re-ran immediate validation matrix on 2026-06-04:
+	- `npm test` PASS (203/203)
+	- `npm run lint` PASS
+	- `npm run build` PASS
+	- `npm run metrics:source-grounding:audit` PASS
+	- `npm run metrics:d2:closure` PASS
+	- `npm run autopilot -- --dry-run` executed (halted by efficiency gates as designed)
+	- `npm run start:once` PASS (clean single-pass startup and no pending tasks)
+- Re-validated live operator inspection surfaces on 2026-06-04 with sampled ticket checks: `tickets show`, `tickets timeline`, `tickets evidence`, and `tickets gates`.
 
 Current Operational State
 - Live queue counts: completed 90, cancelled 100, superseded 177, blocked 0, stale 0.
@@ -29,6 +38,10 @@ Why MVP Is Not Yet Complete
 - Throughput/day is now 7, which is improved but still below the plan target of 10.
 - Completion rate is now 0.29, still below the plan target of 0.65.
 - The latency gate remains red because the recent completion cohort is still dominated by tickets created on 2026-05-29 and only closed on 2026-06-03.
+
+Immediate-Scope Completion Statement
+- If the scope excludes "run it longer than the immediate moment," the MVP implementation and immediate validations are complete.
+- The only remaining blockers are longitudinal sign-off requirements, not missing implementation slices or missing operator surfaces.
 
 Assessment
 - The queue-recovery phase is no longer blocked by synthetic benchmark cohorts or unsupported optimization/review backlog.
