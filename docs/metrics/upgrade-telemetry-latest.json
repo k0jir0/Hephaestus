@@ -1,17 +1,17 @@
 {
-  "timestamp": "2026-06-03T16:23:52.584Z",
+  "timestamp": "2026-06-04T17:07:01.045Z",
   "queue": {
-    "total": 366,
+    "total": 367,
     "pending": 0,
     "inProgress": 0,
     "awaitingApproval": 0,
-    "blocked": 82,
+    "blocked": 0,
     "failed": 0,
-    "stale": 1,
-    "completed": 83,
+    "stale": 0,
+    "completed": 90,
     "superseded": 177,
-    "cancelled": 23,
-    "queuePressureIndex": 0.181
+    "cancelled": 100,
+    "queuePressureIndex": 0
   },
   "pendingAgeHours": {
     "p50": 0,
@@ -21,34 +21,34 @@
     "sampleCount": 0
   },
   "execution": {
-    "attempts": 318,
-    "attemptsPerTicket": 0.869,
+    "attempts": 322,
+    "attemptsPerTicket": 0.877,
     "retryRate": 0.172,
-    "startedLast24h": 99,
-    "completedLast24h": 0,
+    "startedLast24h": 1,
+    "completedLast24h": 7,
     "admissionToStartMs": {
       "p50": 465446,
       "p95": 3568419,
       "max": 101983060,
-      "average": 1799728.005,
-      "sampleCount": 200
+      "average": 1790789.199,
+      "sampleCount": 201
     }
   },
   "churn": {
-    "terminalCount": 283,
-    "supersededRate": 0.625,
-    "cancelledRate": 0.081,
-    "supersededToCompletedRatio": 2.133
+    "terminalCount": 367,
+    "supersededRate": 0.482,
+    "cancelledRate": 0.272,
+    "supersededToCompletedRatio": 1.967
   },
   "policy": {
     "allowlistDenialCount": 46,
-    "allowlistDenialRate": 0.145,
-    "commandCallCount": 224,
-    "commandIdCallCount": 68,
+    "allowlistDenialRate": 0.143,
+    "commandCallCount": 227,
+    "commandIdCallCount": 71,
     "rawCommandCallCount": 156,
-    "commandIdUsageRate": 0.304,
+    "commandIdUsageRate": 0.313,
     "allowlistCommandDenialCount": 42,
-    "allowlistCommandDenialRate": 0.188,
+    "allowlistCommandDenialRate": 0.185,
     "topCommandIds": [
       {
         "commandId": "npm.run.build",
@@ -56,7 +56,11 @@
       },
       {
         "commandId": "npm.test",
-        "count": 10
+        "count": 12
+      },
+      {
+        "commandId": "npm.run.test",
+        "count": 1
       }
     ],
     "topFailureBuckets": [
@@ -74,7 +78,7 @@
       },
       {
         "bucket": "file",
-        "count": 20
+        "count": 21
       },
       {
         "bucket": "structured plan validation failed",
@@ -82,7 +86,7 @@
       },
       {
         "bucket": "recovered stale active ticket after a previous daemon exited before fini",
-        "count": 14
+        "count": 15
       },
       {
         "bucket": "command failed",
@@ -121,16 +125,16 @@
     ],
     "topRetryReasons": [
       {
-        "bucket": "unsupported task envelope",
-        "count": 23
-      },
-      {
-        "bucket": "file",
-        "count": 5
+        "bucket": "cancelled by operator",
+        "count": 32
       },
       {
         "bucket": "deferred in remediation-first wave",
         "count": 3
+      },
+      {
+        "bucket": "implemented by stop_all",
+        "count": 2
       }
     ]
   },
@@ -141,8 +145,7 @@
     "queuePressureIndexMax": 0.65
   },
   "alerts": [
-    "superseded-rate-high:0.625",
-    "allowlist-denial-rate-high:0.145",
-    "no-completions-last-24h"
+    "superseded-rate-high:0.482",
+    "allowlist-denial-rate-high:0.143"
   ]
 }

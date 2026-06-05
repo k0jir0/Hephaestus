@@ -1,0 +1,127 @@
+Hephaestus Efficiency Test 22 Plan
+Date: 2026-06-04
+Owner: Runtime/Operator/QA
+Scope: Post-MVP efficiency push with controlled risk
+
+Question
+How high can we push the efficiency rating now that MVP is complete?
+
+Answer (evidence-based target)
+- Current validated MVP-era baseline: efficiency score ~29.6.
+- Prior observed high-water mark: ~61.1.
+- Realistic near-term ceiling (7-14 days, disciplined operations): 50-58.
+- Stretch ceiling (if throughput stability + retry suppression hold): 60-63.
+- Hard practical cap in current architecture without major redesign: ~65.
+
+Rationale
+1) The score previously reached 60+ in production-like operation, so 50-58 is feasible without new architecture.
+2) The latest degradation was throughput-window starvation and retry drag, not a core latency collapse.
+3) MVP completion removed major blocker/stale pathologies, so the remaining gains are operational and queue-discipline driven.
+
+Primary Hypothesis
+If we maintain sustained 24h completions while keeping retry pressure low and denial/friction bounded, efficiency can return to the historical upper band and stabilize there.
+
+Test22 Success Bands
+Band A (Recovery)
+- Score: >= 40 for 3 consecutive snapshots.
+- completedLast24h: >= 8.
+- retryRate: <= 0.14.
+
+Band B (Operational Target)
+- Score: >= 50 for 5 consecutive snapshots.
+- completedLast24h: >= 10.
+- completionRate: >= 0.60.
+- allowlistDenialRate: <= 0.10.
+
+Band C (Stretch)
+- Score: >= 58 for 3 consecutive snapshots.
+- completedLast24h: >= 12.
+- retryRate: <= 0.10.
+- p95 admission-to-complete: <= 3.5h for fresh tickets.
+
+Band D (Ceiling Claim)
+- Score: >= 60 for 2+ daily windows.
+- No growth in actionable blocked/stale inventory.
+- D2/source-grounding strict audits remain passing.
+
+Test Protocol
+Phase 0: Baseline Lock (Day 0)
+- Run and archive:
+  - npm run metrics:efficiency
+  - npm run metrics:efficiency:weekly
+  - npm run tickets -- metrics
+- Record baseline metrics in notes/report.txt and attach timestamp.
+
+Phase 1: Throughput Refill (Days 1-2)
+- Operate in waves of 5-8 actionable tickets.
+- Keep only one daemon active.
+- Prioritize low-risk fix/update/build tickets with deterministic verification.
+- Stop conditions:
+  - blocked actionable > 5 growth in one wave
+  - retryRate > 0.18
+  - allowlistDenialRate > 0.12
+
+Phase 2: Retry/Denial Burn-down (Days 2-4)
+- Daily top-3 burn-down list:
+  - top deny reason
+  - top retry reason
+  - top supersede reason
+- For each top reason, schedule only remediation tickets until reason frequency drops by >= 30%.
+- Keep broad/multi-surface tickets out of active queue.
+
+Phase 3: Latency Compression For Fresh Cohorts (Days 4-6)
+- Measure latency only on newly admitted tickets in this window.
+- Keep context/cache settings stable for at least two full waves to avoid measurement noise.
+- Enforce queue discipline: no new large batch seeding.
+
+Phase 4: Strict Validation Window (Days 6-7)
+- Daily strict checks:
+  - npm test
+  - npm run lint
+  - npm run build
+  - npm run metrics:efficiency
+  - npm run metrics:source-grounding:audit
+  - npm run metrics:d2:closure
+- If all checks pass and Band B thresholds hold, declare target achieved.
+- If Band C also holds, publish stretch success.
+
+Operating Controls
+1) Active queue cap: 20-35.
+2) Admission wave size: 5-8.
+3) Single-daemon invariant unless intentional scale test.
+4) No retry loops for chronic offenders until envelope/allowlist mismatch is fixed.
+5) Keep policy-integrity gates strict while pushing performance.
+
+Measurement Cadence
+- Every 60-90 minutes during active waves:
+  - efficiency score
+  - completedLast24h
+  - completionRate
+  - retryRate
+  - allowlistDenialRate
+  - actionable blocked/stale counts
+- Daily summary appended to notes/report.txt.
+
+Decision Rules
+1) Continue push when:
+- score trend rises over 3 consecutive snapshots, and
+- retry/denial are flat or declining.
+
+2) Hold and remediate when:
+- score drops for 3 consecutive snapshots, or
+- blocked/stale starts regrowing, or
+- strict source/evidence gates fail.
+
+3) Stop Test22 and re-baseline when:
+- two consecutive daily windows fail strict operational checks, or
+- efficiency remains < 40 after 5 days of controlled waves.
+
+Expected Outcome
+- Most probable outcome: stable 50-58 band with improved reliability and lower retry drag.
+- Best plausible outcome without architectural changes: 60-63.
+- Claiming >65 should require new architecture or major policy/runtime redesign and a separate experiment plan.
+
+Deliverables
+1) notes/efficiency-test22.txt (this plan)
+2) notes/report.txt updates with daily Test22 deltas
+3) Optional closure note: notes/efficiency-test22-results.txt once final band is proven

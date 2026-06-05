@@ -135,3 +135,24 @@ Stage B Closeout (2026-06-02)
 6. Stage B completion decision:
    - promotionReady=true at two consecutive strict passes
    - Hephaestus daemon left running for continued operation
+
+Test22 Snapshot - 2026-06-04T13:07:08.4227296-04:00
+- Run ID: test22-baseline-2026-06-04T130654
+- Mode: baseline
+- Score: 29.586
+- Throughput (last 24h): 7
+- Completion rate: 0.29
+- Retry rate: 0.165
+- Allowlist denial rate: 0
+- Actionable blocked (7 d): 0
+- Stale count: 0
+- Band A: pass=False streak=0/3
+- Band B: pass=False streak=0/5
+- Band C: pass=False streak=0/3
+- Band D: pass=False streak=0/2
+- Review decision: NO-GO
+- Autopilot paused by gates: True
+- Stop reasons: none
+- Top deny reason: command is not allowlisted (37)
+- Top retry reason: cancelled by operator (32)
+- Top supersede reason: implemented in consolidated telemetry-first execution wave (upgrade-tele (128)

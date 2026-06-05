@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-04T15:23:14.619Z",
+  "timestamp": "2026-06-04T17:06:57.442Z",
   "totals": {
     "tickets": 297,
     "attempts": 238,
@@ -101,10 +101,7 @@
   "variance": {
     "sampleCount": 21,
     "alerts": [
-      "throughput variance alert z=2.991",
-      "p95-admission-to-complete-ms variance alert z=2.381",
-      "completion-rate variance alert z=2.05",
-      "efficiency-score variance alert z=4.268"
+      "efficiency-score variance alert z=2.366"
     ],
     "deltas": {
       "completedPerDayDelta": 0,
